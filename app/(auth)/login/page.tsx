@@ -12,8 +12,8 @@ import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 
 const loginSchema = z.object({
-  email: z.string().email({ message: "유효한 이메일 주소를 입력해주세요." }),
-  password: z.string().min(1, { message: "비밀번호를 입력해주세요." }),
+  email: z.string().min(1, { message: "이메일을 입력해주세요." }).email({ message: "유효한 이메일 주소를 입력해주세요." }),
+  password: z.string().min(8, { message: "비밀번호는 최소 8자 이상이어야 합니다." }),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -42,9 +42,10 @@ export default function LoginPage() {
       const { error: signInError } = await signIn(data.email, data.password);
 
       if (signInError) {
-        setToast({ message: signInError.message, type: 'error' });
+        // Handle Supabase errors with Korean messages if possible or just show the error message
+        setToast({ message: "로그인 정보가 올바르지 않습니다.", type: 'error' });
       } else {
-        router.push('/');
+        router.push('/profile/create');
       }
     } catch (err) {
       setToast({ message: "로그인 중 오류가 발생했습니다. 다시 시도해주세요.", type: 'error' });

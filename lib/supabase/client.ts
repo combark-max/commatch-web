@@ -1,10 +1,15 @@
 import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
 
+let supabaseInstance: SupabaseClient | null = null;
+
 /**
- * Creates a Supabase client for use in the browser.
- * Note: This requires the @supabase/supabase-js package to be installed.
+ * Creates or returns a singleton Supabase client for use in the browser.
+ * This prevents "Multiple GoTrueClient instances" warnings and session desync.
  */
 export const createClient = (): SupabaseClient => {
+  // 브라우저 환경에서 이미 인스턴스가 존재하면 기존 인스턴스 반환 (Singleton)
+  if (supabaseInstance) return supabaseInstance;
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -15,5 +20,6 @@ export const createClient = (): SupabaseClient => {
     throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY');
   }
 
-  return createSupabaseClient(supabaseUrl, supabaseAnonKey);
+  supabaseInstance = createSupabaseClient(supabaseUrl, supabaseAnonKey);
+  return supabaseInstance;
 };

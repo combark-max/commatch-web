@@ -6,7 +6,10 @@ import { User, MapPin, Briefcase, Loader2, Search } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 
+import { useRouter } from 'next/navigation';
+
 export default function MembersPage() {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [members, setMembers] = useState<any[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -138,7 +141,7 @@ export default function MembersPage() {
 
                   <Button
                     className="w-full py-3 rounded-2xl font-bold text-sm"
-                    disabled={true}
+                    onClick={() => router.push(`/members/${member.id}`)}
                   >
                     프로필 보기
                   </Button>

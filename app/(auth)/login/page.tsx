@@ -116,7 +116,7 @@ export default function LoginPage() {
 
           <div className="flex items-center justify-between">
             <div className="text-sm">
-              <Link href="/forgot-password" size="sm" className="font-medium text-green-600 hover:text-green-700 transition-colors">
+              <Link href="/forgot-password" className="font-medium text-green-600 hover:text-green-700 transition-colors">
                 비밀번호를 잊으셨나요?
               </Link>
             </div>

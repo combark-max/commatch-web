@@ -12,7 +12,9 @@ import { createClient } from '@/lib/supabase/client';
 
 const profileSchema = z.object({
   nickname: z.string().min(2, { message: "닉네임은 최소 2자 이상이어야 합니다." }),
-  gender: z.enum(['남성', '여성'], { required_error: "성별을 선택해주세요." }),
+  gender: z.enum(['남성', '여성']).refine((value) => value !== undefined, {
+    message: "성별을 선택해주세요.",
+  }),
   birth_date: z.string().min(1, { message: "생년월일을 입력해주세요." }),
   height: z.string().min(1, { message: "키를 입력해주세요." }),
   region: z.string().min(1, { message: "거주지역을 선택해주세요." }),

@@ -16,11 +16,11 @@ const signupSchema = z.object({
   password: z.string()
     .min(8, { message: "비밀번호는 최소 8자 이상이어야 합니다." }),
   confirmPassword: z.string(),
-  terms: z.literal(true, {
-    errorMap: () => ({ message: "이용약관에 동의해야 합니다." }),
+  terms: z.boolean().refine((value) => value, {
+    message: "이용약관에 동의해야 합니다.",
   }),
-  privacy: z.literal(true, {
-    errorMap: () => ({ message: "개인정보 처리방침에 동의해야 합니다." }),
+  privacy: z.boolean().refine((value) => value, {
+    message: "개인정보 처리방침에 동의해야 합니다.",
   }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "비밀번호가 일치하지 않습니다.",

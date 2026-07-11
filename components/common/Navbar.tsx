@@ -18,9 +18,9 @@ const Navbar = () => {
             <Link href="#about" className="text-gray-600 hover:text-green-600 transition-colors">
               서비스 소개
             </Link>
-            <Button>
-              무료로 시작하기
-            </Button>
+            <Link href="/login" className="text-gray-600 hover:text-green-600 transition-colors font-semibold">
+              로그인
+            </Link>
           </div>
           <div className="md:hidden">
             <button className="text-gray-600">

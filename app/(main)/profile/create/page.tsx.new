@@ -10,9 +10,7 @@ import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 import DashboardNavigation from '@/components/common/DashboardNavigation';
 import { createClient } from '@/lib/supabase/client';
-import { getProfileImageUrl, normalizeProfileImagePath } from '@/lib/profile-image';
-import { normalizeRegion, PROFILE_REGIONS } from '@/constants/regions';
-import { PROFILE_JOBS, STANDARD_JOB_VALUES } from '@/constants/jobs';
+import { normalizeProfileImagePath, getProfileImageUrl } from '@/lib/profile-image';
 
 const profileSchema = z.object({
   nickname: z.string().min(2, { message: "닉네임은 최소 2자 이상이어야 합니다." }),
@@ -22,21 +20,12 @@ const profileSchema = z.object({
   birth_date: z.string().min(1, { message: "생년월일을 입력해주세요." }),
   height: z.string().min(1, { message: "키를 입력해주세요." }),
   region: z.string().min(1, { message: "거주지역을 선택해주세요." }),
-  job: z.string().min(1, { message: "직업을 선택해주세요." }),
-  job_other: z.string().optional(),
+  job: z.string().min(1, { message: "직업을 입력해주세요." }),
   education: z.string().min(1, { message: "학력을 선택해주세요." }),
   religion: z.string().min(1, { message: "종교를 선택해주세요." }),
   hobby: z.string().min(1, { message: "취미를 입력해주세요." }),
   drinking: z.string().min(1, { message: "음주 여부를 선택해주세요." }),
   introduction: z.string().min(10, { message: "한줄소개는 최소 10자 이상 작성해주세요." }),
-}).superRefine((data, context) => {
-  if (data.job === '기타' && !data.job_other?.trim()) {
-    context.addIssue({
-      code: 'custom',
-      path: ['job_other'],
-      message: '기타 직업을 입력해주세요.',
-    });
-  }
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -60,10 +49,15 @@ export default function ProfileCreatePage() {
   const [isFetchingProfile, setIsFetchingProfile] = useState(true);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDeletingImage, setIsDeletingImage] = useState(false);
+  
+  // 저장된 사진 상태
   const [storedImagePath, setStoredImagePath] = useState<string | null>(null);
   const [storedImageUrl, setStoredImageUrl] = useState<string | null>(null);
+  
+  // 새로 선택한 파일 상태
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -80,7 +74,6 @@ export default function ProfileCreatePage() {
     defaultValues: {
       nickname: "",
       job: "",
-      job_other: "",
       introduction: "",
       height: "",
       hobby: "",
@@ -88,14 +81,99 @@ export default function ProfileCreatePage() {
   });
 
   const selectedGender = watch("gender");
-  const selectedJob = watch("job");
-  const displayImageUrl = previewUrl ?? storedImageUrl;
 
-  const clearSelectedImage = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setSelectedFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  // 현재 표시할 이미지 (새 미리보기 또는 저장된 이미지)
+  const displayImageUrl = previewUrl || storedImageUrl;
+  const hasStoredImage = storedImagePath !== null;
+  const hasSelectedFile = selectedFile !== null;
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('jpg, jpeg, png, webp 형식의 이미지만 업로드할 수 있습니다.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('이미지 크기는 5MB 이하만 가능합니다.');
+      return;
+    }
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user?.id) {
+        setUploadError('로그인이 필요합니다.');
+        return;
+      }
+
+      setIsUploadingImage(true);
+      setUploadError(null);
+
+      const bucketName = 'profile_images';
+      const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const filePath = `${user.id}/profile-${Date.now()}.${fileExtension}`;
+
+      // Storage에 파일 업로드
+      const { error: uploadError } = await supabase.storage.from(bucketName).upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+      if (uploadError) {
+        logSupabaseError('프로필 이미지 업로드 실패:', uploadError);
+        throw uploadError;
+      }
+
+      // 업로드 성공: DB에 상대 경로만 저장
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ profile_image: filePath })
+        .eq('id', user.id);
+
+      if (updateError) {
+        logSupabaseError('프로필 이미지 DB 저장 실패:', updateError);
+        setUploadError('프로필 사진 저장에 실패했습니다.');
+        setToast({ message: '프로필 사진 저장에 실패했습니다.', type: 'error' });
+        setIsUploadingImage(false);
+        if (event.target) {
+          event.target.value = '';
+        }
+        return;
+      }
+
+      // DB 저장 성공: 상태 업데이트
+      setStoredImagePath(filePath);
+      const publicUrl = getProfileImageUrl(filePath);
+      setStoredImageUrl(publicUrl);
+      
+      // 미리보기 초기화
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      setPreviewUrl(null);
+      setSelectedFile(null);
+
+      setToast({ message: '프로필 사진이 업로드되었습니다.', type: 'success' });
+    } catch (error: unknown) {
+      logSupabaseError('프로필 이미지 업로드 실패:', error);
+      setUploadError('프로필 사진 업로드에 실패했습니다. Storage 설정을 확인해주세요.');
+      setToast({ message: '프로필 사진 업로드에 실패했습니다.', type: 'error' });
+    } finally {
+      setIsUploadingImage(false);
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
   };
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,14 +194,15 @@ export default function ProfileCreatePage() {
       return;
     }
 
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    const nextPreviewUrl = URL.createObjectURL(file);
-    setSelectedFile(file);
-    setPreviewUrl(nextPreviewUrl);
-    setUploadError(null);
+    // 파일 선택 후 바로 업로드 트리거
+    handleImageUpload(event);
   };
 
-  const performImageDelete = async () => {
+  const handleDeleteProfileImage = async () => {
+    if (!confirm('프로필 사진을 삭제하시겠습니까?')) {
+      return;
+    }
+
     try {
       const {
         data: { user },
@@ -135,27 +214,32 @@ export default function ProfileCreatePage() {
         return;
       }
 
-      setIsDeletingImage(true);
-
-      if (selectedFile) {
-        clearSelectedImage();
+      // 새로 선택한 파일만 있고 아직 저장하지 않은 경우
+      if (hasSelectedFile && !hasStoredImage) {
+        // Storage와 DB를 건드리지 않고 선택 파일만 제거
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+        }
+        setPreviewUrl(null);
+        setSelectedFile(null);
         setToast({ message: '선택된 사진이 취소되었습니다.', type: 'success' });
-        setIsDeletingImage(false);
         return;
       }
 
-      // 기존 저장된 사진이 있는 경우
-      if (storedImagePath) {
+      // 저장된 사진이 있는 경우
+      if (hasStoredImage && storedImagePath) {
+        setIsDeletingImage(true);
+
         const bucketName = 'profile_images';
 
         // Storage에서 파일 삭제
-        const { error: deleteError } = await supabase.storage.from(bucketName).remove([storedImagePath]);
+        const { error: deleteError } = await supabase.storage
+          .from(bucketName)
+          .remove([storedImagePath]);
 
         if (deleteError) {
           // 파일이 없는 경우는 무시하고 DB는 정리 (404 에러)
-          if (deleteError.message && deleteError.message.includes('not found')) {
-            // 파일 없음 - DB만 정리
-          } else {
+          if (!deleteError.message?.includes('not found')) {
             logSupabaseError('프로필 이미지 Storage 삭제 실패:', deleteError);
             setToast({ message: '프로필 사진 삭제에 실패했습니다.', type: 'error' });
             setIsDeletingImage(false);
@@ -163,7 +247,7 @@ export default function ProfileCreatePage() {
           }
         }
 
-        // DB에서 profile_image를 null로 변경
+        // Storage 삭제 성공 후 DB에서 profile_image를 null로 변경
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ profile_image: null })
@@ -176,10 +260,15 @@ export default function ProfileCreatePage() {
           return;
         }
 
-        // UI 업데이트
+        // 상태 초기화
         setStoredImagePath(null);
         setStoredImageUrl(null);
-        clearSelectedImage();
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+        }
+        setPreviewUrl(null);
+        setSelectedFile(null);
+        
         setToast({ message: '프로필 사진이 삭제되었습니다.', type: 'success' });
       }
     } catch (error: unknown) {
@@ -190,14 +279,6 @@ export default function ProfileCreatePage() {
     }
   };
 
-  const handleDeleteProfileImage = () => {
-    if (!confirm('프로필 사진을 삭제하시겠습니까?')) {
-      return;
-    }
-
-    performImageDelete();
-  };
-
   useEffect(() => {
     const loadProfile = async () => {
       setIsFetchingProfile(true);
@@ -205,48 +286,31 @@ export default function ProfileCreatePage() {
         const { data: { user } } = await supabase.auth.getUser();
 
         if (!user?.id) {
-          router.replace('/login');
           setIsFetchingProfile(false);
           return;
         }
 
-        let profileData: Record<string, unknown> | null = null;
-        let profileError: unknown = null;
+        const result = await supabase
+          .from('profiles')
+          .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction, profile_image')
+          .eq('id', user.id)
+          .maybeSingle();
 
-        try {
-          const result = await supabase
-            .from('profiles')
-            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction, profile_image')
-            .eq('id', user.id)
-            .maybeSingle();
-
-          profileData = result.data as Record<string, unknown> | null;
-          profileError = result.error;
-        } catch (error) {
-          profileError = error;
-        }
+        const profileData = result.data as Record<string, unknown> | null;
+        const profileError = result.error;
 
         if (profileError) {
-          const fallbackResult = await supabase
-            .from('profiles')
-            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction')
-            .eq('id', user.id)
-            .maybeSingle();
-
-          profileData = fallbackResult.data as Record<string, unknown> | null;
+          console.error('프로필 조회 실패:', profileError);
         }
 
         if (profileData) {
-          const existingJob = (profileData.job as string | null) ?? '';
-          const isStandardJob = (STANDARD_JOB_VALUES as readonly string[]).includes(existingJob);
           reset({
             nickname: (profileData.nickname as string | null) ?? '',
             gender: profileData.gender as '남성' | '여성',
             birth_date: (profileData.birth_date as string | null) ?? '',
             height: profileData.height ? String(profileData.height) : '',
-            region: normalizeRegion(profileData.region as string | null),
-            job: existingJob ? (isStandardJob ? existingJob : '기타') : '',
-            job_other: existingJob && !isStandardJob ? existingJob : '',
+            region: (profileData.region as string | null) ?? '',
+            job: (profileData.job as string | null) ?? '',
             education: (profileData.education as string | null) ?? '',
             religion: (profileData.religion as string | null) ?? '',
             hobby: (profileData.hobby as string | null) ?? '',
@@ -254,115 +318,70 @@ export default function ProfileCreatePage() {
             introduction: (profileData.introduction as string | null) ?? '',
           });
 
-          if (typeof profileData.profile_image === 'string') {
-            const imagePath = normalizeProfileImagePath(profileData.profile_image);
-            setStoredImagePath(imagePath);
-            setStoredImageUrl(getProfileImageUrl(imagePath));
-          } else {
-            setStoredImagePath(null);
-            setStoredImageUrl(null);
+          // profile_image 처리
+          if (typeof profileData.profile_image === 'string' && profileData.profile_image) {
+            // 기존 전체 URL 데이터 호환 처리
+            const normalizedPath = normalizeProfileImagePath(profileData.profile_image);
+            if (normalizedPath) {
+              setStoredImagePath(normalizedPath);
+              const publicUrl = getProfileImageUrl(normalizedPath);
+              setStoredImageUrl(publicUrl);
+            }
           }
         }
       } catch (error) {
-        console.error('프로필 조회 실패:', error);
+        console.error('프로필 조회 중 오류:', error);
       } finally {
         setIsFetchingProfile(false);
       }
     };
 
     loadProfile();
-  }, [reset, router, supabase]);
+  }, [reset, supabase]);
 
   const onSubmit = async (data: ProfileFormValues) => {
     setIsLoading(true);
-    let uploadedFilePath: string | null = null;
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
 
-      if (userError || !user) {
+      if (!user) {
         setToast({ message: "로그인이 필요합니다.", type: 'error' });
         return;
       }
 
-      if (selectedFile) {
-        setIsUploadingImage(true);
-        const fileExtension = selectedFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-        uploadedFilePath = `${user.id}/profile-${Date.now()}.${fileExtension}`;
-
-        const { error: imageUploadError } = await supabase.storage
-          .from('profile_images')
-          .upload(uploadedFilePath, selectedFile, {
-            cacheControl: '3600',
-            upsert: true,
-          });
-
-        if (imageUploadError) {
-          logSupabaseError('프로필 이미지 업로드 실패:', imageUploadError);
-          setToast({ message: '프로필 사진 업로드에 실패했습니다.', type: 'error' });
-          return;
-        }
-      }
-
-      const finalJob = data.job === '기타' ? data.job_other?.trim() ?? '' : data.job;
-      const profileData = {
-        id: user.id,
-        nickname: data.nickname,
-        gender: data.gender,
-        birth_date: data.birth_date,
-        height: parseInt(data.height, 10),
-        region: data.region,
-        job: finalJob,
-        education: data.education,
-        religion: data.religion,
-        hobby: data.hobby,
-        drinking: data.drinking,
-        introduction: data.introduction,
-        profile_image: uploadedFilePath ?? storedImagePath ?? null,
-      };
-
-      const { data: savedProfile, error } = await supabase
+      // profile_image는 storedImagePath만 저장 (새 파일을 업로드했으면 이미 저장됨)
+      const { error } = await supabase
         .from('profiles')
-        .upsert(profileData, { onConflict: 'id' })
-        .select('profile_image')
-        .single();
+        .upsert({
+          id: user.id,
+          nickname: data.nickname,
+          gender: data.gender,
+          birth_date: data.birth_date,
+          height: parseInt(data.height, 10),
+          region: data.region,
+          job: data.job,
+          education: data.education,
+          religion: data.religion,
+          hobby: data.hobby,
+          drinking: data.drinking,
+          introduction: data.introduction,
+          // profile_image는 이미 업로드 시 저장되었으므로, 수정 때는 기존 값 유지
+          ...(storedImagePath !== undefined && { profile_image: storedImagePath }),
+        }, { onConflict: 'id' });
 
       if (error) {
-        console.error('프로필 저장 실패:', {
-          code: error.code ?? null,
-          message: error.message ?? null,
-          details: error.details ?? null,
-          hint: error.hint ?? null,
-          data: savedProfile,
-        });
-
-        if (uploadedFilePath) {
-          const { error: cleanupError } = await supabase.storage
-            .from('profile_images')
-            .remove([uploadedFilePath]);
-          if (cleanupError) logSupabaseError('업로드된 프로필 이미지 정리 실패:', cleanupError);
-        }
-
-        setToast({ message: '프로필 저장에 실패했습니다. 다시 시도해주세요.', type: 'error' });
-        return;
+        logSupabaseError('프로필 저장 실패:', error);
+        setToast({ message: `저장 실패: ${error.message}`, type: 'error' });
+      } else {
+        setToast({ message: "프로필이 성공적으로 저장되었습니다.", type: 'success' });
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 1500);
       }
-
-      const savedImagePath = normalizeProfileImagePath(savedProfile.profile_image);
-      setStoredImagePath(savedImagePath);
-      setStoredImageUrl(getProfileImageUrl(savedImagePath));
-      clearSelectedImage();
-      setToast({ message: "프로필이 성공적으로 저장되었습니다.", type: 'success' });
-      setTimeout(() => router.push('/dashboard'), 1500);
     } catch (err) {
       logSupabaseError('프로필 저장 중 예외 발생:', err);
-      if (uploadedFilePath) {
-        const { error: cleanupError } = await supabase.storage
-          .from('profile_images')
-          .remove([uploadedFilePath]);
-        if (cleanupError) logSupabaseError('업로드된 프로필 이미지 정리 실패:', cleanupError);
-      }
       setToast({ message: "프로필 저장 중 오류가 발생했습니다.", type: 'error' });
     } finally {
-      setIsUploadingImage(false);
       setIsLoading(false);
     }
   };
@@ -422,7 +441,7 @@ export default function ProfileCreatePage() {
               >
                 사진 선택
               </button>
-              {(storedImagePath || selectedFile) && (
+              {(hasStoredImage || hasSelectedFile) && (
                 <button
                   type="button"
                   onClick={handleDeleteProfileImage}
@@ -522,9 +541,10 @@ export default function ProfileCreatePage() {
                 className={`w-full px-4 py-2.5 border ${errors.region ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
               >
                 <option value="">지역 선택</option>
-                {PROFILE_REGIONS.map((region) => (
-                  <option key={region} value={region}>{region}</option>
-                ))}
+                <option value="서울">서울</option>
+                <option value="경기">경기</option>
+                <option value="인천">인천</option>
+                <option value="기타">기타</option>
               </select>
               {errors.region && <p className="mt-1 text-xs text-red-500">{errors.region.message}</p>}
             </div>
@@ -535,27 +555,13 @@ export default function ProfileCreatePage() {
                 <Briefcase size={16} className="mr-2 text-[#16a34a]" />
                 직업
               </label>
-              <select
+              <input
                 {...register("job")}
+                type="text"
+                placeholder="현재 직업을 입력하세요"
                 className={`w-full px-4 py-2.5 border ${errors.job ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
-              >
-                <option value="">직업을 선택해주세요</option>
-                {PROFILE_JOBS.map((job) => (
-                  <option key={job} value={job}>{job}</option>
-                ))}
-              </select>
+              />
               {errors.job && <p className="mt-1 text-xs text-red-500">{errors.job.message}</p>}
-              {selectedJob === '기타' ? (
-                <div className="mt-3">
-                  <input
-                    {...register('job_other')}
-                    type="text"
-                    placeholder="기타 직업을 입력해주세요"
-                    className={`w-full px-4 py-2.5 border ${errors.job_other ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
-                  />
-                  {errors.job_other && <p className="mt-1 text-xs text-red-500">{errors.job_other.message}</p>}
-                </div>
-              ) : null}
             </div>
 
             {/* 8. Education */}

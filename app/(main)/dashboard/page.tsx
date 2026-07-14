@@ -18,6 +18,12 @@ const menuItems = [
     path: "/members"
   },
   {
+    title: "관심회원 ❤️",
+    description: "관심 회원 관리",
+    color: "bg-rose-50 text-rose-600",
+    path: "/favorites"
+  },
+  {
     title: "내 프로필 👤",
     description: "프로필 수정",
     color: "bg-purple-50 text-purple-600",

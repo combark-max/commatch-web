@@ -1,17 +1,20 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Heart, Users, Calendar, MapPin, Ruler, Briefcase, Quote, Loader2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { JOBS } from "@/constants/jobs";
 import { REGIONS } from "@/constants/regions";
+import DashboardNavigation from '@/components/common/DashboardNavigation';
 
 export default function PreferencePage() {
   // 컴포넌트 내부에서 매번 클라이언트를 생성하지 않도록 useMemo 사용 또는 안정화
   const supabase = useMemo(() => createClient(), []);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingPreferences, setIsFetchingPreferences] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // State integration
   const [preferredGender, setPreferredGender] = useState("");
@@ -23,26 +26,62 @@ export default function PreferencePage() {
   const [preferredRegion, setPreferredRegion] = useState("");
   const [introduction, setIntroduction] = useState("");
 
+  useEffect(() => {
+    const loadPreferences = async () => {
+      setIsFetchingPreferences(true);
+      setError(null);
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user?.id) {
+          setError('로그인이 필요합니다.');
+          return;
+        }
+
+        const { data, error: preferenceError } = await supabase
+          .from('preferences')
+          .select('preferred_gender, age_min, age_max, height_min, height_max, preferred_job, preferred_region, introduction')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (preferenceError) {
+          throw preferenceError;
+        }
+
+        if (data) {
+          setPreferredGender(data.preferred_gender ?? '');
+          setAgeMin(data.age_min ? String(data.age_min) : '');
+          setAgeMax(data.age_max ? String(data.age_max) : '');
+          setHeightMin(data.height_min ? String(data.height_min) : '');
+          setHeightMax(data.height_max ? String(data.height_max) : '');
+          setPreferredJob(data.preferred_job ?? '');
+          setPreferredRegion(data.preferred_region ?? '');
+          setIntroduction(data.introduction ?? '');
+        }
+      } catch (error) {
+        console.error('이상형 조회 실패:', error);
+        setError('이상형 정보를 불러오는 중 오류가 발생했습니다.');
+      } finally {
+        setIsFetchingPreferences(false);
+      }
+    };
+
+    loadPreferences();
+  }, [supabase]);
+
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      // 1. 현재 로그인한 사용자 가져오기
-      // getUser()는 서버에 세션을 확인하므로 가장 확실하지만,
-      // 클라이언트 측에서는 getSession()을 통해 현재 메모리/스토리지의 세션을 먼저 확인할 수도 있습니다.
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      console.log("Current User:", user);
-
-      const { data: session } = await supabase.auth.getSession();
-      console.log("Current Session:", session);
 
       if (!user) {
-        alert("로그인이 필요합니다.");
+        setError('로그인이 필요합니다.');
         return;
       }
 
-      // 2. preferences 테이블에 upsert 수행
       const result = await supabase.from("preferences").upsert(
         {
           user_id: user.id,
@@ -62,24 +101,33 @@ export default function PreferencePage() {
       console.log("Upsert Result:", result);
 
       if (error) {
-        console.log("Supabase Error:", JSON.stringify(error, null, 2));
-        console.dir(error);
-        alert("저장에 실패했습니다.");
+        throw error;
       } else {
-        alert("이상형 설정이 저장되었습니다.");
+        setError(null);
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 500);
       }
     } catch (error) {
-      console.log("Catch Error:", JSON.stringify(error, null, 2));
-      console.dir(error);
-      alert("저장에 실패했습니다.");
+      console.error('이상형 저장 실패:', error);
+      setError('저장에 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  if (isFetchingPreferences) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4">
+        <Loader2 className="mb-4 h-10 w-10 animate-spin text-[#16a34a]" />
+        <p className="font-medium text-gray-500">이상형 정보를 불러오는 중...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
+      <div className="mx-auto max-w-2xl">
         <div className="text-center mb-10">
           <div className="flex justify-center mb-4">
             <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center">
@@ -230,6 +278,12 @@ export default function PreferencePage() {
             ></textarea>
           </div>
 
+          {error ? (
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-600">
+              {error}
+            </div>
+          ) : null}
+
           <div className="pt-6">
             <Button type="submit" className="w-full py-4 text-lg font-bold" disabled={isLoading}>
               {isLoading ? (
@@ -238,11 +292,13 @@ export default function PreferencePage() {
                   저장 중...
                 </>
               ) : (
-                "저장하기"
+                "수정하기"
               )}
             </Button>
           </div>
         </form>
+
+        <DashboardNavigation />
       </div>
     </div>
   );

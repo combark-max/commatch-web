@@ -6,10 +6,11 @@ const supabase = createClient();
 /**
  * Signs up a new user with email and password.
  */
-export const signUp = async (email: string, password: string): Promise<AuthResponse> => {
+export const signUp = async (email: string, password: string, emailRedirectTo?: string): Promise<AuthResponse> => {
   return await supabase.auth.signUp({
     email,
     password,
+    options: emailRedirectTo ? { emailRedirectTo } : undefined,
   });
 };
 

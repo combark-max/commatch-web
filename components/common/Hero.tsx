@@ -14,7 +14,7 @@ const Hero = () => {
           지금 바로 ComMatch에서 새로운 만남을 시작해보세요.
         </p>
         <div className="flex flex-col sm:flex-row justify-center gap-4">
-          <Link href="/login" className="w-full sm:w-auto">
+          <Link href="/signup" className="w-full sm:w-auto">
             <Button size="lg" className="w-full">
               무료로 시작하기
             </Button>

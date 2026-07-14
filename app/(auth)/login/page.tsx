@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Mail, Lock, LogIn, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import { signIn } from '@/lib/auth/auth';
+import { createClient } from '@/lib/supabase/client';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 
@@ -20,6 +21,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const supabase = createClient();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
@@ -42,12 +44,29 @@ export default function LoginPage() {
       const { error: signInError } = await signIn(data.email, data.password);
 
       if (signInError) {
-        // Handle Supabase errors with Korean messages if possible or just show the error message
         setToast({ message: "로그인 정보가 올바르지 않습니다.", type: 'error' });
       } else {
-        router.push('/profile/create');
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !user?.id) {
+          setToast({ message: "로그인 처리 중 오류가 발생했습니다.", type: 'error' });
+          return;
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profileError) {
+          setToast({ message: "프로필 정보를 확인하는 중 오류가 발생했습니다.", type: 'error' });
+          return;
+        }
+
+        router.push(profile ? '/dashboard' : '/profile/create');
       }
-    } catch (err) {
+    } catch {
       setToast({ message: "로그인 중 오류가 발생했습니다. 다시 시도해주세요.", type: 'error' });
     } finally {
       setIsLoading(false);
@@ -114,12 +133,14 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <Link href="/forgot-password" className="font-medium text-green-600 hover:text-green-700 transition-colors">
-                비밀번호를 잊으셨나요?
-              </Link>
-            </div>
+          <div className="flex items-center justify-center gap-4 text-sm">
+            <Link href="/find-email" className="font-medium text-green-600 transition-colors hover:text-green-700">
+              가입 이메일 찾기
+            </Link>
+            <span className="text-gray-300">|</span>
+            <Link href="/forgot-password" className="font-medium text-green-600 transition-colors hover:text-green-700">
+              비밀번호 재설정
+            </Link>
           </div>
 
           <Button

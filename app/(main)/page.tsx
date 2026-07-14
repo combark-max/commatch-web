@@ -1,4 +1,3 @@
-import Navbar from "@/components/common/Navbar";
 import Hero from "@/components/common/Hero";
 import Features from "@/components/common/Features";
 import Footer from "@/components/common/Footer";
@@ -6,7 +5,6 @@ import Footer from "@/components/common/Footer";
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Navbar />
       <main className="flex-grow">
         <Hero />
         <Features />

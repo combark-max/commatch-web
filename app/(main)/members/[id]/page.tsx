@@ -3,11 +3,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { resolveProfileImageUrl } from '@/lib/profile-image';
 import {
   User, MapPin, Briefcase, GraduationCap,
-  Church, Palette, Ruler, Quote, Loader2
+  Church, Palette, Ruler, Quote, Heart, Loader2
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import DashboardNavigation from '@/components/common/DashboardNavigation';
+import ImageModal from '@/components/common/ImageModal';
 
 type MemberProfile = {
   id: string;
@@ -22,6 +25,7 @@ type MemberProfile = {
   religion: string | null;
   hobby: string | null;
   drinking: string | null;
+  profile_image?: string | null;
 };
 
 export default function MemberDetailPage() {
@@ -29,6 +33,12 @@ export default function MemberDetailPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [member, setMember] = useState<MemberProfile | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
+  const [favoriteError, setFavoriteError] = useState<string | null>(null);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [hasProfileImageError, setHasProfileImageError] = useState(false);
   const supabase = createClient();
 
   const memberId = useMemo(() => {
@@ -46,10 +56,13 @@ export default function MemberDetailPage() {
       }
 
       setIsLoading(true);
+      setFavoriteError(null);
+      setIsImageModalOpen(false);
+      setHasProfileImageError(false);
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, nickname, birth_date, gender, height, job, region, introduction, education, religion, hobby, drinking')
+          .select('id, nickname, birth_date, gender, height, job, region, introduction, education, religion, hobby, drinking, profile_image')
           .eq('id', memberId)
           .maybeSingle();
 
@@ -57,7 +70,43 @@ export default function MemberDetailPage() {
           console.error('회원 정보 조회 실패:', error);
           setMember(null);
         } else {
-          setMember(data as MemberProfile | null);
+          const profile = data as MemberProfile | null;
+          setMember(profile ? {
+            ...profile,
+            profile_image: resolveProfileImageUrl(profile.profile_image ?? null),
+          } : null);
+        }
+
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user?.id) {
+          router.replace('/login');
+          return;
+        }
+
+        setCurrentUserId(user.id);
+        if (user.id !== memberId) {
+          const { data: favoriteRows, error: favoriteError } = await supabase
+            .from('favorites')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('favorite_user_id', memberId)
+            .maybeSingle();
+
+          if (favoriteError) {
+            console.error('관심회원 상태 조회 실패:', {
+              code: favoriteError.code ?? null,
+              message: favoriteError.message ?? null,
+              details: favoriteError.details ?? null,
+              hint: favoriteError.hint ?? null,
+            });
+            setFavoriteError('관심회원 상태를 불러오지 못했습니다.');
+          } else {
+            setIsFavorite(Boolean(favoriteRows));
+          }
         }
       } catch (error) {
         console.error('데이터 fetching 중 오류:', error);
@@ -68,7 +117,7 @@ export default function MemberDetailPage() {
     };
 
     fetchMember();
-  }, [memberId, supabase]);
+  }, [memberId, router, supabase]);
 
   const calculateAge = (birthDate: string | null | undefined) => {
     if (!birthDate) return '';
@@ -83,6 +132,66 @@ export default function MemberDetailPage() {
     }
 
     return `${age}세`;
+  };
+
+  const handleFavoriteToggle = async () => {
+    if (!memberId || isTogglingFavorite || currentUserId === memberId) return;
+
+    setIsTogglingFavorite(true);
+    setFavoriteError(null);
+    const previousFavorite = isFavorite;
+    setIsFavorite(!previousFavorite);
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user?.id) {
+        setIsFavorite(previousFavorite);
+        setFavoriteError('로그인이 필요합니다.');
+        router.replace('/login');
+        return;
+      }
+
+      if (previousFavorite) {
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('favorite_user_id', memberId);
+
+        if (error) {
+          throw error;
+        }
+      } else {
+        const { error } = await supabase.from('favorites').insert({
+          user_id: user.id,
+          favorite_user_id: memberId,
+        });
+
+        if (error) {
+          throw error;
+        }
+      }
+    } catch (error: unknown) {
+      const supabaseError = error as { code?: string; message?: string; details?: string; hint?: string };
+      if (!previousFavorite && supabaseError.code === '23505') {
+        setIsFavorite(true);
+        return;
+      }
+      setIsFavorite(previousFavorite);
+      console.error('관심회원 토글 실패:', {
+        code: supabaseError.code ?? null,
+        message: supabaseError.message ?? null,
+        details: supabaseError.details ?? null,
+        hint: supabaseError.hint ?? null,
+      });
+      setFavoriteError('관심회원 처리에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsTogglingFavorite(false);
+    }
   };
 
   if (isLoading) {
@@ -121,6 +230,12 @@ export default function MemberDetailPage() {
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex items-center justify-between">
           <button
+            onClick={() => router.push('/dashboard')}
+            className="flex items-center text-sm font-semibold text-gray-500 transition-colors hover:text-gray-900"
+          >
+            <span>← Dashboard</span>
+          </button>
+          <button
             onClick={() => router.push('/members')}
             className="flex items-center text-sm font-semibold text-gray-500 transition-colors hover:text-gray-900"
           >
@@ -130,8 +245,29 @@ export default function MemberDetailPage() {
 
         <div className="overflow-hidden rounded-[2.5rem] border border-gray-100 bg-white shadow-xl">
           <div className="relative flex h-64 items-center justify-center border-b border-gray-50 bg-[#f0fdf4]">
-            <div className="flex h-32 w-32 items-center justify-center rounded-full border-4 border-white bg-white text-gray-300 shadow-md">
-              <User size={64} strokeWidth={1.5} />
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white text-gray-300 shadow-md">
+              {member.profile_image && !hasProfileImageError ? (
+                <button
+                  type="button"
+                  aria-label={`${member.nickname ?? '회원'} 프로필 사진 크게 보기`}
+                  onClick={() => setIsImageModalOpen(true)}
+                  className="h-full w-full cursor-pointer overflow-hidden rounded-full focus:outline-none focus:ring-4 focus:ring-green-300"
+                >
+                  <img
+                    src={member.profile_image}
+                    alt={member.nickname ?? '프로필 이미지'}
+                    onError={() => setHasProfileImageError(true)}
+                    className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                  />
+                </button>
+              ) : (
+                <User size={64} strokeWidth={1.5} />
+              )}
+              </div>
+              {member.profile_image && !hasProfileImageError ? (
+                <p className="text-xs font-medium text-gray-500">사진을 클릭하면 크게 볼 수 있습니다.</p>
+              ) : null}
             </div>
             <div className="absolute right-6 top-6">
               <span className="rounded-full bg-green-600 px-4 py-2 text-xs font-bold text-white shadow-lg">
@@ -161,9 +297,14 @@ export default function MemberDetailPage() {
                 >
                   회원목록으로
                 </Button>
-                <Button className="rounded-2xl px-6 py-3 text-sm font-bold">
-                  관심회원 추가
-                </Button>
+                {currentUserId !== member.id ? <Button
+                  className="rounded-2xl px-6 py-3 text-sm font-bold"
+                  onClick={handleFavoriteToggle}
+                  disabled={isTogglingFavorite}
+                >
+                  <Heart className="mr-2 h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
+                  {isTogglingFavorite ? '처리 중...' : isFavorite ? '관심회원 해제' : '관심회원 추가'}
+                </Button> : null}
               </div>
             </div>
 
@@ -177,6 +318,12 @@ export default function MemberDetailPage() {
               <InfoItem icon={<MapPin size={20} />} label="지역" value={member.region} />
               <InfoItem icon={<User size={20} />} label="음주" value={member.drinking} />
             </div>
+
+            {favoriteError ? (
+              <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-600">
+                {favoriteError}
+              </div>
+            ) : null}
 
             <div className="relative rounded-[2rem] bg-gray-50 p-8 md:p-10">
               <Quote className="absolute left-6 top-6 -z-0 h-12 w-12 text-green-200" />
@@ -192,7 +339,15 @@ export default function MemberDetailPage() {
             </div>
           </div>
         </div>
+
+        <DashboardNavigation />
       </div>
+      <ImageModal
+        isOpen={isImageModalOpen}
+        imageUrl={member.profile_image ?? null}
+        alt={`${member.nickname ?? '회원'} 프로필 사진`}
+        onClose={() => setIsImageModalOpen(false)}
+      />
     </div>
   );
 }

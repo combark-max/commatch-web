@@ -1,4 +1,5 @@
-import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -20,6 +21,6 @@ export const createClient = (): SupabaseClient => {
     throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY');
   }
 
-  supabaseInstance = createSupabaseClient(supabaseUrl, supabaseAnonKey);
+  supabaseInstance = createBrowserClient(supabaseUrl, supabaseAnonKey);
   return supabaseInstance;
 };

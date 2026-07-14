@@ -65,14 +65,21 @@ export default function SignupPage() {
   const onSubmit = async (data: SignupFormValues) => {
     setIsLoading(true);
     try {
-      const { error: signUpError } = await signUp(data.email, data.password);
+      if (data.password !== data.confirmPassword) {
+        setToast({ message: '비밀번호가 일치하지 않습니다.', type: 'error' });
+        return;
+      }
+
+      const emailRedirectTo = `${window.location.origin}/auth/callback?next=/profile/create`;
+      const { error: signUpError } = await signUp(data.email, data.password, emailRedirectTo);
 
       if (signUpError) {
         setToast({ message: signUpError.message, type: 'error' });
       } else {
-        router.push('/verify-email');
+        sessionStorage.setItem('commatch.pendingEmail', data.email);
+        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
       }
-    } catch (err) {
+    } catch {
       setToast({ message: "회원가입 중 오류가 발생했습니다. 다시 시도해주세요.", type: 'error' });
     } finally {
       setIsLoading(false);
@@ -123,7 +130,7 @@ export default function SignupPage() {
                   placeholder="example@email.com"
                 />
               </div>
-              {errors.email && <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {errors.email.message}</p>}
+              {errors.email && <p role="alert" className="mt-1.5 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {errors.email.message}</p>}
             </div>
 
             {/* Password Field */}
@@ -164,7 +171,7 @@ export default function SignupPage() {
                 </div>
               )}
 
-              {errors.password && <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {errors.password.message}</p>}
+              {errors.password && <p role="alert" className="mt-1.5 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {errors.password.message}</p>}
             </div>
 
             {/* Confirm Password Field */}
@@ -181,7 +188,7 @@ export default function SignupPage() {
                   placeholder="비밀번호를 다시 입력해주세요"
                 />
               </div>
-              {errors.confirmPassword && <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {errors.confirmPassword.message}</p>}
+              {errors.confirmPassword && <p role="alert" className="mt-1.5 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {errors.confirmPassword.message}</p>}
             </div>
           </div>
 

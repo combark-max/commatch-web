@@ -11,7 +11,6 @@ import {
   LogIn,
   LogOut,
   Menu,
-  KeyRound,
   Settings,
   SlidersHorizontal,
   UserRound,
@@ -30,8 +29,6 @@ const accountLinks = [
   { href: '/preference', label: '이상형 수정', icon: SlidersHorizontal },
   { href: '/favorites', label: '관심회원', icon: Heart },
   { href: '/account', label: '계정 설정', icon: Settings },
-  { href: '/forgot-password', label: '비밀번호 재설정', icon: KeyRound },
-  { href: '/account#delete-account', label: '회원탈퇴', icon: LogOut },
 ];
 
 export default function AppShell({ children }: AppShellProps) {
@@ -132,12 +129,13 @@ export default function AppShell({ children }: AppShellProps) {
   };
 
   const accountLabel = nickname ? `${nickname}님` : '내정보';
+  const isHome = pathname === '/';
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
       <header ref={headerRef} className="sticky top-0 z-[60] border-b border-gray-100 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" onClick={closeMenus} className="text-2xl font-bold text-green-600">
+          <Link href="/" onClick={closeMenus} className={`text-2xl font-black ${isHome ? 'text-[#2E7D32]' : 'text-green-600'}`}>
             ComMatch
           </Link>
 
@@ -184,10 +182,20 @@ export default function AppShell({ children }: AppShellProps) {
                 ) : null}
               </div>
             ) : (
-              <div className="flex items-center gap-4">
-                <Link href="/login" className="flex items-center gap-1.5 transition-colors hover:text-green-600">
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/login"
+                  className={isHome
+                    ? 'flex items-center gap-1.5 rounded-xl border border-[#2E7D32] px-4 py-2.5 text-base text-[#2E7D32] transition-colors hover:bg-green-50'
+                    : 'flex items-center gap-1.5 transition-colors hover:text-green-600'}
+                >
                   <LogIn size={17} /> 로그인
                 </Link>
+                {isHome ? (
+                  <Link href="/signup" className="rounded-xl bg-[#2E7D32] px-5 py-2.5 text-base text-white transition-colors hover:bg-[#256729]">
+                    회원가입
+                  </Link>
+                ) : null}
               </div>
             )}
           </nav>
@@ -224,6 +232,11 @@ export default function AppShell({ children }: AppShellProps) {
                 <Link href="/login" onClick={closeMenus} className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-700 hover:bg-green-50">
                   <LogIn size={19} /> 로그인
                 </Link>
+                {isHome ? (
+                  <Link href="/signup" onClick={closeMenus} className="mt-2 block rounded-xl bg-[#2E7D32] px-4 py-3 text-center font-bold text-white hover:bg-[#256729]">
+                    회원가입
+                  </Link>
+                ) : null}
               </>
             )}
           </nav>

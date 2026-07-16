@@ -9,7 +9,6 @@ import {
   Church, Palette, Ruler, Quote, Heart, Loader2
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import DashboardNavigation from '@/components/common/DashboardNavigation';
 import ImageModal from '@/components/common/ImageModal';
 
 type MemberProfile = {
@@ -228,13 +227,7 @@ export default function MemberDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-6 flex items-center justify-between">
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="flex items-center text-sm font-semibold text-gray-500 transition-colors hover:text-gray-900"
-          >
-            <span>← Dashboard</span>
-          </button>
+        <div className="mb-6 flex items-center justify-end">
           <button
             onClick={() => router.push('/members')}
             className="flex items-center text-sm font-semibold text-gray-500 transition-colors hover:text-gray-900"
@@ -340,7 +333,6 @@ export default function MemberDetailPage() {
           </div>
         </div>
 
-        <DashboardNavigation />
       </div>
       <ImageModal
         isOpen={isImageModalOpen}

@@ -7,7 +7,6 @@ import { resolveProfileImageUrl } from '@/lib/profile-image';
 import { Loader2, User, MapPin, Briefcase, Heart, Search } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
-import DashboardNavigation from '@/components/common/DashboardNavigation';
 
 type FavoriteMember = {
   id: string;
@@ -187,12 +186,6 @@ export default function FavoritesPage() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="mb-6 flex items-center text-sm font-semibold text-gray-500 transition-colors hover:text-gray-900"
-        >
-          <span>← Dashboard</span>
-        </button>
         <div className="mb-8">
           <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">관심회원</h1>
           <p className="mt-2 text-gray-600">좋아요 표시한 회원들을 한눈에 확인해보세요.</p>
@@ -281,7 +274,6 @@ export default function FavoritesPage() {
             ))}
           </div>
         )}
-        <DashboardNavigation />
       </div>
       {toast ? <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} /> : null}
     </div>

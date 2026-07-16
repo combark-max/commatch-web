@@ -6,7 +6,6 @@ import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { JOBS } from "@/constants/jobs";
 import { REGIONS } from "@/constants/regions";
-import DashboardNavigation from '@/components/common/DashboardNavigation';
 
 export default function PreferencePage() {
   // 컴포넌트 내부에서 매번 클라이언트를 생성하지 않도록 useMemo 사용 또는 안정화
@@ -14,6 +13,7 @@ export default function PreferencePage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingPreferences, setIsFetchingPreferences] = useState(true);
+  const [hasExistingPreferences, setHasExistingPreferences] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // State integration
@@ -48,6 +48,8 @@ export default function PreferencePage() {
         if (preferenceError) {
           throw preferenceError;
         }
+
+        setHasExistingPreferences(Boolean(data));
 
         if (data) {
           setPreferredGender(data.preferred_gender ?? '');
@@ -292,13 +294,12 @@ export default function PreferencePage() {
                   저장 중...
                 </>
               ) : (
-                "수정하기"
+                hasExistingPreferences ? "수정하기" : "저장하기"
               )}
             </Button>
           </div>
         </form>
 
-        <DashboardNavigation />
       </div>
     </div>
   );

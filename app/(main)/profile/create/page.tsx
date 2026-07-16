@@ -8,7 +8,6 @@ import * as z from 'zod';
 import { Camera, User, Calendar, MapPin, Briefcase, GraduationCap, Wine, Quote, Loader2, Ruler, Church, Palette } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
-import DashboardNavigation from '@/components/common/DashboardNavigation';
 import { createClient } from '@/lib/supabase/client';
 import { getProfileImageUrl, normalizeProfileImagePath } from '@/lib/profile-image';
 import { normalizeRegion, PROFILE_REGIONS } from '@/constants/regions';
@@ -58,6 +57,7 @@ export default function ProfileCreatePage() {
   const supabase = createClient();
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingProfile, setIsFetchingProfile] = useState(true);
+  const [hasExistingProfile, setHasExistingProfile] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDeletingImage, setIsDeletingImage] = useState(false);
   const [storedImagePath, setStoredImagePath] = useState<string | null>(null);
@@ -236,6 +236,8 @@ export default function ProfileCreatePage() {
           profileData = fallbackResult.data as Record<string, unknown> | null;
         }
 
+        setHasExistingProfile(Boolean(profileData));
+
         if (profileData) {
           const existingJob = (profileData.job as string | null) ?? '';
           const isStandardJob = (STANDARD_JOB_VALUES as readonly string[]).includes(existingJob);
@@ -367,7 +369,7 @@ export default function ProfileCreatePage() {
     }
   };
 
-  const submitLabel = isLoading ? '저장 중...' : '수정하기';
+  const submitLabel = isLoading ? '저장 중...' : hasExistingProfile ? '수정하기' : '저장하기';
 
   if (isFetchingProfile) {
     return (

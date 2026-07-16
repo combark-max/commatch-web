@@ -9,7 +9,6 @@ import { JOBS, STANDARD_JOB_VALUES } from '@/constants/jobs';
 import { User, MapPin, Briefcase, Heart, Loader2, Search } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
-import DashboardNavigation from '@/components/common/DashboardNavigation';
 
 type Member = {
   id: string;
@@ -34,6 +33,8 @@ export default function MembersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRegion, setSelectedRegion] = useState('상관없음');
   const [selectedJob, setSelectedJob] = useState('상관없음');
+  const [ageMin, setAgeMin] = useState('');
+  const [ageMax, setAgeMax] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
@@ -174,10 +175,12 @@ export default function MembersPage() {
     }
   };
 
-  const calculateAge = (birthDate: string | null | undefined) => {
-    if (!birthDate) return '';
+  const getAge = (birthDate: string | null | undefined) => {
+    if (!birthDate) return null;
 
     const birth = new Date(birthDate);
+    if (Number.isNaN(birth.getTime())) return null;
+
     const today = new Date();
     let age = today.getFullYear() - birth.getFullYear();
     const monthDiff = today.getMonth() - birth.getMonth();
@@ -186,8 +189,29 @@ export default function MembersPage() {
       age -= 1;
     }
 
-    return `${age}세`;
+    return age;
   };
+
+  const calculateAge = (birthDate: string | null | undefined) => {
+    const age = getAge(birthDate);
+    return age === null ? '' : `${age}세`;
+  };
+
+  const ageFilterError = useMemo(() => {
+    const parsedMin = ageMin === '' ? null : Number(ageMin);
+    const parsedMax = ageMax === '' ? null : Number(ageMax);
+
+    if ((parsedMin !== null && (!Number.isInteger(parsedMin) || parsedMin < 0))
+      || (parsedMax !== null && (!Number.isInteger(parsedMax) || parsedMax < 0))) {
+      return '나이는 0 이상의 정수로 입력해주세요.';
+    }
+
+    if (parsedMin !== null && parsedMax !== null && parsedMin > parsedMax) {
+      return '최소 나이는 최대 나이보다 클 수 없습니다.';
+    }
+
+    return null;
+  }, [ageMin, ageMax]);
 
   const filteredMembers = useMemo(() => {
     return members.filter((member) => {
@@ -201,10 +225,26 @@ export default function MembersPage() {
         || (selectedJob === '기타'
           ? !(STANDARD_JOB_VALUES as readonly string[]).includes(job)
           : job === selectedJob);
+      const memberAge = getAge(member.birth_date);
+      const parsedMin = ageMin === '' ? null : Number(ageMin);
+      const parsedMax = ageMax === '' ? null : Number(ageMax);
+      const matchesAge = ageFilterError !== null
+        || ((parsedMin === null && parsedMax === null)
+          || (memberAge !== null
+            && (parsedMin === null || memberAge >= parsedMin)
+            && (parsedMax === null || memberAge <= parsedMax)));
 
-      return matchesNickname && matchesRegion && matchesJob;
+      return matchesNickname && matchesRegion && matchesJob && matchesAge;
     });
-  }, [members, searchTerm, selectedRegion, selectedJob]);
+  }, [members, searchTerm, selectedRegion, selectedJob, ageMin, ageMax, ageFilterError]);
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSelectedRegion('상관없음');
+    setSelectedJob('상관없음');
+    setAgeMin('');
+    setAgeMax('');
+  };
 
   if (isLoading) {
     return (
@@ -218,12 +258,6 @@ export default function MembersPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="mb-6 flex items-center text-sm font-semibold text-gray-500 transition-colors hover:text-gray-900"
-        >
-          <span>← Dashboard</span>
-        </button>
         <div className="mb-8 sm:mb-10">
           <h1 className="flex items-center gap-2 text-3xl font-extrabold tracking-tight text-gray-900">
             회원 둘러보기
@@ -233,7 +267,7 @@ export default function MembersPage() {
         </div>
 
         <section className="mb-8 rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr]">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1.2fr]">
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700">닉네임 검색</label>
               <input
@@ -274,6 +308,39 @@ export default function MembersPage() {
                 ))}
               </select>
             </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">나이</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={ageMin}
+                  onChange={(event) => setAgeMin(event.target.value)}
+                  placeholder="최소 나이"
+                  aria-label="최소 나이"
+                  className="min-w-0 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 shadow-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                />
+                <span className="text-gray-400">~</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={ageMax}
+                  onChange={(event) => setAgeMax(event.target.value)}
+                  placeholder="최대 나이"
+                  aria-label="최대 나이"
+                  className="min-w-0 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 shadow-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-4">
+            <p className="text-sm text-red-600">{ageFilterError}</p>
+            <Button type="button" variant="outline" onClick={resetFilters} className="shrink-0 rounded-2xl px-5 py-2.5 text-sm font-bold">
+              검색 초기화
+            </Button>
           </div>
         </section>
 
@@ -293,8 +360,7 @@ export default function MembersPage() {
             <p className="text-lg font-medium text-gray-500">검색 결과가 없습니다.</p>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredMembers.map((member) => (
                 <article
                   key={member.id}
@@ -361,9 +427,7 @@ export default function MembersPage() {
                 </div>
                 </article>
               ))}
-            </div>
-            <DashboardNavigation />
-          </>
+          </div>
         )}
       </div>
 

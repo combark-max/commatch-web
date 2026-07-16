@@ -1,30 +1,42 @@
 import Link from 'next/link';
 
+const footerItems = [
+  { label: '회사소개', href: '#about' },
+  { label: '이용약관' },
+  { label: '개인정보처리방침' },
+  { label: '공지사항' },
+  { label: '문의하기' },
+];
+
 const Footer = () => {
   return (
-    <footer className="bg-white border-t border-gray-100 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <div className="mb-6 md:mb-0">
-            <Link href="/" className="text-2xl font-bold text-green-600">
+    <footer className="border-t border-white/10 bg-[#183B1B] py-12 text-white">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <Link href="/" className="text-2xl font-black text-white">
               ComMatch
             </Link>
-            <p className="mt-2 text-gray-500 text-sm">
-              © 2024 ComMatch Inc. All rights reserved.
+            <p className="mt-3 text-base leading-7 text-white/70">
+              직접 선택하고 AI의 도움을 받는 셀프 결혼정보 플랫폼
             </p>
           </div>
-          <div className="flex space-x-6">
-            <Link href="#" className="text-gray-400 hover:text-green-600 transition-colors">
-              이용약관
-            </Link>
-            <Link href="#" className="text-gray-400 hover:text-green-600 transition-colors">
-              개인정보처리방침
-            </Link>
-            <Link href="#" className="text-gray-400 hover:text-green-600 transition-colors">
-              문의하기
-            </Link>
+          <div className="flex flex-wrap gap-x-6 gap-y-4">
+            {footerItems.map((item) => item.href ? (
+              <Link key={item.label} href={item.href} className="text-base font-semibold text-white/80 hover:text-white">
+                {item.label}
+              </Link>
+            ) : (
+              <span key={item.label} className="text-base font-semibold text-white/55" title="준비 중">
+                {item.label}
+                <span className="ml-1.5 text-sm text-[#E0C872]">준비 중</span>
+              </span>
+            ))}
           </div>
         </div>
+        <p className="mt-10 border-t border-white/10 pt-6 text-sm text-white/55">
+          © 2026 ComMatch. All rights reserved.
+        </p>
       </div>
     </footer>
   );

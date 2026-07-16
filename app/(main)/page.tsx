@@ -1,47 +1,79 @@
-import Hero from "@/components/common/Hero";
-import Features from "@/components/common/Features";
-import Footer from "@/components/common/Footer";
+import Hero from '@/components/common/Hero';
+import Features from '@/components/common/Features';
+import Footer from '@/components/common/Footer';
+
+const steps = [
+  { title: '회원가입' },
+  { title: '프로필 작성' },
+  { title: 'AI 분석' },
+  { title: '추천 받기' },
+  { title: '좋아요' },
+  { title: '매칭', status: '준비 중' },
+  { title: '채팅', status: '준비 중' },
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex min-h-screen flex-col bg-white">
       <main className="flex-grow">
         <Hero />
         <Features />
-        <section id="about" className="py-20 bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col md:flex-row items-center gap-12">
-              <div className="flex-1">
-                <h2 className="text-3xl font-bold text-gray-900 mb-6">
-                  데이터가 말해주는 <br />
-                  <span className="text-green-600">완벽한 조화</span>
-                </h2>
-                <p className="text-gray-600 text-lg mb-6 leading-relaxed">
-                  ComMatch는 단순한 매칭을 넘어, 가치관, 생활 습관, 그리고 취미까지
-                  고려한 입체적인 분석을 제공합니다.
-                  당신의 삶에 긍정적인 변화를 줄 수 있는 특별한 관계를 만들어보세요.
-                </p>
-                <ul className="space-y-4">
-                  {[
-                    "심층 가치관 분석 알고리즘",
-                    "실시간 매칭 상태 알림",
-                    "프라이버시 중심의 매칭 프로세스"
-                  ].map((item, i) => (
-                    <li key={i} className="flex items-center text-gray-700">
-                      <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="flex-1 bg-green-50 rounded-3xl p-8 aspect-square flex items-center justify-center">
-                {/* Image placeholder or decoration */}
-                <div className="text-green-600 font-bold text-xl opacity-50 border-4 border-dashed border-green-200 rounded-2xl p-12 text-center">
-                  이미지 또는 <br />그래픽 요소 위치
+
+        <section id="about" className="bg-white py-20 sm:py-24">
+          <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
+            <p className="mb-3 text-base font-black uppercase tracking-[0.18em] text-[#806B26]">About ComMatch</p>
+            <h2 className="text-3xl font-black tracking-tight text-[#183B1B] sm:text-4xl">나의 선택을 중심에 둔 만남</h2>
+            <p className="mx-auto mt-7 max-w-3xl text-xl leading-9 text-gray-700 sm:text-2xl sm:leading-10">
+              ComMatch는 회원이 직접 프로필을 작성하고
+              <br className="hidden sm:block" />
+              AI의 도움을 받아 자신에게 맞는 사람을 찾는
+              <br className="hidden sm:block" />
+              셀프 결혼정보 플랫폼입니다.
+            </p>
+          </div>
+        </section>
+
+        <section className="bg-[#F4F8F4] py-20 sm:py-24">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-12 text-center">
+              <p className="mb-3 text-base font-black uppercase tracking-[0.18em] text-[#806B26]">How It Works</p>
+              <h2 className="text-3xl font-black tracking-tight text-[#183B1B] sm:text-4xl">이용 절차</h2>
+              <p className="mt-4 text-lg text-gray-600">가입부터 새로운 인연을 만나는 과정까지 한눈에 확인하세요.</p>
+            </div>
+
+            <ol className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-7">
+              {steps.map((step, index) => (
+                <li key={step.title} className="relative flex min-h-36 items-center gap-5 rounded-xl border border-gray-200 bg-white p-5 lg:flex-col lg:justify-center lg:text-center">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#2E7D32] text-lg font-black text-white">
+                    {index + 1}
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-800">{step.title}</h3>
+                    {step.status ? (
+                      <span className="mt-2 inline-block rounded-full bg-[#C8A951]/15 px-2.5 py-1 text-sm font-bold text-[#806B26]">
+                        {step.status}
+                      </span>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section className="bg-white py-20 sm:py-24">
+          <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-12 text-center">
+              <p className="mb-3 text-base font-black uppercase tracking-[0.18em] text-[#806B26]">Stories</p>
+              <h2 className="text-3xl font-black tracking-tight text-[#183B1B] sm:text-4xl">성공 후기</h2>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {['회원 인터뷰', '커플 후기'].map((title) => (
+                <div key={title} className="rounded-xl border border-gray-200 bg-[#FAFBFA] p-8 text-center">
+                  <h3 className="text-xl font-bold text-gray-800">{title}</h3>
+                  <p className="mt-3 text-base font-bold text-[#806B26]">준비 중</p>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
         </section>

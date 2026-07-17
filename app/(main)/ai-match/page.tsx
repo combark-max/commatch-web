@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Briefcase, Loader2, MapPin, Ruler, Sparkles, User } from 'lucide-react';
+import {
+  Bell,
+  Briefcase,
+  Check,
+  ChevronRight,
+  Heart,
+  Loader2,
+  MapPin,
+  Ruler,
+  Sparkles,
+  User,
+} from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
@@ -16,6 +27,11 @@ type Profile = {
   height: number | null;
   region: string | null;
   job: string | null;
+  education: string | null;
+  religion: string | null;
+  hobby: string | null;
+  drinking: string | null;
+  introduction: string | null;
   profile_image: string | null;
 };
 
@@ -31,9 +47,39 @@ type Preference = {
 type RecommendedMember = Profile & {
   age: number | null;
   score: number;
+  reasons: string[];
+  completeness: number;
 };
 
-type SetupTarget = 'profile' | 'preference' | null;
+type SetupTarget = 'profile' | 'profile-incomplete' | 'preference' | null;
+type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
+
+const PROFILE_FIELDS: (keyof Pick<
+  Profile,
+  | 'nickname'
+  | 'gender'
+  | 'birth_date'
+  | 'height'
+  | 'region'
+  | 'job'
+  | 'education'
+  | 'religion'
+  | 'hobby'
+  | 'drinking'
+  | 'introduction'
+>)[] = [
+  'nickname',
+  'gender',
+  'birth_date',
+  'height',
+  'region',
+  'job',
+  'education',
+  'religion',
+  'hobby',
+  'drinking',
+  'introduction',
+];
 
 const calculateAge = (birthDate: string | null) => {
   if (!birthDate) return null;
@@ -52,6 +98,15 @@ const calculateAge = (birthDate: string | null) => {
   return age;
 };
 
+const calculateProfileCompleteness = (profile: Profile) => {
+  const completedFields = PROFILE_FIELDS.filter((field) => {
+    const value = profile[field];
+    return typeof value === 'number' ? Number.isFinite(value) : Boolean(value?.trim());
+  }).length;
+
+  return Math.round((completedFields / PROFILE_FIELDS.length) * 100);
+};
+
 const isSpecified = (value: string | null) => Boolean(value && value !== '상관없음');
 
 const matchesPreferredJob = (job: string | null, preferredJob: string | null) => {
@@ -62,13 +117,45 @@ const matchesPreferredJob = (job: string | null, preferredJob: string | null) =>
   return job === preferredJob;
 };
 
+const getRecommendationReasons = (member: Profile, preference: Preference, age: number | null) => {
+  const reasons: string[] = [];
+  const hasAgePreference = preference.age_min !== null || preference.age_max !== null;
+  const matchesAge = age !== null
+    && (preference.age_min === null || age >= preference.age_min)
+    && (preference.age_max === null || age <= preference.age_max);
+  if (hasAgePreference && matchesAge) reasons.push('희망 연령 조건에 잘 맞습니다.');
+
+  const hasHeightPreference = preference.height_min !== null || preference.height_max !== null;
+  const matchesHeight = member.height !== null
+    && (preference.height_min === null || member.height >= preference.height_min)
+    && (preference.height_max === null || member.height <= preference.height_max);
+  if (hasHeightPreference && matchesHeight) reasons.push('키 조건에 잘 맞습니다.');
+
+  if (isSpecified(preference.preferred_region) && member.region === preference.preferred_region) {
+    reasons.push('선호 지역과 일치합니다.');
+  }
+
+  if (matchesPreferredJob(member.job, preference.preferred_job)) {
+    reasons.push('선호 직업 조건과 잘 맞습니다.');
+  }
+
+  return reasons.slice(0, 3);
+};
+
 export default function AiMatchPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [isLoading, setIsLoading] = useState(true);
   const [recommendations, setRecommendations] = useState<RecommendedMember[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
+  const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
   const [setupTarget, setSetupTarget] = useState<SetupTarget>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -76,6 +163,8 @@ export default function AiMatchPage() {
     const loadRecommendations = async () => {
       setIsLoading(true);
       setError(null);
+      setNotice(null);
+      setCurrentIndex(0);
 
       try {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -85,10 +174,12 @@ export default function AiMatchPage() {
           return;
         }
 
+        if (isMounted) setCurrentUserId(user.id);
+
         const [profileResult, preferenceResult] = await Promise.all([
           supabase
             .from('profiles')
-            .select('id, nickname, birth_date, gender, height, region, job, profile_image')
+            .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, introduction, profile_image')
             .eq('id', user.id)
             .maybeSingle(),
           supabase
@@ -109,6 +200,11 @@ export default function AiMatchPage() {
           return;
         }
 
+        if (calculateProfileCompleteness(currentProfile) < 80) {
+          if (isMounted) setSetupTarget('profile-incomplete');
+          return;
+        }
+
         if (!preference) {
           if (isMounted) setSetupTarget('preference');
           return;
@@ -117,7 +213,7 @@ export default function AiMatchPage() {
         const oppositeGender = currentProfile.gender === '남성' ? '여성' : '남성';
         const { data, error: membersError } = await supabase
           .from('profiles')
-          .select('id, nickname, birth_date, gender, height, region, job, profile_image')
+          .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, introduction, profile_image')
           .eq('gender', oppositeGender)
           .neq('id', user.id);
 
@@ -152,6 +248,8 @@ export default function AiMatchPage() {
               ...member,
               age,
               score,
+              reasons: getRecommendationReasons(member, preference, age),
+              completeness: calculateProfileCompleteness(member),
               profile_image: resolveProfileImageUrl(member.profile_image),
             };
           })
@@ -159,15 +257,23 @@ export default function AiMatchPage() {
           .sort((a, b) => b.score - a.score)
           .slice(0, 10);
 
+        const { data: favoriteRows, error: favoritesError } = await supabase
+          .from('favorites')
+          .select('favorite_user_id')
+          .eq('user_id', user.id);
+
+        if (favoritesError) throw favoritesError;
+
         if (isMounted) {
           setRecommendations(scoredMembers);
+          setFavoriteIds(new Set((favoriteRows ?? []).map((row) => row.favorite_user_id)));
           setSetupTarget(null);
         }
       } catch (loadError) {
         console.error('AI 추천 회원 조회 실패:', loadError);
         if (isMounted) {
           setRecommendations([]);
-          setError('추천 회원을 불러오는 중 오류가 발생했습니다.');
+          setError('추천 회원을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -179,99 +285,274 @@ export default function AiMatchPage() {
     return () => {
       isMounted = false;
     };
-  }, [router, supabase]);
+  }, [retryKey, router, supabase]);
+
+  const currentMember = recommendations[currentIndex];
+  const isFinished = recommendations.length > 0 && currentIndex >= recommendations.length;
+
+  const toggleFavorite = async () => {
+    if (!currentUserId || !currentMember || isTogglingFavorite) return;
+
+    const memberId = currentMember.id;
+    const wasFavorite = favoriteIds.has(memberId);
+    setIsTogglingFavorite(true);
+    setNotice(null);
+
+    try {
+      const result = wasFavorite
+        ? await supabase.from('favorites').delete().eq('user_id', currentUserId).eq('favorite_user_id', memberId)
+        : await supabase.from('favorites').insert({ user_id: currentUserId, favorite_user_id: memberId });
+
+      if (result.error) throw result.error;
+
+      setFavoriteIds((current) => {
+        const next = new Set(current);
+        if (wasFavorite) next.delete(memberId);
+        else next.add(memberId);
+        return next;
+      });
+      setNotice({
+        message: wasFavorite ? '관심회원에서 해제했습니다.' : '관심회원으로 추가했습니다.',
+        type: 'success',
+      });
+    } catch (favoriteError: unknown) {
+      const supabaseError = favoriteError as { code?: string; message?: string; details?: string; hint?: string };
+      if (!wasFavorite && supabaseError.code === '23505') {
+        setFavoriteIds((current) => new Set(current).add(memberId));
+        setNotice({ message: '이미 관심회원으로 등록되어 있습니다.', type: 'success' });
+        return;
+      }
+      console.error('관심회원 처리 실패:', {
+        code: supabaseError.code ?? null,
+        message: supabaseError.message ?? null,
+        details: supabaseError.details ?? null,
+        hint: supabaseError.hint ?? null,
+      });
+      setNotice({ message: '관심회원 처리에 실패했습니다. 잠시 후 다시 시도해주세요.', type: 'error' });
+    } finally {
+      setIsTogglingFavorite(false);
+    }
+  };
+
+  const showComingSoonNotice = (feature: 'like' | 'notification') => {
+    setNotice({
+      message: feature === 'like' ? '좋아요 기능은 도입 예정입니다.' : '알림 기능은 현재 준비 중입니다.',
+      type: 'info',
+    });
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl rounded-[2rem] border border-gray-100 bg-white p-8 shadow-sm sm:p-10">
-        <div className="mb-8">
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">AI 추천</h1>
-          <p className="mt-2 text-gray-600">AI가 추천하는 회원을 확인할 수 있는 화면입니다.</p>
+    <div className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">오늘의 추천</h1>
+            <p className="mt-2 text-sm leading-6 text-gray-600 sm:text-base">
+              회원님의 프로필과 이상형 조건을 바탕으로 추천한 회원입니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => showComingSoonNotice('notification')}
+            className="shrink-0 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-gray-400 shadow-sm transition hover:bg-gray-50"
+            aria-label="알림 기능 준비 중"
+          >
+            <Bell className="mx-auto h-5 w-5" />
+            <span className="mt-1 block text-[10px] font-bold">준비 중</span>
+          </button>
         </div>
 
+        {notice ? (
+          <div
+            role="status"
+            className={`mb-5 rounded-2xl border px-4 py-3 text-sm font-medium ${
+              notice.type === 'error'
+                ? 'border-red-100 bg-red-50 text-red-600'
+                : notice.type === 'success'
+                  ? 'border-green-100 bg-green-50 text-green-700'
+                  : 'border-gray-200 bg-white text-gray-600'
+            }`}
+          >
+            {notice.message}
+          </div>
+        ) : null}
+
         {isLoading ? (
-          <div className="flex min-h-64 flex-col items-center justify-center">
+          <div className="flex min-h-96 flex-col items-center justify-center rounded-[2rem] border border-gray-100 bg-white shadow-sm">
             <Loader2 className="mb-4 h-10 w-10 animate-spin text-[#16a34a]" />
             <p className="font-medium text-gray-500">추천 회원을 찾는 중...</p>
           </div>
         ) : setupTarget ? (
-          <div className="rounded-[1.75rem] border border-green-100 bg-green-50 p-8 text-center">
+          <div className="rounded-[2rem] border border-green-100 bg-white p-8 text-center shadow-sm sm:p-12">
             <Sparkles className="mx-auto mb-4 h-10 w-10 text-[#16a34a]" />
-            <p className="mb-6 font-semibold text-gray-700">
-              {setupTarget === 'profile'
-                ? 'AI 추천을 받으려면 먼저 프로필을 설정해 주세요.'
-                : 'AI 추천을 받으려면 먼저 이상형을 설정해 주세요.'}
-            </p>
+            <h2 className="text-xl font-bold text-gray-900">
+              {setupTarget === 'profile-incomplete'
+                ? '프로필을 80% 이상 작성하면 추천을 받을 수 있습니다.'
+                : setupTarget === 'profile'
+                  ? '추천을 받으려면 먼저 프로필을 설정해 주세요.'
+                  : '추천을 받으려면 먼저 이상형을 설정해 주세요.'}
+            </h2>
             <Button
-              className="rounded-2xl px-6 py-3 text-sm font-bold"
-              onClick={() => router.push(setupTarget === 'profile' ? '/profile/create' : '/preference')}
+              className="mt-6 rounded-2xl px-6 py-3 text-sm font-bold"
+              onClick={() => router.push(setupTarget === 'preference' ? '/preference' : '/profile/create')}
             >
-              {setupTarget === 'profile' ? '프로필 설정하기' : '이상형 설정하기'}
+              {setupTarget === 'preference' ? '이상형 설정하기' : '프로필 수정하기'}
             </Button>
           </div>
         ) : error ? (
-          <div className="rounded-[1.75rem] border border-red-100 bg-red-50 p-8 text-center text-sm font-medium text-red-600">
-            {error}
+          <div className="rounded-[2rem] border border-red-100 bg-white p-8 text-center shadow-sm sm:p-12">
+            <p className="font-semibold text-red-600">{error}</p>
+            <Button className="mt-6 rounded-2xl px-6 py-3 text-sm font-bold" onClick={() => setRetryKey((key) => key + 1)}>
+              다시 시도
+            </Button>
           </div>
         ) : recommendations.length === 0 ? (
-          <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 p-12 text-center">
-            <p className="font-semibold text-gray-600">조건에 맞는 추천 회원이 없습니다.</p>
+          <div className="rounded-[2rem] border border-gray-100 bg-white p-8 text-center shadow-sm sm:p-12">
+            <User className="mx-auto mb-4 h-12 w-12 text-gray-300" />
+            <h2 className="text-xl font-bold text-gray-900">현재 조건에 맞는 추천 회원을 준비 중입니다.</h2>
+            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+              <Button variant="outline" className="rounded-2xl px-5 py-3 text-sm font-bold" onClick={() => router.push('/preference')}>
+                이상형 조건 수정
+              </Button>
+              <Button variant="outline" className="rounded-2xl px-5 py-3 text-sm font-bold" onClick={() => router.push('/profile/create')}>
+                내 프로필 확인
+              </Button>
+              <Button className="rounded-2xl px-5 py-3 text-sm font-bold" onClick={() => router.push('/dashboard')}>
+                대시보드로 이동
+              </Button>
+            </div>
           </div>
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2">
-            {recommendations.map((member) => (
+        ) : isFinished ? (
+          <div className="rounded-[2rem] border border-green-100 bg-white p-8 text-center shadow-sm sm:p-12">
+            <Check className="mx-auto mb-5 h-12 w-12 rounded-full bg-green-50 p-2 text-[#16a34a]" />
+            <h2 className="text-2xl font-bold text-gray-900">오늘의 추천을 모두 확인했습니다.</h2>
+            <p className="mt-3 text-gray-600">내일 새로운 추천을 준비하겠습니다.</p>
+            <p className="mt-1 text-gray-600">좋은 인연이 시작되길 바랍니다.</p>
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+              <Button className="rounded-2xl px-6 py-3 text-sm font-bold" onClick={() => router.push('/favorites')}>
+                관심 목록 보기
+              </Button>
               <button
-                key={member.id}
                 type="button"
-                onClick={() => router.push(`/members/${member.id}`)}
-                className="overflow-hidden rounded-[1.75rem] border border-gray-100 bg-white text-left shadow-sm transition hover:border-green-200 hover:shadow-lg"
+                disabled
+                className="inline-flex cursor-not-allowed items-center justify-center rounded-2xl border-2 border-gray-200 bg-gray-100 px-6 py-3 text-sm font-bold text-gray-400"
               >
-                <div className="aspect-[4/3] overflow-hidden bg-gray-100">
-                  {member.profile_image ? (
-                    <img
-                      src={member.profile_image}
-                      alt={`${member.nickname ?? '회원'} 프로필 사진`}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-gray-300">
-                      <User size={64} strokeWidth={1.5} />
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-6">
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                      <h2 className="text-xl font-bold text-gray-900">{member.nickname || '닉네임 미설정'}</h2>
-                      <p className="mt-1 text-sm font-semibold text-[#16a34a]">
-                        {member.age !== null ? `${member.age}세` : '나이 미설정'}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-green-50 px-3 py-1.5 text-xs font-bold text-green-700">
-                      추천 점수 {member.score}점
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 text-sm text-gray-500">
-                    <p className="flex items-center gap-2">
-                      <MapPin size={15} className="text-gray-400" />
-                      {member.region || '지역 미설정'}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <Briefcase size={15} className="text-gray-400" />
-                      {member.job || '직업 미설정'}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <Ruler size={15} className="text-gray-400" />
-                      {member.height !== null ? `${member.height}cm` : '키 미설정'}
-                    </p>
-                  </div>
-                </div>
+                매칭 확인 · 준비 중
               </button>
-            ))}
+            </div>
           </div>
-        )}
+        ) : currentMember ? (
+          <article className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
+            <div className="grid md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <div className="relative flex min-h-72 items-center justify-center overflow-hidden bg-[#f0fdf4] md:min-h-full">
+                {currentMember.profile_image && !failedImageIds.has(currentMember.id) ? (
+                  <img
+                    src={currentMember.profile_image}
+                    alt={`${currentMember.nickname ?? '회원'} 프로필 사진`}
+                    onError={() => setFailedImageIds((current) => new Set(current).add(currentMember.id))}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-32 w-32 items-center justify-center rounded-full border-4 border-white bg-white text-gray-300 shadow-md">
+                    <User size={64} strokeWidth={1.5} />
+                  </div>
+                )}
+                <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-green-700 shadow-sm">
+                  {currentIndex + 1} / {recommendations.length}
+                </span>
+              </div>
+
+              <div className="p-6 sm:p-8">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-black text-gray-900">{currentMember.nickname || '닉네임 미설정'}</h2>
+                    <p className="mt-1 font-semibold text-[#16a34a]">
+                      {currentMember.age !== null ? `만 ${currentMember.age}세` : '나이 미설정'}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-green-50 px-3 py-1.5 text-xs font-bold text-green-700">
+                    프로필 완성도 {currentMember.completeness}%
+                  </span>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-2 text-sm text-gray-600">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-2">
+                    <MapPin size={15} className="text-gray-400" /> {currentMember.region || '지역 미설정'}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-2">
+                    <Briefcase size={15} className="text-gray-400" /> {currentMember.job || '직업 미설정'}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-2">
+                    <Ruler size={15} className="text-gray-400" />
+                    {currentMember.height !== null ? `${currentMember.height}cm` : '키 미설정'}
+                  </span>
+                </div>
+
+                <section className="mt-6 rounded-2xl border border-green-100 bg-green-50 p-5">
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-green-800">
+                    <Sparkles size={17} /> 추천 이유
+                  </h3>
+                  {currentMember.reasons.length > 0 ? (
+                    <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
+                      {currentMember.reasons.map((reason) => (
+                        <li key={reason} className="flex items-start gap-2">
+                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#16a34a]" />
+                          {reason}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-3 text-sm font-medium leading-6 text-gray-700">
+                      회원님의 기본 이상형 조건을 바탕으로 추천한 회원입니다.
+                    </p>
+                  )}
+                </section>
+
+                <section className="mt-5">
+                  <h3 className="text-sm font-bold text-gray-900">한 줄 자기소개</h3>
+                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-gray-600">
+                    {currentMember.introduction || '아직 자기소개를 작성하지 않았습니다.'}
+                  </p>
+                </section>
+              </div>
+            </div>
+
+            <div className="grid gap-3 border-t border-gray-100 bg-gray-50 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-4">
+              <Button
+                variant={favoriteIds.has(currentMember.id) ? 'primary' : 'outline'}
+                className="min-h-12 rounded-2xl px-4 py-3 text-sm font-bold"
+                onClick={toggleFavorite}
+                disabled={isTogglingFavorite}
+              >
+                <Heart className="mr-2 h-4 w-4" fill={favoriteIds.has(currentMember.id) ? 'currentColor' : 'none'} />
+                {isTogglingFavorite ? '처리 중...' : favoriteIds.has(currentMember.id) ? '관심 취소' : '관심'}
+              </Button>
+              <button
+                type="button"
+                onClick={() => showComingSoonNotice('like')}
+                className="min-h-12 rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-500 transition hover:bg-gray-100"
+              >
+                좋아요 · 도입 예정
+              </button>
+              <Button
+                variant="outline"
+                className="min-h-12 rounded-2xl px-4 py-3 text-sm font-bold"
+                onClick={() => router.push(`/members/${currentMember.id}`)}
+              >
+                자세히 보기
+              </Button>
+              <Button
+                className="min-h-12 rounded-2xl px-4 py-3 text-sm font-bold"
+                onClick={() => {
+                  setNotice(null);
+                  setCurrentIndex((index) => index + 1);
+                }}
+              >
+                다음 추천 <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+          </article>
+        ) : null}
       </div>
     </div>
   );

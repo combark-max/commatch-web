@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowLeft, Briefcase, Loader2, MapPin, Search, Sparkles, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
-import { Loader2, User, MapPin, Briefcase, Heart, Search } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 
@@ -29,10 +29,15 @@ export default function FavoritesPage() {
   const [favorites, setFavorites] = useState<FavoriteMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
+  const [likeNoticeMemberId, setLikeNoticeMemberId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchFavorites = async () => {
       setIsLoading(true);
       setError(null);
@@ -44,7 +49,7 @@ export default function FavoritesPage() {
         } = await supabase.auth.getUser();
 
         if (userError || !user) {
-          setFavorites([]);
+          if (isMounted) setFavorites([]);
           router.replace('/login');
           return;
         }
@@ -55,14 +60,12 @@ export default function FavoritesPage() {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
-        if (favoriteError) {
-          throw favoriteError;
-        }
+        if (favoriteError) throw favoriteError;
 
         const favoriteIds = favoriteRows?.map((item) => item.favorite_user_id) ?? [];
 
         if (favoriteIds.length === 0) {
-          setFavorites([]);
+          if (isMounted) setFavorites([]);
           return;
         }
 
@@ -71,9 +74,7 @@ export default function FavoritesPage() {
           .select('id, nickname, gender, birth_date, height, region, job, education, religion, hobby, introduction, profile_image')
           .in('id', favoriteIds);
 
-        if (profilesError) {
-          throw profilesError;
-        }
+        if (profilesError) throw profilesError;
 
         const profilesById = new Map(
           ((profiles as FavoriteMember[]) ?? []).map((profile) => [profile.id, {
@@ -81,10 +82,13 @@ export default function FavoritesPage() {
             profile_image: resolveProfileImageUrl(profile.profile_image),
           }]),
         );
-        setFavorites(favoriteIds.flatMap((id) => {
-          const profile = profilesById.get(id);
-          return profile ? [profile] : [];
-        }));
+
+        if (isMounted) {
+          setFavorites(favoriteIds.flatMap((id) => {
+            const profile = profilesById.get(id);
+            return profile ? [profile] : [];
+          }));
+        }
       } catch (err: unknown) {
         const supabaseError = err as { code?: string; message?: string; details?: string; hint?: string };
         console.error('관심회원 조회 실패:', {
@@ -93,20 +97,37 @@ export default function FavoritesPage() {
           details: supabaseError.details ?? null,
           hint: supabaseError.hint ?? null,
         });
-        setError('관심회원 목록을 불러오는 중 오류가 발생했습니다.');
+        if (isMounted) {
+          setError('관심목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
-    fetchFavorites();
-  }, [router, supabase]);
+    void fetchFavorites();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [retryKey, router, supabase]);
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/dashboard');
+  };
 
   const handleDeleteFavorite = async (favoriteUserId: string) => {
     if (isDeletingId) return;
+    if (!window.confirm('관심목록에서 삭제하시겠습니까?')) return;
+
     const removedIndex = favorites.findIndex((member) => member.id === favoriteUserId);
     const removedMember = favorites[removedIndex];
     setIsDeletingId(favoriteUserId);
+    setLikeNoticeMemberId((current) => current === favoriteUserId ? null : current);
     setFavorites((current) => current.filter((member) => member.id !== favoriteUserId));
 
     try {
@@ -133,9 +154,7 @@ export default function FavoritesPage() {
         .eq('user_id', user.id)
         .eq('favorite_user_id', favoriteUserId);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setToast({ message: '관심회원에서 해제했습니다.', type: 'success' });
     } catch (err: unknown) {
@@ -160,9 +179,11 @@ export default function FavoritesPage() {
   };
 
   const calculateAge = (birthDate: string | null | undefined) => {
-    if (!birthDate) return '';
+    if (!birthDate) return null;
 
     const birth = new Date(birthDate);
+    if (Number.isNaN(birth.getTime())) return null;
+
     const today = new Date();
     let age = today.getFullYear() - birth.getFullYear();
     const monthDiff = today.getMonth() - birth.getMonth();
@@ -171,107 +192,145 @@ export default function FavoritesPage() {
       age -= 1;
     }
 
-    return `${age}세`;
+    return age;
   };
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4">
         <Loader2 className="mb-4 h-10 w-10 animate-spin text-[#16a34a]" />
-        <p className="font-medium text-gray-500">관심회원 목록을 불러오는 중...</p>
+        <p className="font-medium text-gray-500">관심목록을 불러오는 중...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">관심회원</h1>
-          <p className="mt-2 text-gray-600">좋아요 표시한 회원들을 한눈에 확인해보세요.</p>
+          <button
+            type="button"
+            onClick={handleBack}
+            className="mb-5 inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-gray-600 transition hover:bg-white hover:text-gray-900"
+          >
+            <ArrowLeft size={19} /> 뒤로가기
+          </button>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">관심목록</h1>
+              <p className="mt-2 text-gray-600">관심 등록한 회원의 프로필을 다시 확인해 보세요.</p>
+            </div>
+            <span className="rounded-full bg-green-50 px-4 py-2 text-sm font-bold text-green-700">
+              관심 {favorites.length}명
+            </span>
+          </div>
         </div>
 
         {error ? (
-          <div className="rounded-[2rem] border border-gray-100 bg-white p-8 text-center shadow-sm">
-            <p className="mb-4 text-red-500">{error}</p>
-            <Button className="rounded-2xl px-6 py-3 text-sm font-bold" onClick={() => router.refresh()}>
+          <div className="rounded-[2rem] border border-red-100 bg-white p-8 text-center shadow-sm">
+            <p className="font-semibold text-red-600">{error}</p>
+            <Button className="mt-6 rounded-2xl px-6 py-3 text-sm font-bold" onClick={() => setRetryKey((key) => key + 1)}>
               다시 시도
             </Button>
           </div>
         ) : favorites.length === 0 ? (
-          <div className="rounded-[2rem] border border-gray-100 bg-white p-16 text-center shadow-sm">
+          <div className="rounded-[2rem] border border-gray-100 bg-white p-10 text-center shadow-sm sm:p-16">
             <Search className="mx-auto mb-4 h-12 w-12 text-gray-300" />
-            <p className="text-lg font-semibold text-gray-700">아직 관심회원이 없습니다.</p>
-            <p className="mt-2 text-sm text-gray-500">회원 상세페이지에서 관심회원 추가를 해보세요.</p>
-            <Button className="mt-6 rounded-2xl px-6 py-3 text-sm font-bold" onClick={() => router.push('/members')}>
-              회원 둘러보기
+            <h2 className="text-xl font-bold text-gray-800">관심 회원이 없습니다.</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-500">
+              오늘의 추천에서 마음에 드는 회원을 관심목록에 추가해 보세요.
+            </p>
+            <Button className="mt-6 rounded-2xl px-6 py-3 text-sm font-bold" onClick={() => router.push('/ai-match')}>
+              오늘의 추천 보기
             </Button>
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {favorites.map((member) => (
-              <div key={member.id} className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm transition hover:shadow-lg">
-                <div className="relative flex h-40 items-center justify-center bg-[#f0fdf4]">
-                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white text-gray-300 shadow-sm">
-                    {member.profile_image ? (
-                      <img src={member.profile_image} alt={member.nickname ?? '프로필 이미지'} className="h-full w-full object-cover" />
+            {favorites.map((member) => {
+              const age = calculateAge(member.birth_date);
+              const hasImage = Boolean(member.profile_image) && !failedImageIds.has(member.id);
+
+              return (
+                <article key={member.id} className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm transition hover:shadow-lg">
+                  <div className="relative flex h-56 items-center justify-center overflow-hidden bg-[#f0fdf4] p-4">
+                    {hasImage ? (
+                      <img
+                        src={member.profile_image ?? ''}
+                        alt={member.nickname ?? '프로필 이미지'}
+                        onError={() => setFailedImageIds((current) => new Set(current).add(member.id))}
+                        className="h-full w-full rounded-2xl object-contain"
+                      />
                     ) : (
-                      <User size={40} strokeWidth={1.5} />
+                      <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-white text-gray-300 shadow-sm">
+                        <User size={48} strokeWidth={1.5} />
+                      </div>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    aria-label="관심회원 해제"
-                    disabled={isDeletingId === member.id}
-                    onClick={() => handleDeleteFavorite(member.id)}
-                    className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-rose-500 shadow-md transition hover:scale-105 disabled:cursor-wait disabled:opacity-60"
-                  >
-                    <Heart size={22} fill="currentColor" />
-                  </button>
-                </div>
 
-                <div className="p-6">
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900">{member.nickname || '익명'}</h3>
-                      <p className="mt-1 text-sm font-semibold text-[#16a34a]">{calculateAge(member.birth_date)}</p>
+                  <div className="p-6">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-900">{member.nickname || '익명'}</h2>
+                        <p className="mt-1 text-sm font-semibold text-[#16a34a]">
+                          {age !== null ? `만 ${age}세` : '나이 정보 미입력'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-2 text-sm text-gray-500">
+                      <p className="flex items-center gap-2">
+                        <MapPin size={15} className="text-gray-400" />
+                        {member.region || '지역 정보 미입력'}
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <Briefcase size={15} className="text-gray-400" />
+                        {member.job || '직업 정보 미입력'}
+                      </p>
+                    </div>
+
+                    <section className="mt-5 rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="flex items-center gap-1.5 text-xs font-bold text-gray-500">
+                          <Sparkles size={15} /> AI 추천 이유
+                        </h3>
+                        <span className="rounded-full bg-gray-200 px-2 py-1 text-[10px] font-bold text-gray-500">도입 예정</span>
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500">AI 추천 이유 기능은 도입 예정입니다.</p>
+                    </section>
+
+                    {likeNoticeMemberId === member.id ? (
+                      <p role="status" className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600">
+                        좋아요 기능은 도입 예정입니다.
+                      </p>
+                    ) : null}
+
+                    <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                      <Button
+                        className="min-h-11 rounded-2xl px-4 py-3 text-sm font-bold"
+                        onClick={() => member.id && router.push(`/members/${member.id}`)}
+                      >
+                        상세보기
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setLikeNoticeMemberId(member.id)}
+                        className="min-h-11 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm font-bold text-gray-500 transition hover:bg-gray-100"
+                      >
+                        좋아요 · 도입 예정
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFavorite(member.id)}
+                        disabled={isDeletingId === member.id}
+                        className="min-h-11 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-wait disabled:opacity-60 sm:col-span-2"
+                      >
+                        {isDeletingId === member.id ? '삭제 중...' : '삭제'}
+                      </button>
                     </div>
                   </div>
-
-                  <div className="mb-5 space-y-2 text-sm text-gray-500">
-                    <div className="flex items-center">
-                      <MapPin size={14} className="mr-1.5 text-gray-400" />
-                      {member.region || '지역 미설정'}
-                    </div>
-                    <div className="flex items-center">
-                      <Briefcase size={14} className="mr-1.5 text-gray-400" />
-                      {member.job || '직업 미설정'}
-                    </div>
-                  </div>
-
-                  <p className="mb-6 min-h-[2.5rem] text-sm leading-relaxed text-gray-600 line-clamp-2">
-                    {member.introduction || '자기소개가 아직 없습니다.'}
-                  </p>
-
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button
-                      className="flex-1 rounded-2xl py-3 text-sm font-bold"
-                      onClick={() => router.push(`/members/${member.id}`)}
-                    >
-                      프로필 보기
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="flex-1 rounded-2xl py-3 text-sm font-bold"
-                      onClick={() => handleDeleteFavorite(member.id)}
-                      disabled={isDeletingId === member.id}
-                    >
-                      {isDeletingId === member.id ? '삭제 중...' : '삭제'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                </article>
+              );
+            })}
           </div>
         )}
       </div>

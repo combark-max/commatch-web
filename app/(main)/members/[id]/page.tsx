@@ -1,13 +1,23 @@
-"use client";
+'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import {
+  ArrowLeft,
+  Church,
+  Flag,
+  GraduationCap,
+  Heart,
+  Loader2,
+  Palette,
+  Quote,
+  Ruler,
+  Sparkles,
+  User,
+  Wine,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
-import {
-  User, MapPin, Briefcase, GraduationCap,
-  Church, Palette, Ruler, Quote, Heart, Loader2
-} from 'lucide-react';
 import Button from '@/components/ui/Button';
 import ImageModal from '@/components/common/ImageModal';
 
@@ -27,18 +37,50 @@ type MemberProfile = {
   profile_image?: string | null;
 };
 
+type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
+
+const calculateAge = (birthDate: string | null | undefined) => {
+  if (!birthDate) return null;
+
+  const birth = new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age -= 1;
+  }
+
+  return age;
+};
+
+const getIntroductionPreview = (introduction: string | null) => {
+  const text = introduction?.trim();
+  if (!text) return '아직 소개 문구를 작성하지 않았습니다.';
+
+  const firstSentence = text.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim();
+  if (firstSentence && firstSentence.length <= 90) return firstSentence;
+  if (text.length <= 90) return text;
+  return `${text.slice(0, 87).trimEnd()}...`;
+};
+
 export default function MemberDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
   const [isLoading, setIsLoading] = useState(true);
   const [member, setMember] = useState<MemberProfile | null>(null);
+  const [isNotFound, setIsNotFound] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
-  const [favoriteError, setFavoriteError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [hasProfileImageError, setHasProfileImageError] = useState(false);
-  const supabase = createClient();
 
   const memberId = useMemo(() => {
     if (typeof params.id === 'string') return params.id;
@@ -47,35 +89,26 @@ export default function MemberDetailPage() {
   }, [params.id]);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchMember = async () => {
       if (!memberId) {
         setMember(null);
+        setIsNotFound(true);
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
-      setFavoriteError(null);
+      setMember(null);
+      setIsNotFound(false);
+      setLoadError(null);
+      setNotice(null);
+      setIsFavorite(false);
       setIsImageModalOpen(false);
       setHasProfileImageError(false);
+
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, nickname, birth_date, gender, height, job, region, introduction, education, religion, hobby, drinking, profile_image')
-          .eq('id', memberId)
-          .maybeSingle();
-
-        if (error) {
-          console.error('회원 정보 조회 실패:', error);
-          setMember(null);
-        } else {
-          const profile = data as MemberProfile | null;
-          setMember(profile ? {
-            ...profile,
-            profile_image: resolveProfileImageUrl(profile.profile_image ?? null),
-          } : null);
-        }
-
         const {
           data: { user },
           error: userError,
@@ -86,9 +119,32 @@ export default function MemberDetailPage() {
           return;
         }
 
+        if (!isMounted) return;
         setCurrentUserId(user.id);
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, nickname, birth_date, gender, height, job, region, introduction, education, religion, hobby, drinking, profile_image')
+          .eq('id', memberId)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        const profile = data as MemberProfile | null;
+        if (!profile) {
+          if (isMounted) setIsNotFound(true);
+          return;
+        }
+
+        if (isMounted) {
+          setMember({
+            ...profile,
+            profile_image: resolveProfileImageUrl(profile.profile_image ?? null),
+          });
+        }
+
         if (user.id !== memberId) {
-          const { data: favoriteRows, error: favoriteError } = await supabase
+          const { data: favoriteRow, error: favoriteError } = await supabase
             .from('favorites')
             .select('id')
             .eq('user_id', user.id)
@@ -102,42 +158,50 @@ export default function MemberDetailPage() {
               details: favoriteError.details ?? null,
               hint: favoriteError.hint ?? null,
             });
-            setFavoriteError('관심회원 상태를 불러오지 못했습니다.');
-          } else {
-            setIsFavorite(Boolean(favoriteRows));
+            if (isMounted) {
+              setNotice({ message: '관심회원 상태를 불러오지 못했습니다.', type: 'error' });
+            }
+          } else if (isMounted) {
+            setIsFavorite(Boolean(favoriteRow));
           }
         }
-      } catch (error) {
-        console.error('데이터 fetching 중 오류:', error);
-        setMember(null);
+      } catch (error: unknown) {
+        const supabaseError = error as { code?: string; message?: string; details?: string; hint?: string };
+        console.error('회원 정보 조회 실패:', {
+          code: supabaseError.code ?? null,
+          message: supabaseError.message ?? null,
+          details: supabaseError.details ?? null,
+          hint: supabaseError.hint ?? null,
+        });
+        if (isMounted) {
+          setMember(null);
+          setLoadError('회원 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
-    fetchMember();
-  }, [memberId, router, supabase]);
+    void fetchMember();
 
-  const calculateAge = (birthDate: string | null | undefined) => {
-    if (!birthDate) return '';
+    return () => {
+      isMounted = false;
+    };
+  }, [memberId, retryKey, router, supabase]);
 
-    const birth = new Date(birthDate);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age -= 1;
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      router.back();
+      return;
     }
-
-    return `${age}세`;
+    router.push('/members');
   };
 
   const handleFavoriteToggle = async () => {
     if (!memberId || isTogglingFavorite || currentUserId === memberId) return;
 
     setIsTogglingFavorite(true);
-    setFavoriteError(null);
+    setNotice(null);
     const previousFavorite = isFavorite;
     setIsFavorite(!previousFavorite);
 
@@ -149,7 +213,7 @@ export default function MemberDetailPage() {
 
       if (userError || !user?.id) {
         setIsFavorite(previousFavorite);
-        setFavoriteError('로그인이 필요합니다.');
+        setNotice({ message: '로그인이 필요합니다.', type: 'error' });
         router.replace('/login');
         return;
       }
@@ -161,23 +225,25 @@ export default function MemberDetailPage() {
           .eq('user_id', user.id)
           .eq('favorite_user_id', memberId);
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
       } else {
         const { error } = await supabase.from('favorites').insert({
           user_id: user.id,
           favorite_user_id: memberId,
         });
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
       }
+
+      setNotice({
+        message: previousFavorite ? '관심회원에서 해제했습니다.' : '관심회원으로 추가했습니다.',
+        type: 'success',
+      });
     } catch (error: unknown) {
       const supabaseError = error as { code?: string; message?: string; details?: string; hint?: string };
       if (!previousFavorite && supabaseError.code === '23505') {
         setIsFavorite(true);
+        setNotice({ message: '이미 관심회원으로 등록되어 있습니다.', type: 'success' });
         return;
       }
       setIsFavorite(previousFavorite);
@@ -187,153 +253,265 @@ export default function MemberDetailPage() {
         details: supabaseError.details ?? null,
         hint: supabaseError.hint ?? null,
       });
-      setFavoriteError('관심회원 처리에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      setNotice({ message: '관심회원 처리에 실패했습니다. 잠시 후 다시 시도해주세요.', type: 'error' });
     } finally {
       setIsTogglingFavorite(false);
     }
   };
 
+  const showComingSoonNotice = (feature: 'like' | 'report') => {
+    // 향후 신고 사유: 허위 정보, 부적절한 사진, 욕설, 광고, 사기 의심, 기타
+    setNotice({
+      message: feature === 'like' ? '좋아요 기능은 도입 예정입니다.' : '신고 기능은 준비 중입니다.',
+      type: 'info',
+    });
+  };
+
   if (isLoading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4">
         <Loader2 className="mb-4 h-10 w-10 animate-spin text-[#16a34a]" />
         <p className="font-medium text-gray-500">회원 정보를 불러오는 중...</p>
       </div>
     );
   }
 
-  if (!member) {
+  if (loadError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white px-4 py-12">
-        <div className="w-full max-w-md rounded-[2rem] border border-gray-100 bg-white p-8 text-center shadow-xl">
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-green-50 text-[#16a34a]">
-            <User size={32} strokeWidth={1.5} />
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
+        <div className="w-full max-w-md rounded-[2rem] border border-red-100 bg-white p-8 text-center shadow-sm">
+          <p className="font-semibold leading-6 text-red-600">{loadError}</p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Button variant="outline" className="flex-1 rounded-2xl py-3 text-sm font-bold" onClick={() => router.push('/members')}>
+              회원 목록으로
+            </Button>
+            <Button className="flex-1 rounded-2xl py-3 text-sm font-bold" onClick={() => setRetryKey((key) => key + 1)}>
+              다시 시도
+            </Button>
           </div>
-          <h2 className="mb-3 text-2xl font-bold text-gray-900">존재하지 않는 회원입니다.</h2>
-          <p className="mb-8 text-sm leading-6 text-gray-500">
-            요청하신 회원을 찾을 수 없거나 이미 탈퇴한 회원일 수 있습니다.
-          </p>
-          <Button
-            className="w-full rounded-2xl py-3 text-sm font-bold"
-            onClick={() => router.push('/members')}
-          >
-            회원목록으로
-          </Button>
         </div>
       </div>
     );
   }
 
+  if (isNotFound || !member) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
+        <div className="w-full max-w-md rounded-[2rem] border border-gray-100 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-green-50 text-[#16a34a]">
+            <User size={32} strokeWidth={1.5} />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">존재하지 않는 회원입니다.</h2>
+          <p className="mt-3 text-sm leading-6 text-gray-500">
+            요청하신 회원을 찾을 수 없거나 이미 탈퇴한 회원일 수 있습니다.
+          </p>
+          <div className="mt-8 grid gap-3">
+            <Button className="w-full rounded-2xl py-3 text-sm font-bold" onClick={() => router.push('/members')}>
+              회원 목록으로
+            </Button>
+            <Button variant="outline" className="w-full rounded-2xl py-3 text-sm font-bold" onClick={() => router.push('/ai-match')}>
+              오늘의 추천으로
+            </Button>
+            <Button variant="outline" className="w-full rounded-2xl py-3 text-sm font-bold" onClick={() => router.push('/dashboard')}>
+              대시보드로
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const age = calculateAge(member.birth_date);
+  const introduction = member.introduction?.trim() || '';
+  const introductionText = introduction
+    ? `${introduction.slice(0, 500)}${introduction.length > 500 ? '...' : ''}`
+    : '아직 자기소개를 작성하지 않았습니다.';
+  const hasLifestyle = Boolean(member.hobby || member.drinking || member.religion);
+  const isOwnProfile = currentUserId === member.id;
+
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-6 flex items-center justify-end">
+    <div className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div className="mx-auto max-w-4xl pb-8">
+        <div className="mb-6 flex items-center justify-between gap-4">
           <button
-            onClick={() => router.push('/members')}
-            className="flex items-center text-sm font-semibold text-gray-500 transition-colors hover:text-gray-900"
+            type="button"
+            onClick={handleBack}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-gray-600 transition hover:bg-white hover:text-gray-900"
           >
-            <span>회원목록으로</span>
+            <ArrowLeft size={19} /> 뒤로가기
+          </button>
+          <h1 className="text-lg font-bold text-gray-900 sm:text-xl">회원 프로필</h1>
+          <button
+            type="button"
+            onClick={() => showComingSoonNotice('report')}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-500 transition hover:bg-gray-100"
+          >
+            <Flag size={15} /> 신고 · 준비 중
           </button>
         </div>
 
-        <div className="overflow-hidden rounded-[2.5rem] border border-gray-100 bg-white shadow-xl">
-          <div className="relative flex h-64 items-center justify-center border-b border-gray-50 bg-[#f0fdf4]">
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white text-gray-300 shadow-md">
-              {member.profile_image && !hasProfileImageError ? (
-                <button
-                  type="button"
-                  aria-label={`${member.nickname ?? '회원'} 프로필 사진 크게 보기`}
-                  onClick={() => setIsImageModalOpen(true)}
-                  className="h-full w-full cursor-pointer overflow-hidden rounded-full focus:outline-none focus:ring-4 focus:ring-green-300"
-                >
-                  <img
-                    src={member.profile_image}
-                    alt={member.nickname ?? '프로필 이미지'}
-                    onError={() => setHasProfileImageError(true)}
-                    className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                  />
-                </button>
-              ) : (
-                <User size={64} strokeWidth={1.5} />
-              )}
+        <article className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
+          <section aria-label="대표 프로필 사진" className="relative bg-[#f0fdf4]">
+            <div className="relative flex items-center justify-center overflow-hidden px-4 py-6 sm:px-6 sm:py-8">
+              <div className="relative aspect-[3/4] w-full max-w-[400px] overflow-hidden rounded-[1.5rem] bg-[#e8f5e9] shadow-sm">
+                {member.profile_image && !hasProfileImageError ? (
+                  <button
+                    type="button"
+                    aria-label={`${member.nickname ?? '회원'} 프로필 사진 크게 보기`}
+                    onClick={() => setIsImageModalOpen(true)}
+                    className="absolute inset-0 h-full w-full cursor-zoom-in focus:outline-none focus:ring-4 focus:ring-inset focus:ring-green-300"
+                  >
+                    <img
+                      src={member.profile_image}
+                      alt={member.nickname ?? '프로필 이미지'}
+                      onError={() => setHasProfileImageError(true)}
+                      className="h-full w-full object-contain"
+                    />
+                  </button>
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-gray-300">
+                    <div className="flex h-36 w-36 items-center justify-center rounded-full border-4 border-white bg-white shadow-md">
+                      <User size={72} strokeWidth={1.5} />
+                    </div>
+                  </div>
+                )}
               </div>
-              {member.profile_image && !hasProfileImageError ? (
-                <p className="text-xs font-medium text-gray-500">사진을 클릭하면 크게 볼 수 있습니다.</p>
-              ) : null}
-            </div>
-            <div className="absolute right-6 top-6">
-              <span className="rounded-full bg-green-600 px-4 py-2 text-xs font-bold text-white shadow-lg">
-                {member.gender || '미입력'}
+              <span className="absolute left-5 top-5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-gray-700 shadow-sm">
+                대표 사진 1장
               </span>
             </div>
-          </div>
+            <div className="border-t border-green-100 bg-white/80 px-5 py-3 text-center text-xs font-semibold text-gray-400">
+              추가 사진 및 사진 스와이프 · 도입 예정
+            </div>
+          </section>
 
-          <div className="p-8 md:p-12">
-            <div className="mb-8 flex flex-col gap-4 border-b border-gray-50 pb-8 md:flex-row md:items-start md:justify-between">
-              <div>
-                <h1 className="mb-2 text-4xl font-black text-gray-900">
-                  {member.nickname || '익명'}
-                </h1>
-                <div className="flex flex-wrap items-center gap-3 text-lg font-semibold text-[#16a34a]">
-                  <span>{calculateAge(member.birth_date)}</span>
-                  <span className="h-1 w-1 rounded-full bg-gray-300" />
-                  <span>{member.region || '지역 미설정'}</span>
+          <div className="space-y-10 p-6 sm:p-10 md:p-12">
+            <section aria-labelledby="basic-profile-heading">
+              <div className="flex flex-col gap-5 border-b border-gray-100 pb-8 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 id="basic-profile-heading" className="text-3xl font-black text-gray-900 sm:text-4xl">
+                    {member.nickname || '익명'}
+                  </h2>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-base font-semibold text-[#16a34a] sm:text-lg">
+                    <span>{age !== null ? `만 ${age}세` : '나이 정보 미입력'}</span>
+                    <span className="h-1 w-1 rounded-full bg-gray-300" />
+                    <span>{member.region || '지역 정보 미입력'}</span>
+                    <span className="h-1 w-1 rounded-full bg-gray-300" />
+                    <span>{member.job || '직업 정보 미입력'}</span>
+                  </div>
                 </div>
+                {isOwnProfile ? (
+                  <Button className="rounded-2xl px-5 py-3 text-sm font-bold" onClick={() => router.push('/profile/create')}>
+                    내 프로필 수정
+                  </Button>
+                ) : null}
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <Button
-                  variant="outline"
-                  className="rounded-2xl px-6 py-3 text-sm font-bold"
-                  onClick={() => router.push('/members')}
-                >
-                  회원목록으로
-                </Button>
-                {currentUserId !== member.id ? <Button
-                  className="rounded-2xl px-6 py-3 text-sm font-bold"
-                  onClick={handleFavoriteToggle}
-                  disabled={isTogglingFavorite}
-                >
-                  <Heart className="mr-2 h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
-                  {isTogglingFavorite ? '처리 중...' : isFavorite ? '관심회원 해제' : '관심회원 추가'}
-                </Button> : null}
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                <ProfileFact icon={<User size={18} />} label="성별" value={member.gender || '정보 미입력'} />
+                <ProfileFact icon={<Ruler size={18} />} label="키" value={member.height ? `${member.height}cm` : '정보 미입력'} />
+                <ProfileFact icon={<GraduationCap size={18} />} label="학력" value={member.education || '정보 미입력'} />
               </div>
-            </div>
+            </section>
 
-            <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <InfoItem icon={<User size={20} />} label="성별" value={member.gender} />
-              <InfoItem icon={<Briefcase size={20} />} label="직업" value={member.job} />
-              <InfoItem icon={<Ruler size={20} />} label="키" value={member.height ? `${member.height}cm` : null} />
-              <InfoItem icon={<GraduationCap size={20} />} label="학력" value={member.education} />
-              <InfoItem icon={<Church size={20} />} label="종교" value={member.religion} />
-              <InfoItem icon={<Palette size={20} />} label="취미" value={member.hobby} />
-              <InfoItem icon={<MapPin size={20} />} label="지역" value={member.region} />
-              <InfoItem icon={<User size={20} />} label="음주" value={member.drinking} />
-            </div>
+            <section className="rounded-[1.75rem] border border-green-100 bg-green-50 p-6 sm:p-8" aria-labelledby="short-introduction-heading">
+              <h2 id="short-introduction-heading" className="text-sm font-bold text-green-800">한 줄 소개</h2>
+              <p className="mt-3 text-lg font-semibold leading-8 text-gray-800 sm:text-xl">
+                “{getIntroductionPreview(member.introduction)}”
+              </p>
+            </section>
 
-            {favoriteError ? (
-              <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-600">
-                {favoriteError}
+            <section aria-labelledby="introduction-heading">
+              <h2 id="introduction-heading" className="flex items-center gap-2 text-xl font-bold text-gray-900">
+                <Quote className="text-[#16a34a]" size={22} /> 자기소개
+              </h2>
+              <div className="mt-4 rounded-[1.75rem] bg-gray-50 p-6 sm:p-8">
+                <p className="whitespace-pre-wrap break-words text-base leading-8 text-gray-700">{introductionText}</p>
               </div>
-            ) : null}
+            </section>
 
-            <div className="relative rounded-[2rem] bg-gray-50 p-8 md:p-10">
-              <Quote className="absolute left-6 top-6 -z-0 h-12 w-12 text-green-200" />
-              <div className="relative z-10">
-                <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-900">
-                  <span className="h-6 w-1.5 rounded-full bg-[#16a34a]" />
-                  자기소개
-                </h3>
-                <p className="whitespace-pre-wrap text-lg leading-loose text-gray-600">
-                  {member.introduction || '등록된 자기소개가 없습니다.'}
+            <section aria-labelledby="lifestyle-heading">
+              <h2 id="lifestyle-heading" className="text-xl font-bold text-gray-900">생활 스타일</h2>
+              {hasLifestyle ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <ProfileFact icon={<Palette size={18} />} label="취미" value={member.hobby || '정보 미입력'} />
+                  <ProfileFact icon={<Wine size={18} />} label="음주 여부" value={member.drinking || '정보 미입력'} />
+                  <ProfileFact icon={<Church size={18} />} label="종교" value={member.religion || '정보 미입력'} />
+                </div>
+              ) : (
+                <p className="mt-4 rounded-2xl bg-gray-50 p-5 text-sm text-gray-500">
+                  아직 등록된 생활 스타일 정보가 없습니다.
                 </p>
+              )}
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <ComingSoonItem label="흡연 여부" description="정보 제공 기능 도입 예정" />
+                <ComingSoonItem label="MBTI" description="선택 기능 도입 예정" />
               </div>
-            </div>
-          </div>
-        </div>
+            </section>
 
+            <section className="rounded-[1.75rem] border border-dashed border-gray-200 bg-gray-50 p-6 sm:p-8" aria-labelledby="marriage-values-heading">
+              <div className="flex items-center justify-between gap-3">
+                <h2 id="marriage-values-heading" className="text-xl font-bold text-gray-700">결혼 가치관</h2>
+                <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-500">도입 예정</span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-gray-500">결혼 가치관 정보는 도입 예정입니다.</p>
+            </section>
+
+            <section className="rounded-[1.75rem] border border-dashed border-gray-200 bg-white p-6 sm:p-8" aria-labelledby="ai-summary-heading">
+              <div className="flex items-center justify-between gap-3">
+                <h2 id="ai-summary-heading" className="flex items-center gap-2 text-xl font-bold text-gray-700">
+                  <Sparkles size={21} className="text-gray-400" /> AI 분석 요약
+                </h2>
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">도입 예정</span>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-gray-500">AI 분석 요약 기능은 현재 준비 중입니다.</p>
+              <p className="mt-5 border-t border-gray-100 pt-4 text-xs text-gray-400">AI 분석 결과는 참고용입니다.</p>
+            </section>
+          </div>
+        </article>
+
+        <div className="sticky bottom-4 z-30 mt-6 rounded-[1.75rem] border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-md">
+          {notice ? (
+            <div
+              role="status"
+              className={`mb-3 rounded-xl border px-4 py-3 text-sm font-medium ${
+                notice.type === 'error'
+                  ? 'border-red-100 bg-red-50 text-red-600'
+                  : notice.type === 'success'
+                    ? 'border-green-100 bg-green-50 text-green-700'
+                    : 'border-gray-200 bg-gray-50 text-gray-600'
+              }`}
+            >
+              {notice.message}
+            </div>
+          ) : null}
+          {isOwnProfile ? (
+            <Button className="w-full rounded-2xl py-3 text-sm font-bold" onClick={() => router.push('/profile/create')}>
+              내 프로필 수정
+            </Button>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button
+                variant={isFavorite ? 'primary' : 'outline'}
+                className="min-h-12 rounded-2xl py-3 text-sm font-bold"
+                onClick={handleFavoriteToggle}
+                disabled={isTogglingFavorite}
+              >
+                <Heart className="mr-2 h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
+                {isTogglingFavorite ? '처리 중...' : isFavorite ? '관심 취소' : '관심'}
+              </Button>
+              <button
+                type="button"
+                onClick={() => showComingSoonNotice('like')}
+                className="min-h-12 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 px-5 py-3 text-sm font-bold text-gray-500 transition hover:bg-gray-100"
+              >
+                좋아요 · 도입 예정
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
       <ImageModal
         isOpen={isImageModalOpen}
         imageUrl={member.profile_image ?? null}
@@ -344,16 +522,26 @@ export default function MemberDetailPage() {
   );
 }
 
-function InfoItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number | null | undefined }) {
+function ProfileFact({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="flex items-start gap-4 rounded-2xl border border-gray-100 bg-gray-50 p-4">
-      <div className="mt-1 rounded-xl bg-green-50 p-2 text-[#16a34a]">
-        {icon}
+    <div className="flex items-start gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4">
+      <div className="rounded-xl bg-green-50 p-2 text-[#16a34a]">{icon}</div>
+      <div className="min-w-0">
+        <p className="text-xs font-bold text-gray-400">{label}</p>
+        <p className="mt-1 break-words text-sm font-bold text-gray-800">{value}</p>
       </div>
-      <div>
-        <p className="mb-1 text-sm font-bold text-gray-400">{label}</p>
-        <p className="text-lg font-bold text-gray-800">{value || '미설정'}</p>
+    </div>
+  );
+}
+
+function ComingSoonItem({ label, description }: { label: string; description: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-bold text-gray-500">{label}</p>
+        <span className="rounded-full bg-gray-200 px-2 py-1 text-[10px] font-bold text-gray-500">도입 예정</span>
       </div>
+      <p className="mt-2 text-xs text-gray-400">{description}</p>
     </div>
   );
 }

@@ -24,16 +24,35 @@ export async function DELETE() {
   const userId = user.id;
 
   try {
-    const { data: profile, error: profileReadError } = await admin
+    const { data: profileWithImages, error: profileReadError } = await admin
       .from('profiles')
-      .select('profile_image')
+      .select('profile_image, profile_images')
       .eq('id', userId)
       .maybeSingle();
-    if (profileReadError) throw profileReadError;
+    let profile: { profile_image?: string | null; profile_images?: unknown } | null = profileWithImages;
 
-    const imagePath = normalizeStoragePath(profile?.profile_image ?? null);
-    if (imagePath) {
-      const { error } = await admin.storage.from('profile_images').remove([imagePath]);
+    if (profileReadError) {
+      const { data: legacyProfile, error: legacyProfileReadError } = await admin
+        .from('profiles')
+        .select('profile_image')
+        .eq('id', userId)
+        .maybeSingle();
+      if (legacyProfileReadError) throw legacyProfileReadError;
+      profile = legacyProfile;
+    }
+
+    const storedImageValues = [
+      profile?.profile_image ?? null,
+      ...(Array.isArray(profile?.profile_images) ? profile.profile_images : []),
+    ];
+    const imagePaths = Array.from(new Set(
+      storedImageValues
+        .map((value) => typeof value === 'string' ? normalizeStoragePath(value) : null)
+        .filter((value): value is string => value !== null && value.startsWith(`${userId}/`)),
+    ));
+
+    if (imagePaths.length > 0) {
+      const { error } = await admin.storage.from('profile_images').remove(imagePaths);
       if (error) throw error;
     }
 

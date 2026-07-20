@@ -35,6 +35,7 @@ type MemberProfile = {
   hobby: string | null;
   drinking: string | null;
   profile_image?: string | null;
+  profile_images?: string[] | null;
 };
 
 type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
@@ -66,6 +67,24 @@ const getIntroductionPreview = (introduction: string | null) => {
   return `${text.slice(0, 87).trimEnd()}...`;
 };
 
+const resolveProfileImageUrls = (profileImage: unknown, profileImages: unknown) => {
+  const candidates = [profileImage, ...(Array.isArray(profileImages) ? profileImages : [])];
+  const resolvedUrls: string[] = [];
+  const seenUrls = new Set<string>();
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' || !candidate.trim()) continue;
+
+    const resolvedUrl = resolveProfileImageUrl(candidate.trim());
+    if (!resolvedUrl || seenUrls.has(resolvedUrl)) continue;
+
+    seenUrls.add(resolvedUrl);
+    resolvedUrls.push(resolvedUrl);
+  }
+
+  return resolvedUrls.slice(0, 5);
+};
+
 export default function MemberDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -79,8 +98,9 @@ export default function MemberDetailPage() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [hasProfileImageError, setHasProfileImageError] = useState(false);
+  const [failedAdditionalImageUrls, setFailedAdditionalImageUrls] = useState<Set<string>>(() => new Set());
 
   const memberId = useMemo(() => {
     if (typeof params.id === 'string') return params.id;
@@ -105,8 +125,9 @@ export default function MemberDetailPage() {
       setLoadError(null);
       setNotice(null);
       setIsFavorite(false);
-      setIsImageModalOpen(false);
+      setSelectedImageUrl(null);
       setHasProfileImageError(false);
+      setFailedAdditionalImageUrls(new Set());
 
       try {
         const {
@@ -124,7 +145,7 @@ export default function MemberDetailPage() {
 
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, nickname, birth_date, gender, height, job, region, introduction, education, religion, hobby, drinking, profile_image')
+          .select('id, nickname, birth_date, gender, height, job, region, introduction, education, religion, hobby, drinking, profile_image, profile_images')
           .eq('id', memberId)
           .maybeSingle();
 
@@ -137,9 +158,12 @@ export default function MemberDetailPage() {
         }
 
         if (isMounted) {
+          const profileImageUrls = resolveProfileImageUrls(profile.profile_image, profile.profile_images);
+
           setMember({
             ...profile,
-            profile_image: resolveProfileImageUrl(profile.profile_image ?? null),
+            profile_image: profileImageUrls[0] ?? null,
+            profile_images: profileImageUrls,
           });
         }
 
@@ -328,6 +352,9 @@ export default function MemberDetailPage() {
     : '아직 자기소개를 작성하지 않았습니다.';
   const hasLifestyle = Boolean(member.hobby || member.drinking || member.religion);
   const isOwnProfile = currentUserId === member.id;
+  const additionalProfileImages = (member.profile_images ?? [])
+    .slice(1)
+    .filter((imageUrl) => !failedAdditionalImageUrls.has(imageUrl));
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
@@ -358,7 +385,7 @@ export default function MemberDetailPage() {
                   <button
                     type="button"
                     aria-label={`${member.nickname ?? '회원'} 프로필 사진 크게 보기`}
-                    onClick={() => setIsImageModalOpen(true)}
+                    onClick={() => setSelectedImageUrl(member.profile_image ?? null)}
                     className="absolute inset-0 h-full w-full cursor-zoom-in focus:outline-none focus:ring-4 focus:ring-inset focus:ring-green-300"
                   >
                     <img
@@ -376,13 +403,40 @@ export default function MemberDetailPage() {
                   </div>
                 )}
               </div>
-              <span className="absolute left-5 top-5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-gray-700 shadow-sm">
-                대표 사진 1장
-              </span>
+              {member.profile_image && !hasProfileImageError ? (
+                <span className="absolute left-5 top-5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-gray-700 shadow-sm">
+                  대표사진
+                </span>
+              ) : null}
             </div>
-            <div className="border-t border-green-100 bg-white/80 px-5 py-3 text-center text-xs font-semibold text-gray-400">
-              추가 사진 및 사진 스와이프 · 도입 예정
-            </div>
+            {additionalProfileImages.length > 0 ? (
+              <div className="border-t border-green-100 bg-white/80 px-5 py-4 sm:px-6">
+                <div className="mx-auto grid max-w-[400px] grid-cols-2 gap-3 sm:grid-cols-4">
+                  {additionalProfileImages.map((imageUrl, index) => (
+                    <button
+                      key={imageUrl}
+                      type="button"
+                      aria-label={`${member.nickname ?? '회원'}의 프로필 사진 ${index + 2} 크게 보기`}
+                      onClick={() => setSelectedImageUrl(imageUrl)}
+                      className="aspect-[4/5] overflow-hidden rounded-2xl bg-[#e8f5e9] shadow-sm transition hover:opacity-90 focus:outline-none focus-visible:ring-4 focus-visible:ring-green-300"
+                    >
+                      <img
+                        src={imageUrl}
+                        alt={`${member.nickname ?? '회원'} 프로필 사진 ${index + 2}`}
+                        onError={() => {
+                          setFailedAdditionalImageUrls((currentUrls) => {
+                            const nextUrls = new Set(currentUrls);
+                            nextUrls.add(imageUrl);
+                            return nextUrls;
+                          });
+                        }}
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
 
           <div className="space-y-10 p-6 sm:p-10 md:p-12">
@@ -512,12 +566,15 @@ export default function MemberDetailPage() {
         </div>
       </div>
 
-      <ImageModal
-        isOpen={isImageModalOpen}
-        imageUrl={member.profile_image ?? null}
-        alt={`${member.nickname ?? '회원'} 프로필 사진`}
-        onClose={() => setIsImageModalOpen(false)}
-      />
+      {selectedImageUrl ? (
+        <ImageModal
+          key={selectedImageUrl}
+          isOpen
+          imageUrl={selectedImageUrl}
+          alt={`${member.nickname ?? '회원'} 프로필 사진`}
+          onClose={() => setSelectedImageUrl(null)}
+        />
+      ) : null}
     </div>
   );
 }

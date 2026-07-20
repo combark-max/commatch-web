@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Camera, User, Calendar, MapPin, Briefcase, GraduationCap, Wine, Quote, Loader2, Ruler, Church, Palette } from 'lucide-react';
+import { Camera, User, Calendar, MapPin, Briefcase, GraduationCap, Wine, Quote, Loader2, Ruler, Church, Palette, Plus, Star, Trash2 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
+import ImageModal from '@/components/common/ImageModal';
 import { createClient } from '@/lib/supabase/client';
 import { getProfileImageUrl, normalizeProfileImagePath } from '@/lib/profile-image';
 import { normalizeRegion, PROFILE_REGIONS } from '@/constants/regions';
@@ -27,7 +28,9 @@ const profileSchema = z.object({
   religion: z.string().min(1, { message: "종교를 선택해주세요." }),
   hobby: z.string().min(1, { message: "취미를 입력해주세요." }),
   drinking: z.string().min(1, { message: "음주 여부를 선택해주세요." }),
-  introduction: z.string().min(10, { message: "한줄소개는 최소 10자 이상 작성해주세요." }),
+  introduction: z.string()
+    .min(10, { message: "한줄소개는 최소 10자 이상 작성해주세요." })
+    .max(500, { message: "자기소개는 최대 500자까지 작성할 수 있습니다." }),
 }).superRefine((data, context) => {
   if (data.job === '기타' && !data.job_other?.trim()) {
     context.addIssue({
@@ -39,6 +42,26 @@ const profileSchema = z.object({
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
+
+type StoredPhoto = {
+  id: string;
+  kind: 'stored';
+  path: string;
+  previewUrl: string;
+};
+
+type PendingPhoto = {
+  id: string;
+  kind: 'pending';
+  file: File;
+  previewUrl: string;
+  fingerprint: string;
+};
+
+type ProfilePhoto = StoredPhoto | PendingPhoto;
+
+const MAX_PROFILE_PHOTOS = 5;
+const PROFILE_PHOTO_BUCKET = 'profile_images';
 
 const logSupabaseError = (label: string, error: unknown) => {
   const normalized = error as { code?: string; message?: string; details?: string; hint?: string } | undefined;
@@ -59,14 +82,15 @@ export default function ProfileCreatePage() {
   const [isFetchingProfile, setIsFetchingProfile] = useState(true);
   const [hasExistingProfile, setHasExistingProfile] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [isDeletingImage, setIsDeletingImage] = useState(false);
-  const [storedImagePath, setStoredImagePath] = useState<string | null>(null);
-  const [storedImageUrl, setStoredImageUrl] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<ProfilePhoto[]>([]);
+  const [persistedPrimaryPath, setPersistedPrimaryPath] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+  const [modalImageUrl, setModalImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingPreviewUrlsRef = useRef<Set<string>>(new Set());
+  const hasScrolledToSectionRef = useRef(false);
 
   const {
     register,
@@ -87,43 +111,121 @@ export default function ProfileCreatePage() {
     },
   });
 
-  const selectedGender = watch("gender");
-  const selectedJob = watch("job");
-  const displayImageUrl = previewUrl ?? storedImageUrl;
+  const formValues = watch();
+  const selectedGender = formValues.gender;
+  const selectedJob = formValues.job;
+  const introductionLength = formValues.introduction?.length ?? 0;
+  const completionFields = [
+    formValues.nickname,
+    formValues.gender,
+    formValues.birth_date,
+    formValues.height,
+    formValues.region,
+    formValues.job,
+    formValues.education,
+    formValues.religion,
+    formValues.hobby,
+    formValues.drinking,
+    formValues.introduction,
+  ];
+  const completedFieldCount = completionFields.filter((value) => typeof value === 'string' && value.trim()).length;
+  const profileCompletion = Math.round((completedFieldCount / completionFields.length) * 100);
 
-  const clearSelectedImage = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setSelectedFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  const releasePendingPreview = (previewUrl: string) => {
+    URL.revokeObjectURL(previewUrl);
+    pendingPreviewUrlsRef.current.delete(previewUrl);
   };
 
-  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  useEffect(() => {
+    const pendingPreviewUrls = pendingPreviewUrlsRef.current;
+    return () => {
+      pendingPreviewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+      pendingPreviewUrls.clear();
+    };
+  }, []);
 
-    if (!file) {
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    event.target.value = '';
+
+    if (selectedFiles.length === 0) return;
+
+    if (photos.length + selectedFiles.length > MAX_PROFILE_PHOTOS) {
+      setUploadError(`프로필 사진은 최대 ${MAX_PROFILE_PHOTOS}장까지 등록할 수 있습니다.`);
       return;
     }
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      setUploadError('jpg, jpeg, png, webp 형식의 이미지만 업로드할 수 있습니다.');
+    for (const file of selectedFiles) {
+      if (!allowedTypes.includes(file.type)) {
+        setUploadError(`${file.name}: jpg, jpeg, png, webp 형식의 이미지만 선택할 수 있습니다.`);
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        setUploadError(`${file.name}: 이미지 크기는 5MB 이하만 가능합니다.`);
+        return;
+      }
+    }
+
+    const existingFingerprints = new Set(
+      photos.filter((photo): photo is PendingPhoto => photo.kind === 'pending').map((photo) => photo.fingerprint),
+    );
+    const selectedFingerprints = selectedFiles.map((file) => `${file.name}:${file.size}:${file.lastModified}`);
+    const uniqueFingerprints = new Set(selectedFingerprints);
+
+    if (uniqueFingerprints.size !== selectedFingerprints.length || selectedFingerprints.some((fingerprint) => existingFingerprints.has(fingerprint))) {
+      setUploadError('같은 사진이 이미 저장 전 목록에 있습니다.');
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('이미지 크기는 5MB 이하만 가능합니다.');
-      return;
-    }
+    const selectedAt = Date.now();
+    const pendingPhotos = selectedFiles.map((file, index): PendingPhoto => {
+      const previewUrl = URL.createObjectURL(file);
+      pendingPreviewUrlsRef.current.add(previewUrl);
+      return {
+        id: `pending-${selectedAt}-${index}-${file.name}`,
+        kind: 'pending',
+        file,
+        previewUrl,
+        fingerprint: selectedFingerprints[index],
+      };
+    });
 
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    const nextPreviewUrl = URL.createObjectURL(file);
-    setSelectedFile(file);
-    setPreviewUrl(nextPreviewUrl);
+    setPhotos((current) => [...current, ...pendingPhotos]);
     setUploadError(null);
   };
 
-  const performImageDelete = async () => {
+  const removePendingPhoto = (photoId: string) => {
+    const target = photos.find((photo): photo is PendingPhoto => photo.id === photoId && photo.kind === 'pending');
+    if (!target) return;
+
+    if (modalImageUrl === target.previewUrl) {
+      setModalImageUrl(null);
+      window.requestAnimationFrame(() => releasePendingPreview(target.previewUrl));
+    } else {
+      releasePendingPreview(target.previewUrl);
+    }
+
+    setPhotos((current) => current.filter((photo) => photo.id !== photoId));
+    setUploadError(null);
+  };
+
+  const selectPrimaryPhoto = (photoId: string) => {
+    setPhotos((current) => {
+      const targetIndex = current.findIndex((photo) => photo.id === photoId);
+      if (targetIndex <= 0) return current;
+      const next = [...current];
+      const [target] = next.splice(targetIndex, 1);
+      return [target, ...next];
+    });
+  };
+
+  const deleteStoredPhoto = async (targetPhoto: StoredPhoto) => {
+    if (!window.confirm('이 사진을 삭제하시겠습니까?')) return;
+
+    if (modalImageUrl === targetPhoto.previewUrl) setModalImageUrl(null);
+
     try {
       const {
         data: { user },
@@ -135,67 +237,53 @@ export default function ProfileCreatePage() {
         return;
       }
 
-      setIsDeletingImage(true);
+      setDeletingPhotoId(targetPhoto.id);
+      const remainingStoredPhotos = photos.filter(
+        (photo): photo is StoredPhoto => photo.kind === 'stored' && photo.id !== targetPhoto.id,
+      );
+      const remainingPaths = remainingStoredPhotos.map((photo) => photo.path);
+      const nextPrimaryPath = remainingPaths[0] ?? null;
 
-      if (selectedFile) {
-        clearSelectedImage();
-        setToast({ message: '선택된 사진이 취소되었습니다.', type: 'success' });
-        setIsDeletingImage(false);
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ profile_images: remainingPaths, profile_image: nextPrimaryPath })
+        .eq('id', user.id);
+
+      if (updateError) {
+        logSupabaseError('프로필 사진 DB 삭제 반영 실패:', updateError);
+        setToast({ message: '프로필 사진 삭제에 실패했습니다.', type: 'error' });
         return;
       }
 
-      // 기존 저장된 사진이 있는 경우
-      if (storedImagePath) {
-        const bucketName = 'profile_images';
+      setPhotos((current) => current.filter((photo) => photo.id !== targetPhoto.id));
+      setPersistedPrimaryPath(nextPrimaryPath);
 
-        // Storage에서 파일 삭제
-        const { error: deleteError } = await supabase.storage.from(bucketName).remove([storedImagePath]);
-
-        if (deleteError) {
-          // 파일이 없는 경우는 무시하고 DB는 정리 (404 에러)
-          if (deleteError.message && deleteError.message.includes('not found')) {
-            // 파일 없음 - DB만 정리
-          } else {
-            logSupabaseError('프로필 이미지 Storage 삭제 실패:', deleteError);
-            setToast({ message: '프로필 사진 삭제에 실패했습니다.', type: 'error' });
-            setIsDeletingImage(false);
-            return;
-          }
-        }
-
-        // DB에서 profile_image를 null로 변경
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ profile_image: null })
-          .eq('id', user.id);
-
-        if (updateError) {
-          logSupabaseError('프로필 이미지 DB 삭제 실패:', updateError);
-          setToast({ message: '프로필 사진 삭제에 실패했습니다.', type: 'error' });
-          setIsDeletingImage(false);
-          return;
-        }
-
-        // UI 업데이트
-        setStoredImagePath(null);
-        setStoredImageUrl(null);
-        clearSelectedImage();
+      if (!targetPhoto.path.startsWith(`${user.id}/`)) {
+        console.warn('사용자 디렉터리 밖의 프로필 사진 경로는 Storage에서 삭제하지 않았습니다.', {
+          userId: user.id,
+          path: targetPhoto.path,
+        });
         setToast({ message: '프로필 사진이 삭제되었습니다.', type: 'success' });
+        return;
       }
+
+      const { error: storageDeleteError } = await supabase.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .remove([targetPhoto.path]);
+
+      if (storageDeleteError) {
+        logSupabaseError('프로필 사진 Storage 정리 실패:', storageDeleteError);
+        setToast({ message: '사진 정보는 삭제되었지만 Storage 파일 정리에 실패했습니다.', type: 'error' });
+        return;
+      }
+
+      setToast({ message: '프로필 사진이 삭제되었습니다.', type: 'success' });
     } catch (error: unknown) {
-      logSupabaseError('프로필 이미지 삭제 중 예외:', error);
+      logSupabaseError('프로필 사진 삭제 중 예외:', error);
       setToast({ message: '프로필 사진 삭제에 실패했습니다.', type: 'error' });
     } finally {
-      setIsDeletingImage(false);
+      setDeletingPhotoId(null);
     }
-  };
-
-  const handleDeleteProfileImage = () => {
-    if (!confirm('프로필 사진을 삭제하시겠습니까?')) {
-      return;
-    }
-
-    performImageDelete();
   };
 
   useEffect(() => {
@@ -216,7 +304,7 @@ export default function ProfileCreatePage() {
         try {
           const result = await supabase
             .from('profiles')
-            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction, profile_image')
+            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction, profile_image, profile_images')
             .eq('id', user.id)
             .maybeSingle();
 
@@ -229,11 +317,20 @@ export default function ProfileCreatePage() {
         if (profileError) {
           const fallbackResult = await supabase
             .from('profiles')
-            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction')
+            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction, profile_image')
             .eq('id', user.id)
             .maybeSingle();
 
-          profileData = fallbackResult.data as Record<string, unknown> | null;
+          if (fallbackResult.error) {
+            const legacyFallbackResult = await supabase
+              .from('profiles')
+              .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction')
+              .eq('id', user.id)
+              .maybeSingle();
+            profileData = legacyFallbackResult.data as Record<string, unknown> | null;
+          } else {
+            profileData = fallbackResult.data as Record<string, unknown> | null;
+          }
         }
 
         setHasExistingProfile(Boolean(profileData));
@@ -256,14 +353,27 @@ export default function ProfileCreatePage() {
             introduction: (profileData.introduction as string | null) ?? '',
           });
 
-          if (typeof profileData.profile_image === 'string') {
-            const imagePath = normalizeProfileImagePath(profileData.profile_image);
-            setStoredImagePath(imagePath);
-            setStoredImageUrl(getProfileImageUrl(imagePath));
-          } else {
-            setStoredImagePath(null);
-            setStoredImageUrl(null);
-          }
+          const storedPrimaryPath = typeof profileData.profile_image === 'string'
+            ? normalizeProfileImagePath(profileData.profile_image)
+            : null;
+          const storedPhotoValues = Array.isArray(profileData.profile_images) && profileData.profile_images.length > 0
+            ? profileData.profile_images
+            : storedPrimaryPath
+              ? [storedPrimaryPath]
+              : [];
+          const storedPhotoPaths = Array.from(new Set(
+            storedPhotoValues
+              .map((value) => typeof value === 'string' ? normalizeProfileImagePath(value) : null)
+              .filter((value): value is string => Boolean(value)),
+          )).slice(0, MAX_PROFILE_PHOTOS);
+
+          setPhotos(storedPhotoPaths.map((path) => ({
+            id: `stored-${path}`,
+            kind: 'stored',
+            path,
+            previewUrl: getProfileImageUrl(path) ?? '',
+          })));
+          setPersistedPrimaryPath(storedPhotoPaths[0] ?? null);
         }
       } catch (error) {
         console.error('프로필 조회 실패:', error);
@@ -275,9 +385,44 @@ export default function ProfileCreatePage() {
     loadProfile();
   }, [reset, router, supabase]);
 
+  useEffect(() => {
+    if (isFetchingProfile || hasScrolledToSectionRef.current) return;
+
+    let sectionId = '';
+    try {
+      sectionId = decodeURIComponent(window.location.hash.replace(/^#/, ''));
+    } catch {
+      return;
+    }
+    if (!sectionId) return;
+
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      hasScrolledToSectionRef.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [isFetchingProfile]);
+
   const onSubmit = async (data: ProfileFormValues) => {
     setIsLoading(true);
-    let uploadedFilePath: string | null = null;
+    const isPendingPhotoExpanded = photos.some(
+      (photo) => photo.kind === 'pending' && photo.previewUrl === modalImageUrl,
+    );
+    if (isPendingPhotoExpanded) setModalImageUrl(null);
+    const uploadedFilePaths: string[] = [];
+
+    const cleanupUploadedFiles = async () => {
+      if (uploadedFilePaths.length === 0) return;
+      const { error: cleanupError } = await supabase.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .remove(uploadedFilePaths);
+      if (cleanupError) logSupabaseError('업로드된 프로필 이미지 정리 실패:', cleanupError);
+    };
+
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
 
@@ -286,23 +431,47 @@ export default function ProfileCreatePage() {
         return;
       }
 
-      if (selectedFile) {
-        setIsUploadingImage(true);
-        const fileExtension = selectedFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-        uploadedFilePath = `${user.id}/profile-${Date.now()}.${fileExtension}`;
+      if (photos.length > MAX_PROFILE_PHOTOS) {
+        setUploadError(`프로필 사진은 최대 ${MAX_PROFILE_PHOTOS}장까지 등록할 수 있습니다.`);
+        return;
+      }
 
+      const pendingPhotos = photos.filter((photo): photo is PendingPhoto => photo.kind === 'pending');
+      const uploadedPathsByPhotoId = new Map<string, string>();
+
+      if (pendingPhotos.length > 0) setIsUploadingImage(true);
+
+      for (const [index, photo] of pendingPhotos.entries()) {
+        const fileExtension = photo.file.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const uniqueSuffix = Math.random().toString(36).slice(2, 10);
+        const uploadedFilePath = `${user.id}/profile-${Date.now()}-${index}-${uniqueSuffix}.${fileExtension}`;
         const { error: imageUploadError } = await supabase.storage
-          .from('profile_images')
-          .upload(uploadedFilePath, selectedFile, {
+          .from(PROFILE_PHOTO_BUCKET)
+          .upload(uploadedFilePath, photo.file, {
             cacheControl: '3600',
-            upsert: true,
+            upsert: false,
           });
 
         if (imageUploadError) {
-          logSupabaseError('프로필 이미지 업로드 실패:', imageUploadError);
-          setToast({ message: '프로필 사진 업로드에 실패했습니다.', type: 'error' });
+          logSupabaseError(`프로필 이미지 업로드 실패 (${index + 1}번째, ${photo.file.name}):`, imageUploadError);
+          await cleanupUploadedFiles();
+          setToast({ message: `${photo.file.name} 사진 업로드에 실패했습니다. 기존 사진은 유지됩니다.`, type: 'error' });
           return;
         }
+
+        uploadedFilePaths.push(uploadedFilePath);
+        uploadedPathsByPhotoId.set(photo.id, uploadedFilePath);
+      }
+
+      const finalPhotoPaths = photos.map((photo) => photo.kind === 'stored'
+        ? photo.path
+        : uploadedPathsByPhotoId.get(photo.id))
+        .filter((path): path is string => Boolean(path));
+
+      if (finalPhotoPaths.length > MAX_PROFILE_PHOTOS || finalPhotoPaths.length !== photos.length) {
+        await cleanupUploadedFiles();
+        setUploadError(`프로필 사진은 최대 ${MAX_PROFILE_PHOTOS}장까지 등록할 수 있습니다.`);
+        return;
       }
 
       const finalJob = data.job === '기타' ? data.job_other?.trim() ?? '' : data.job;
@@ -319,13 +488,14 @@ export default function ProfileCreatePage() {
         hobby: data.hobby,
         drinking: data.drinking,
         introduction: data.introduction,
-        profile_image: uploadedFilePath ?? storedImagePath ?? null,
+        profile_image: finalPhotoPaths[0] ?? null,
+        profile_images: finalPhotoPaths,
       };
 
       const { data: savedProfile, error } = await supabase
         .from('profiles')
         .upsert(profileData, { onConflict: 'id' })
-        .select('profile_image')
+        .select('profile_image, profile_images')
         .single();
 
       if (error) {
@@ -337,31 +507,27 @@ export default function ProfileCreatePage() {
           data: savedProfile,
         });
 
-        if (uploadedFilePath) {
-          const { error: cleanupError } = await supabase.storage
-            .from('profile_images')
-            .remove([uploadedFilePath]);
-          if (cleanupError) logSupabaseError('업로드된 프로필 이미지 정리 실패:', cleanupError);
-        }
-
+        await cleanupUploadedFiles();
         setToast({ message: '프로필 저장에 실패했습니다. 다시 시도해주세요.', type: 'error' });
         return;
       }
 
-      const savedImagePath = normalizeProfileImagePath(savedProfile.profile_image);
-      setStoredImagePath(savedImagePath);
-      setStoredImageUrl(getProfileImageUrl(savedImagePath));
-      clearSelectedImage();
+      photos.forEach((photo) => {
+        if (photo.kind === 'pending') releasePendingPreview(photo.previewUrl);
+      });
+      setPhotos(finalPhotoPaths.map((path) => ({
+        id: `stored-${path}`,
+        kind: 'stored',
+        path,
+        previewUrl: getProfileImageUrl(path) ?? '',
+      })));
+      setPersistedPrimaryPath(finalPhotoPaths[0] ?? null);
+      setUploadError(null);
       setToast({ message: "프로필이 성공적으로 저장되었습니다.", type: 'success' });
       setTimeout(() => router.push('/dashboard'), 1500);
     } catch (err) {
       logSupabaseError('프로필 저장 중 예외 발생:', err);
-      if (uploadedFilePath) {
-        const { error: cleanupError } = await supabase.storage
-          .from('profile_images')
-          .remove([uploadedFilePath]);
-        if (cleanupError) logSupabaseError('업로드된 프로필 이미지 정리 실패:', cleanupError);
-      }
+      await cleanupUploadedFiles();
       setToast({ message: "프로필 저장 중 오류가 발생했습니다.", type: 'error' });
     } finally {
       setIsUploadingImage(false);
@@ -384,62 +550,140 @@ export default function ProfileCreatePage() {
     <div className="min-h-screen bg-white py-12 px-4 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl">
         <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-gray-900">프로필 설정</h1>
-          <p className="mt-2 text-gray-600">당신을 더 잘 알 수 있도록 프로필을 완성해주세요.</p>
+          <h1 className="text-3xl font-bold text-gray-900">프로필 작성</h1>
+          <p className="mt-2 text-gray-600">기본정보부터 자기소개까지 차근차근 작성해주세요.</p>
+          <p className="mt-1 text-sm text-gray-500">일부 추천 고도화 기능은 순차적으로 도입될 예정입니다.</p>
+        </div>
+
+        <div className="mb-8 rounded-2xl border border-green-100 bg-green-50 p-5">
+          <div className="grid grid-cols-2 gap-2 text-center text-xs font-semibold text-gray-500 sm:grid-cols-4">
+            <span className="rounded-lg bg-white px-2 py-2 text-green-700">기본 정보</span>
+            <span className="rounded-lg bg-white px-2 py-2 text-green-700">생활 정보</span>
+            <span className="rounded-lg bg-white px-2 py-2 text-green-700">자기소개</span>
+            <span className="rounded-lg bg-gray-100 px-2 py-2">추천 고도화 기능 · 도입 예정</span>
+          </div>
+          <div className="mt-5 flex items-center justify-between gap-4">
+            <p className="text-sm font-bold text-gray-800">프로필 완성도 {profileCompletion}%</p>
+            <span className="text-xs text-gray-500">{completedFieldCount} / {completionFields.length} 항목</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
+            <div className="h-full rounded-full bg-[#16a34a] transition-[width]" style={{ width: `${profileCompletion}%` }} />
+          </div>
+          <p className="mt-3 text-xs leading-5 text-gray-500">프로필을 충실히 작성할수록 향후 추천 정확도가 높아집니다.</p>
         </div>
 
         <form className="space-y-8" onSubmit={handleSubmit(onSubmit)}>
-          {/* 1. Profile Picture Placeholder */}
-          <div className="flex flex-col items-center justify-center">
-            <div className="relative group">
-              <div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300 overflow-hidden">
-                {displayImageUrl ? (
-                  <img src={displayImageUrl} alt="프로필 미리보기" className="h-full w-full object-cover" />
-                ) : (
-                  <Camera size={40} className="text-gray-400" />
-                )}
+          <section id="photos" className="scroll-mt-24 rounded-2xl border border-gray-200 p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">프로필 사진</h2>
+                <p className="mt-1 text-xs leading-5 text-gray-500">첫 번째 사진이 대표사진으로 표시됩니다. 최대 5장까지 등록할 수 있습니다.</p>
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpg,image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={handleImageSelect}
-              />
+              <span className="rounded-full bg-green-50 px-3 py-1.5 text-sm font-bold text-green-700">
+                {photos.length} / {MAX_PROFILE_PHOTOS}
+              </span>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/jpg,image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+              {Array.from({ length: MAX_PROFILE_PHOTOS }, (_, index) => {
+                const photo = photos[index];
+                if (!photo) {
+                  return (
+                    <button
+                      key={`empty-${index}`}
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={photos.length >= MAX_PROFILE_PHOTOS || isLoading || Boolean(deletingPhotoId)}
+                      className="flex aspect-[4/5] flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 transition hover:border-green-400 hover:bg-green-50 hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label={`${index + 1}번째 프로필 사진 추가`}
+                    >
+                      <Plus size={24} />
+                      <span className="mt-2 text-xs font-semibold">사진 추가</span>
+                    </button>
+                  );
+                }
+
+                const isPersistedPrimary = photo.kind === 'stored' && photo.path === persistedPrimaryPath;
+                const primaryLabel = isPersistedPrimary ? '대표사진' : '저장 후 대표사진';
+
+                return (
+                  <div key={photo.id} className="relative aspect-[4/5] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm">
+                    {photo.previewUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => setModalImageUrl(photo.previewUrl)}
+                        disabled={isLoading || Boolean(deletingPhotoId)}
+                        aria-label={`${index === 0 ? '대표 ' : ''}프로필 사진 ${index + 1} 크게 보기`}
+                        className="h-full w-full cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-green-500 disabled:cursor-not-allowed"
+                      >
+                        <img src={photo.previewUrl} alt={`${index + 1}번째 프로필 사진`} className="h-full w-full object-cover" />
+                      </button>
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-gray-400"><Camera size={28} /></div>
+                    )}
+
+                    <div className="pointer-events-none absolute left-2 top-2 z-10 flex flex-col items-start gap-1">
+                      {index === 0 ? (
+                        <span className="rounded-full bg-green-600 px-2 py-1 text-[10px] font-bold text-white shadow-sm">{primaryLabel}</span>
+                      ) : null}
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-bold shadow-sm ${photo.kind === 'pending' ? 'bg-amber-50 text-[#806B26]' : 'bg-white/90 text-gray-600'}`}>
+                        {photo.kind === 'pending' ? '저장 전' : '저장됨'}
+                      </span>
+                    </div>
+
+                    <div className="absolute inset-x-0 bottom-0 z-10 flex gap-1 bg-black/55 p-2">
+                      {index > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => selectPrimaryPhoto(photo.id)}
+                          disabled={isLoading || Boolean(deletingPhotoId)}
+                          className="flex min-h-8 flex-1 items-center justify-center gap-1 rounded-lg bg-white/95 px-2 text-[10px] font-bold text-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Star size={12} /> 대표 선택
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => photo.kind === 'pending' ? removePendingPhoto(photo.id) : void deleteStoredPhoto(photo)}
+                        disabled={isLoading || Boolean(deletingPhotoId)}
+                        className="flex min-h-8 items-center justify-center rounded-lg bg-red-500 px-2 text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        aria-label={`${index + 1}번째 프로필 사진 삭제`}
+                      >
+                        {deletingPhotoId === photo.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-gray-500">jpg, jpeg, png, webp · 파일당 최대 5MB</p>
               <button
                 type="button"
-                disabled={isUploadingImage}
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 bg-[#16a34a] text-white p-2 rounded-full shadow-lg hover:bg-green-700 transition-colors disabled:cursor-not-allowed disabled:bg-gray-400"
+                disabled={photos.length >= MAX_PROFILE_PHOTOS || isLoading || Boolean(deletingPhotoId)}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400"
               >
                 {isUploadingImage ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+                {photos.length >= MAX_PROFILE_PHOTOS ? '최대 5장 등록됨' : '사진 추가'}
               </button>
             </div>
-            <div className="mt-4 flex gap-3 justify-center w-full">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingImage}
-                className="px-4 py-2 text-sm font-medium text-white bg-[#16a34a] rounded-lg hover:bg-green-700 transition-colors disabled:cursor-not-allowed disabled:bg-gray-400"
-              >
-                사진 선택
-              </button>
-              {(storedImagePath || selectedFile) && (
-                <button
-                  type="button"
-                  onClick={handleDeleteProfileImage}
-                  disabled={isDeletingImage}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors disabled:cursor-not-allowed disabled:bg-gray-400"
-                >
-                  {isDeletingImage ? '삭제 중...' : '사진 삭제'}
-                </button>
-              )}
-            </div>
-            <p className="mt-3 text-xs text-gray-500">프로필 사진을 추가해주세요</p>
-            {uploadError ? <p className="mt-2 text-xs text-red-500">{uploadError}</p> : null}
-          </div>
+            {uploadError ? <p className="mt-3 text-xs font-medium text-red-500">{uploadError}</p> : null}
+          </section>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <section id="basic-info" className="scroll-mt-24 rounded-2xl border border-gray-200 p-5 sm:p-6">
+            <h2 className="mb-6 text-lg font-bold text-gray-900">기본 정보</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 2. Nickname */}
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
@@ -529,6 +773,8 @@ export default function ProfileCreatePage() {
                 ))}
               </select>
               {errors.region && <p className="mt-1 text-xs text-red-500">{errors.region.message}</p>}
+              {/* TODO: 회원가입 단계에서 지역 정보를 수집하게 되면 자동 입력 연결 */}
+              <p className="mt-1.5 text-xs text-gray-400">회원가입 정보 자동 입력 기능은 추후 도입될 예정입니다.</p>
             </div>
 
             {/* 7. Job */}
@@ -579,7 +825,12 @@ export default function ProfileCreatePage() {
               </select>
               {errors.education && <p className="mt-1 text-xs text-red-500">{errors.education.message}</p>}
             </div>
+            </div>
+          </section>
 
+          <section id="lifestyle" className="scroll-mt-24 rounded-2xl border border-gray-200 p-5 sm:p-6">
+            <h2 className="mb-6 text-lg font-bold text-gray-900">생활 정보</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 9. Religion */}
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
@@ -613,6 +864,7 @@ export default function ProfileCreatePage() {
                 className={`w-full px-4 py-2.5 border ${errors.hobby ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
               />
               {errors.hobby && <p className="mt-1 text-xs text-red-500">{errors.hobby.message}</p>}
+              <p className="mt-1.5 text-xs text-gray-400">여러 취미를 최대 5개까지 선택하는 기능은 도입 예정입니다.</p>
             </div>
 
             {/* 11. Drinking */}
@@ -632,10 +884,38 @@ export default function ProfileCreatePage() {
               </select>
               {errors.drinking && <p className="mt-1 text-xs text-red-500">{errors.drinking.message}</p>}
             </div>
-          </div>
+
+            {/* TODO: smoking 컬럼 및 운영정책 확정 후 실제 입력 기능 연결 */}
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 md:col-span-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-bold text-gray-800">흡연 정보</p>
+                <span className="rounded-full bg-gray-200 px-2 py-1 text-[10px] font-bold text-gray-600">도입 예정</span>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">비흡연·흡연 여부 입력 기능이 추후 추가될 예정입니다.</p>
+            </div>
+            </div>
+          </section>
+
+          {/* TODO: 결혼 가치관 정책과 DB 컬럼 확정 후 실제 입력 기능 연결 */}
+          <section id="marriage-values" className="scroll-mt-24 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-gray-900">결혼 가치관</h2>
+              <span className="rounded-full bg-gray-200 px-2 py-1 text-[10px] font-bold text-gray-600">도입 예정</span>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-gray-500">향후 AI 추천 고도화를 위해 결혼 가치관 정보를 추가할 예정입니다.</p>
+            <div className="mt-4 space-y-2 text-sm text-gray-600">
+              {['결혼 희망 시기', '자녀 계획', '가족과의 관계'].map((item) => (
+                <div key={item} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2">
+                  <span>{item}</span>
+                  <span className="text-xs font-medium text-gray-400">도입 예정</span>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {/* 12. Introduction */}
-          <div>
+          <section id="introduction" className="scroll-mt-24 rounded-2xl border border-gray-200 p-5 sm:p-6">
+            <h2 className="mb-6 text-lg font-bold text-gray-900">자기소개</h2>
             <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
               <Quote size={16} className="mr-2 text-[#16a34a]" />
               한줄소개
@@ -643,17 +923,31 @@ export default function ProfileCreatePage() {
             <textarea
               {...register("introduction")}
               rows={3}
-              placeholder="자신에 대해 한 줄로 멋지게 설명해주세요."
+              maxLength={500}
+              placeholder="안녕하세요. 배려와 대화를 중요하게 생각합니다. 주말에는 산책이나 여행을 좋아하며, 평생 함께 웃을 수 있는 사람을 만나고 싶습니다."
               className={`w-full px-4 py-2.5 border ${errors.introduction ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
             ></textarea>
+            <div className="mt-1.5 flex items-center justify-between gap-3 text-xs">
+              <p className={introductionLength < 20 ? 'font-medium text-amber-600' : 'text-gray-400'}>20자 이상 작성하면 자신을 더 잘 표현할 수 있습니다.</p>
+              <span className="shrink-0 text-gray-500">{introductionLength} / 500자</span>
+            </div>
             {errors.introduction && <p className="mt-1 text-xs text-red-500">{errors.introduction.message}</p>}
-          </div>
+
+            {/* TODO: AI 문장 다듬기 API, 개인정보 안내, 사용량 정책 확정 후 연결 */}
+            <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-bold text-gray-800">AI가 더 자연스럽게 다듬기</p>
+                <span className="rounded-full bg-gray-200 px-2 py-1 text-[10px] font-bold text-gray-600">도입 예정</span>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-gray-500">작성한 내용을 바탕으로 문장을 자연스럽게 다듬는 기능이 추후 추가될 예정입니다.</p>
+            </div>
+          </section>
 
           <div className="pt-6">
             <Button
               type="submit"
               className="w-full py-4 text-lg font-bold"
-              disabled={isLoading}
+              disabled={isLoading || Boolean(deletingPhotoId)}
             >
               {isLoading ? (
                 <>
@@ -675,6 +969,14 @@ export default function ProfileCreatePage() {
           onClose={() => setToast(null)}
         />
       )}
+
+      <ImageModal
+        key={modalImageUrl ?? 'profile-create-photo-modal'}
+        isOpen={Boolean(modalImageUrl)}
+        imageUrl={modalImageUrl}
+        alt="프로필 사진"
+        onClose={() => setModalImageUrl(null)}
+      />
     </div>
   );
 }

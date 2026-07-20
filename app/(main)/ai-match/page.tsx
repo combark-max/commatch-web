@@ -6,6 +6,7 @@ import {
   Bell,
   Briefcase,
   Check,
+  ChevronLeft,
   ChevronRight,
   Heart,
   Loader2,
@@ -257,6 +258,37 @@ export default function AiMatchPage() {
           .sort((a, b) => b.score - a.score)
           .slice(0, 10);
 
+        let restoredIndex = 0;
+
+        if (scoredMembers.length > 0 && typeof window !== 'undefined') {
+          const searchParams = new URLSearchParams(window.location.search);
+          const requestedMemberId = searchParams.get('member')?.trim() ?? '';
+          const requestedMemberIndex = requestedMemberId
+            ? scoredMembers.findIndex((recommendation) => recommendation.id === requestedMemberId)
+            : -1;
+
+          if (requestedMemberIndex >= 0) {
+            restoredIndex = requestedMemberIndex;
+          } else {
+            const rawIndex = searchParams.get('index');
+            const parsedIndex = rawIndex && rawIndex.trim() ? Number(rawIndex) : 0;
+            const requestedIndex = Number.isInteger(parsedIndex) ? parsedIndex : 0;
+            restoredIndex = Math.min(Math.max(requestedIndex, 0), scoredMembers.length - 1);
+          }
+
+          if (searchParams.has('index') || searchParams.has('member')) {
+            const restoredMember = scoredMembers[restoredIndex];
+            searchParams.set('index', String(restoredIndex));
+            searchParams.set('member', restoredMember.id);
+            const normalizedUrl = `/ai-match?${searchParams.toString()}`;
+            const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+            if (currentUrl !== normalizedUrl) {
+              router.replace(normalizedUrl, { scroll: false });
+            }
+          }
+        }
+
         const { data: favoriteRows, error: favoritesError } = await supabase
           .from('favorites')
           .select('favorite_user_id')
@@ -266,6 +298,7 @@ export default function AiMatchPage() {
 
         if (isMounted) {
           setRecommendations(scoredMembers);
+          setCurrentIndex(restoredIndex);
           setFavoriteIds(new Set((favoriteRows ?? []).map((row) => row.favorite_user_id)));
           setSetupTarget(null);
         }
@@ -288,7 +321,56 @@ export default function AiMatchPage() {
   }, [retryKey, router, supabase]);
 
   const currentMember = recommendations[currentIndex];
-  const isFinished = recommendations.length > 0 && currentIndex >= recommendations.length;
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex < recommendations.length - 1;
+
+  const getRecommendationUrl = (index: number, memberId: string) => {
+    const searchParams = typeof window === 'undefined'
+      ? new URLSearchParams()
+      : new URLSearchParams(window.location.search);
+    searchParams.set('index', String(index));
+    searchParams.set('member', memberId);
+    return `/ai-match?${searchParams.toString()}`;
+  };
+
+  const updateRecommendationUrl = (index: number, memberId: string) => {
+    router.replace(getRecommendationUrl(index, memberId), { scroll: false });
+  };
+
+  const showPreviousRecommendation = () => {
+    setNotice(null);
+    const previousIndex = Math.max(0, currentIndex - 1);
+    const previousMember = recommendations[previousIndex];
+    setCurrentIndex(previousIndex);
+
+    if (previousMember) {
+      updateRecommendationUrl(previousIndex, previousMember.id);
+    }
+  };
+
+  const showNextRecommendation = () => {
+    setNotice(null);
+    const nextIndex = Math.min(recommendations.length - 1, currentIndex + 1);
+    const nextMember = recommendations[nextIndex];
+    setCurrentIndex(nextIndex);
+
+    if (nextMember) {
+      updateRecommendationUrl(nextIndex, nextMember.id);
+    }
+  };
+
+  const showMemberDetails = () => {
+    if (!currentMember || typeof window === 'undefined') return;
+
+    const recommendationUrl = getRecommendationUrl(currentIndex, currentMember.id);
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+    if (currentUrl !== recommendationUrl) {
+      window.history.replaceState(null, '', recommendationUrl);
+    }
+
+    router.push(`/members/${currentMember.id}`);
+  };
 
   const toggleFavorite = async () => {
     if (!currentUserId || !currentMember || isTogglingFavorite) return;
@@ -422,35 +504,17 @@ export default function AiMatchPage() {
               </Button>
             </div>
           </div>
-        ) : isFinished ? (
-          <div className="rounded-[2rem] border border-green-100 bg-white p-8 text-center shadow-sm sm:p-12">
-            <Check className="mx-auto mb-5 h-12 w-12 rounded-full bg-green-50 p-2 text-[#16a34a]" />
-            <h2 className="text-2xl font-bold text-gray-900">오늘의 추천을 모두 확인했습니다.</h2>
-            <p className="mt-3 text-gray-600">내일 새로운 추천을 준비하겠습니다.</p>
-            <p className="mt-1 text-gray-600">좋은 인연이 시작되길 바랍니다.</p>
-            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <Button className="rounded-2xl px-6 py-3 text-sm font-bold" onClick={() => router.push('/favorites')}>
-                관심 목록 보기
-              </Button>
-              <button
-                type="button"
-                disabled
-                className="inline-flex cursor-not-allowed items-center justify-center rounded-2xl border-2 border-gray-200 bg-gray-100 px-6 py-3 text-sm font-bold text-gray-400"
-              >
-                매칭 확인 · 준비 중
-              </button>
-            </div>
-          </div>
         ) : currentMember ? (
           <article className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
             <div className="grid md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-              <div className="relative flex min-h-72 items-center justify-center overflow-hidden bg-[#f0fdf4] md:min-h-full">
+              <div className="relative flex h-80 items-center justify-center overflow-hidden bg-[#f0fdf4] md:h-[520px]">
                 {currentMember.profile_image && !failedImageIds.has(currentMember.id) ? (
                   <img
+                    key={`${currentMember.id}-${currentMember.profile_image ?? 'no-image'}`}
                     src={currentMember.profile_image}
                     alt={`${currentMember.nickname ?? '회원'} 프로필 사진`}
                     onError={() => setFailedImageIds((current) => new Set(current).add(currentMember.id))}
-                    className="absolute inset-0 h-full w-full object-cover"
+                    className="absolute inset-0 h-full w-full object-contain"
                   />
                 ) : (
                   <div className="flex h-32 w-32 items-center justify-center rounded-full border-4 border-white bg-white text-gray-300 shadow-md">
@@ -537,19 +601,31 @@ export default function AiMatchPage() {
               <Button
                 variant="outline"
                 className="min-h-12 rounded-2xl px-4 py-3 text-sm font-bold"
-                onClick={() => router.push(`/members/${currentMember.id}`)}
+                onClick={showMemberDetails}
               >
                 자세히 보기
               </Button>
-              <Button
-                className="min-h-12 rounded-2xl px-4 py-3 text-sm font-bold"
-                onClick={() => {
-                  setNotice(null);
-                  setCurrentIndex((index) => index + 1);
-                }}
-              >
-                다음 추천 <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
+              {hasPrevious || hasNext ? (
+                <div className={`grid gap-2 ${hasPrevious && hasNext ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {hasPrevious ? (
+                    <Button
+                      variant="outline"
+                      className="min-h-12 rounded-2xl px-3 py-3 text-sm font-bold"
+                      onClick={showPreviousRecommendation}
+                    >
+                      <ChevronLeft className="mr-1 h-4 w-4" /> 이전
+                    </Button>
+                  ) : null}
+                  {hasNext ? (
+                    <Button
+                      className="min-h-12 rounded-2xl px-3 py-3 text-sm font-bold"
+                      onClick={showNextRecommendation}
+                    >
+                      다음 <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </article>
         ) : null}

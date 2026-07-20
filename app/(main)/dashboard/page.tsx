@@ -333,9 +333,12 @@ export default function DashboardPage() {
               </div>
               <p className="mt-3 text-sm leading-6 text-gray-600">Premium 이용권 기능은 추후 제공될 예정입니다.</p>
             </div>
-            <button type="button" disabled className="cursor-not-allowed rounded-xl bg-gray-100 px-5 py-3 text-sm font-bold text-gray-400">
-              도입 예정
-            </button>
+            <Link
+              href="/premium"
+              className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-green-700"
+            >
+              Premium 혜택 보기 <ChevronRight size={17} />
+            </Link>
           </div>
         </section>
 

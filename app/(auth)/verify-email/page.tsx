@@ -8,11 +8,11 @@ import { createClient } from '@/lib/supabase/client';
 
 const getWebmailUrl = (email: string) => {
   const domain = email.split('@')[1]?.toLowerCase();
-  if (domain === 'gmail.com') return 'https://mail.google.com';
-  if (domain === 'naver.com') return 'https://mail.naver.com';
-  if (domain === 'daum.net' || domain === 'hanmail.net') return 'https://mail.daum.net';
-  if (domain === 'outlook.com' || domain === 'hotmail.com' || domain === 'live.com') return 'https://outlook.live.com/mail';
-  return `mailto:${email}`;
+  if (domain === 'gmail.com' || domain === 'googlemail.com') return 'https://mail.google.com/mail/u/0/#inbox';
+  if (domain === 'naver.com') return 'https://mail.naver.com/';
+  if (domain === 'daum.net' || domain === 'hanmail.net' || domain === 'kakao.com') return 'https://mail.daum.net/';
+  if (domain === 'outlook.com' || domain === 'hotmail.com' || domain === 'live.com' || domain === 'msn.com') return 'https://outlook.live.com/mail/0/inbox';
+  return null;
 };
 
 function VerifyEmailContent() {
@@ -80,13 +80,21 @@ function VerifyEmailContent() {
         {email ? (
           <div className="rounded-2xl border border-green-100 bg-green-50 px-5 py-4">
             <p className="mb-1 text-xs font-medium text-gray-500">가입 이메일</p>
-            <a
-              href={`mailto:${email}`}
-              aria-label={`${email} 주소로 이메일 앱 열기`}
-              className="break-all font-bold text-green-700 underline underline-offset-4"
-            >
-              {email}
-            </a>
+            {webmailUrl ? (
+              <a
+                href={webmailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${email} 메일함 열기`}
+                className="break-all font-bold text-green-700 underline underline-offset-4"
+              >
+                {email}
+              </a>
+            ) : (
+              <span className="break-all font-bold text-green-700 underline underline-offset-4">
+                {email}
+              </span>
+            )}
             <p className="mt-2 text-xs text-gray-500">이 링크는 인증 링크가 아니라 이메일 앱을 여는 링크입니다.</p>
           </div>
         ) : null}
@@ -103,7 +111,7 @@ function VerifyEmailContent() {
           </div>
         ) : null}
 
-        {email ? (
+        {email && webmailUrl ? (
           <a
             href={webmailUrl}
             target="_blank"
@@ -112,6 +120,14 @@ function VerifyEmailContent() {
           >
             <ExternalLink size={18} /> 인증 메일 확인하기
           </a>
+        ) : email ? (
+          <button
+            type="button"
+            disabled
+            className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-[#16a34a] py-4 font-bold text-white opacity-60 shadow-lg shadow-green-100"
+          >
+            <ExternalLink size={18} /> 인증 메일 확인하기
+          </button>
         ) : null}
 
         <div className="rounded-2xl border border-gray-200 p-5">
@@ -133,9 +149,6 @@ function VerifyEmailContent() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <Link href="/login" className="w-full rounded-xl border border-gray-200 bg-white py-3 font-medium text-gray-600 transition hover:text-gray-900">
-            로그인
-          </Link>
           {!email ? (
             <Link href="/signup" className="text-sm font-semibold text-green-700 hover:underline">회원가입으로 돌아가기</Link>
           ) : null}

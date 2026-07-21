@@ -7,7 +7,9 @@ import { AlertCircle, CheckCircle2, ExternalLink, Loader2, Mail, RotateCw } from
 import { createClient } from '@/lib/supabase/client';
 
 const getWebmailUrl = (email: string) => {
-  const domain = email.split('@')[1]?.toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+$/.test(normalizedEmail)) return null;
+  const domain = normalizedEmail.split('@').pop();
   if (domain === 'gmail.com' || domain === 'googlemail.com') return 'https://mail.google.com/mail/u/0/#inbox';
   if (domain === 'naver.com') return 'https://mail.naver.com/';
   if (domain === 'daum.net' || domain === 'hanmail.net' || domain === 'kakao.com') return 'https://mail.daum.net/';

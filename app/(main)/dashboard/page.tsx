@@ -78,7 +78,7 @@ const profileLinks = [
   { label: '사진 관리', description: '프로필 사진을 등록하거나 변경합니다.', href: '/profile/create#photos', icon: Camera },
   { label: '자기소개 수정', description: '나를 소개하는 문구를 관리합니다.', href: '/profile/create#introduction', icon: Quote },
   { label: '생활 정보 수정', description: '직업, 지역과 생활 정보를 관리합니다.', href: '/profile/create#lifestyle', icon: Briefcase },
-  { label: '결혼 가치관 수정', description: '결혼 가치관 기능을 준비하고 있습니다.', href: '/profile/create#marriage-values', icon: Heart, status: '도입 예정' },
+  { label: '결혼 가치관 수정', description: '결혼 생활에서 중요하게 생각하는 가치관을 수정합니다.', href: '/profile/create#marriage-values', icon: Heart, status: undefined },
   { label: '이상형 설정', description: '희망하는 상대의 조건을 관리합니다.', href: '/preference', icon: SlidersHorizontal },
 ];
 

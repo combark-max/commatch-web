@@ -28,7 +28,11 @@ const profileSchema = z.object({
   religion: z.string().min(1, { message: "종교를 선택해주세요." }),
   hobby: z.string().min(1, { message: "취미를 입력해주세요." }),
   drinking: z.string().min(1, { message: "음주 여부를 선택해주세요." }),
-  introduction: z.string()
+  smoking: z.string().trim().min(1, { message: "흡연 정보를 선택해 주세요." }),
+  marriage_values: z.string().trim()
+    .min(10, { message: "결혼 가치관을 10자 이상 작성해 주세요." })
+    .max(500, { message: "결혼 가치관은 최대 500자까지 작성할 수 있습니다." }),
+  introduction: z.string().trim()
     .min(10, { message: "한줄소개는 최소 10자 이상 작성해주세요." })
     .max(500, { message: "자기소개는 최대 500자까지 작성할 수 있습니다." }),
 }).superRefine((data, context) => {
@@ -62,6 +66,15 @@ type ProfilePhoto = StoredPhoto | PendingPhoto;
 
 const MAX_PROFILE_PHOTOS = 5;
 const PROFILE_PHOTO_BUCKET = 'profile_images';
+
+const isMissingMarriageValuesColumnError = (error: unknown) => {
+  const normalized = error as { code?: string; message?: string } | undefined;
+  const message = normalized?.message?.toLowerCase() ?? '';
+  return Boolean(
+    message.includes('marriage_values')
+    && (normalized?.code === '42703' || normalized?.code === 'PGRST204' || message.includes('column')),
+  );
+};
 
 const logSupabaseError = (label: string, error: unknown) => {
   const normalized = error as { code?: string; message?: string; details?: string; hint?: string } | undefined;
@@ -108,6 +121,8 @@ export default function ProfileCreatePage() {
       introduction: "",
       height: "",
       hobby: "",
+      smoking: "",
+      marriage_values: "",
     },
   });
 
@@ -115,20 +130,24 @@ export default function ProfileCreatePage() {
   const selectedGender = formValues.gender;
   const selectedJob = formValues.job;
   const introductionLength = formValues.introduction?.length ?? 0;
+  const marriageValuesLength = formValues.marriage_values?.length ?? 0;
   const completionFields = [
-    formValues.nickname,
-    formValues.gender,
-    formValues.birth_date,
-    formValues.height,
-    formValues.region,
-    formValues.job,
-    formValues.education,
-    formValues.religion,
-    formValues.hobby,
-    formValues.drinking,
-    formValues.introduction,
+    photos.length > 0,
+    Boolean(formValues.nickname?.trim()),
+    Boolean(formValues.gender?.trim()),
+    Boolean(formValues.birth_date?.trim()),
+    Number(formValues.height) > 0,
+    Boolean(formValues.region?.trim()),
+    Boolean(formValues.job?.trim()),
+    Boolean(formValues.education?.trim()),
+    Boolean(formValues.religion?.trim()),
+    Boolean(formValues.hobby?.trim()),
+    Boolean(formValues.drinking?.trim()),
+    Boolean(formValues.smoking?.trim()),
+    (formValues.introduction?.trim().length ?? 0) >= 10,
+    (formValues.marriage_values?.trim().length ?? 0) >= 10,
   ];
-  const completedFieldCount = completionFields.filter((value) => typeof value === 'string' && value.trim()).length;
+  const completedFieldCount = completionFields.filter(Boolean).length;
   const profileCompletion = Math.round((completedFieldCount / completionFields.length) * 100);
 
   const releasePendingPreview = (previewUrl: string) => {
@@ -304,7 +323,7 @@ export default function ProfileCreatePage() {
         try {
           const result = await supabase
             .from('profiles')
-            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction, profile_image, profile_images')
+            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, smoking, marriage_values, introduction, profile_image, profile_images')
             .eq('id', user.id)
             .maybeSingle();
 
@@ -315,18 +334,23 @@ export default function ProfileCreatePage() {
         }
 
         if (profileError) {
+          if (isMissingMarriageValuesColumnError(profileError)) throw profileError;
+
           const fallbackResult = await supabase
             .from('profiles')
-            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction, profile_image')
+            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, smoking, marriage_values, introduction, profile_image')
             .eq('id', user.id)
             .maybeSingle();
 
           if (fallbackResult.error) {
+            if (isMissingMarriageValuesColumnError(fallbackResult.error)) throw fallbackResult.error;
+
             const legacyFallbackResult = await supabase
               .from('profiles')
-              .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction')
+              .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, smoking, marriage_values, introduction')
               .eq('id', user.id)
               .maybeSingle();
+            if (legacyFallbackResult.error) throw legacyFallbackResult.error;
             profileData = legacyFallbackResult.data as Record<string, unknown> | null;
           } else {
             profileData = fallbackResult.data as Record<string, unknown> | null;
@@ -350,6 +374,8 @@ export default function ProfileCreatePage() {
             religion: (profileData.religion as string | null) ?? '',
             hobby: (profileData.hobby as string | null) ?? '',
             drinking: (profileData.drinking as string | null) ?? '',
+            smoking: profileData.smoking === '미입력' ? '' : (profileData.smoking as string | null) ?? '',
+            marriage_values: (profileData.marriage_values as string | null) ?? '',
             introduction: (profileData.introduction as string | null) ?? '',
           });
 
@@ -376,7 +402,14 @@ export default function ProfileCreatePage() {
           setPersistedPrimaryPath(storedPhotoPaths[0] ?? null);
         }
       } catch (error) {
-        console.error('프로필 조회 실패:', error);
+        if (isMissingMarriageValuesColumnError(error)) {
+          setToast({
+            message: '프로필 저장 구조가 아직 적용되지 않았습니다. Supabase SQL을 먼저 실행해 주세요.',
+            type: 'error',
+          });
+        } else {
+          console.error('프로필 조회 실패:', error);
+        }
       } finally {
         setIsFetchingProfile(false);
       }
@@ -487,7 +520,9 @@ export default function ProfileCreatePage() {
         religion: data.religion,
         hobby: data.hobby,
         drinking: data.drinking,
-        introduction: data.introduction,
+        smoking: data.smoking.trim(),
+        marriage_values: data.marriage_values.trim(),
+        introduction: data.introduction.trim(),
         profile_image: finalPhotoPaths[0] ?? null,
         profile_images: finalPhotoPaths,
       };
@@ -528,7 +563,14 @@ export default function ProfileCreatePage() {
     } catch (err) {
       logSupabaseError('프로필 저장 중 예외 발생:', err);
       await cleanupUploadedFiles();
-      setToast({ message: "프로필 저장 중 오류가 발생했습니다.", type: 'error' });
+      if (isMissingMarriageValuesColumnError(err)) {
+        setToast({
+          message: '프로필 저장 구조가 아직 적용되지 않았습니다. Supabase SQL을 먼저 실행해 주세요.',
+          type: 'error',
+        });
+      } else {
+        setToast({ message: "프로필 저장 중 오류가 발생했습니다.", type: 'error' });
+      }
     } finally {
       setIsUploadingImage(false);
       setIsLoading(false);
@@ -885,31 +927,44 @@ export default function ProfileCreatePage() {
               {errors.drinking && <p className="mt-1 text-xs text-red-500">{errors.drinking.message}</p>}
             </div>
 
-            {/* TODO: smoking 컬럼 및 운영정책 확정 후 실제 입력 기능 연결 */}
-            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 md:col-span-2">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-bold text-gray-800">흡연 정보</p>
-                <span className="rounded-full bg-gray-200 px-2 py-1 text-[10px] font-bold text-gray-600">도입 예정</span>
-              </div>
-              <p className="mt-2 text-xs text-gray-500">비흡연·흡연 여부 입력 기능이 추후 추가될 예정입니다.</p>
+            <div>
+              <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
+                흡연 <span className="text-red-500 ml-1">*</span>
+              </label>
+              <select
+                {...register("smoking")}
+                className={`w-full px-4 py-2.5 border ${errors.smoking ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
+              >
+                <option value="">선택</option>
+                <option value="비흡연">비흡연</option>
+                <option value="가끔 흡연">가끔 흡연</option>
+                <option value="흡연">흡연</option>
+                <option value="금연 중">금연 중</option>
+                <option value="공개하지 않음">공개하지 않음</option>
+              </select>
+              {errors.smoking && <p className="mt-1 text-xs text-red-500">{errors.smoking.message}</p>}
             </div>
             </div>
           </section>
 
-          {/* TODO: 결혼 가치관 정책과 DB 컬럼 확정 후 실제 입력 기능 연결 */}
-          <section id="marriage-values" className="scroll-mt-24 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-5 sm:p-6">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold text-gray-900">결혼 가치관</h2>
-              <span className="rounded-full bg-gray-200 px-2 py-1 text-[10px] font-bold text-gray-600">도입 예정</span>
+          <section id="marriage-values" className="scroll-mt-24 rounded-2xl border border-gray-200 p-5 sm:p-6">
+            <h2 className="text-lg font-bold text-gray-900">결혼 가치관 <span className="text-red-500">*</span></h2>
+            <p className="mt-2 text-xs leading-5 text-gray-500">서로 존중하는 관계, 결혼 시기, 자녀 계획 등 중요하게 생각하는 내용을 자유롭게 작성해 주세요.</p>
+            <textarea
+              {...register("marriage_values")}
+              rows={4}
+              maxLength={500}
+              className={`mt-4 w-full px-4 py-2.5 border ${errors.marriage_values ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
+            ></textarea>
+            <div className="mt-1.5 flex items-center justify-between gap-3 text-xs">
+              <p className="text-gray-400">주소, 자산, 가족의 민감한 개인정보는 입력하지 마세요.</p>
+              <span className="shrink-0 text-gray-500">{marriageValuesLength} / 500자</span>
             </div>
-            <p className="mt-2 text-xs leading-5 text-gray-500">향후 AI 추천 고도화를 위해 결혼 가치관 정보를 추가할 예정입니다.</p>
-            <div className="mt-4 space-y-2 text-sm text-gray-600">
-              {['결혼 희망 시기', '자녀 계획', '가족과의 관계'].map((item) => (
-                <div key={item} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2">
-                  <span>{item}</span>
-                  <span className="text-xs font-medium text-gray-400">도입 예정</span>
-                </div>
-              ))}
+            <p className="mt-1 text-xs text-gray-500">10자 이상 500자 이하로 작성해 주세요.</p>
+            {errors.marriage_values && <p className="mt-1 text-xs text-red-500">{errors.marriage_values.message}</p>}
+            <div className="mt-5 rounded-xl border border-green-100 bg-green-50 p-4">
+              <p className="text-sm font-bold text-green-800">향후 추천 고도화에 활용 예정</p>
+              <p className="mt-2 text-xs leading-5 text-gray-600">프로필 정보를 자세히 작성하면 향후 더 정교한 추천 기능에 활용될 수 있습니다.</p>
             </div>
           </section>
 

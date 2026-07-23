@@ -32,8 +32,11 @@ type Profile = {
   religion: string | null;
   hobby: string | null;
   drinking: string | null;
+  smoking: string | null;
   introduction: string | null;
+  marriage_values: string | null;
   profile_image: string | null;
+  profile_images: string[] | null;
 };
 
 type Preference = {
@@ -55,33 +58,6 @@ type RecommendedMember = Profile & {
 type SetupTarget = 'profile' | 'profile-incomplete' | 'preference' | null;
 type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
 
-const PROFILE_FIELDS: (keyof Pick<
-  Profile,
-  | 'nickname'
-  | 'gender'
-  | 'birth_date'
-  | 'height'
-  | 'region'
-  | 'job'
-  | 'education'
-  | 'religion'
-  | 'hobby'
-  | 'drinking'
-  | 'introduction'
->)[] = [
-  'nickname',
-  'gender',
-  'birth_date',
-  'height',
-  'region',
-  'job',
-  'education',
-  'religion',
-  'hobby',
-  'drinking',
-  'introduction',
-];
-
 const calculateAge = (birthDate: string | null) => {
   if (!birthDate) return null;
 
@@ -100,12 +76,26 @@ const calculateAge = (birthDate: string | null) => {
 };
 
 const calculateProfileCompleteness = (profile: Profile) => {
-  const completedFields = PROFILE_FIELDS.filter((field) => {
-    const value = profile[field];
-    return typeof value === 'number' ? Number.isFinite(value) : Boolean(value?.trim());
-  }).length;
+  const hasProfilePhoto = Boolean(profile.profile_image?.trim())
+    || Boolean(profile.profile_images?.some((image) => typeof image === 'string' && image.trim()));
+  const completedFields = [
+    hasProfilePhoto,
+    Boolean(profile.nickname?.trim()),
+    Boolean(profile.gender?.trim()),
+    Boolean(profile.birth_date?.trim()),
+    typeof profile.height === 'number' && Number.isFinite(profile.height) && profile.height > 0,
+    Boolean(profile.region?.trim()),
+    Boolean(profile.job?.trim()),
+    Boolean(profile.education?.trim()),
+    Boolean(profile.religion?.trim()),
+    Boolean(profile.hobby?.trim()),
+    Boolean(profile.drinking?.trim()),
+    Boolean(profile.smoking?.trim()),
+    (profile.introduction?.trim().length ?? 0) >= 10,
+    (profile.marriage_values?.trim().length ?? 0) >= 10,
+  ].filter(Boolean).length;
 
-  return Math.round((completedFields / PROFILE_FIELDS.length) * 100);
+  return Math.round((completedFields / 14) * 100);
 };
 
 const isSpecified = (value: string | null) => Boolean(value && value !== '상관없음');
@@ -180,7 +170,7 @@ export default function AiMatchPage() {
         const [profileResult, preferenceResult] = await Promise.all([
           supabase
             .from('profiles')
-            .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, introduction, profile_image')
+            .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, smoking, introduction, marriage_values, profile_image, profile_images')
             .eq('id', user.id)
             .maybeSingle(),
           supabase
@@ -214,7 +204,7 @@ export default function AiMatchPage() {
         const oppositeGender = currentProfile.gender === '남성' ? '여성' : '남성';
         const { data, error: membersError } = await supabase
           .from('profiles')
-          .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, introduction, profile_image')
+          .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, smoking, introduction, marriage_values, profile_image, profile_images')
           .eq('gender', oppositeGender)
           .neq('id', user.id);
 

@@ -41,34 +41,36 @@ type Profile = {
   religion: string | null;
   hobby: string | null;
   drinking: string | null;
+  smoking: string | null;
   introduction: string | null;
+  marriage_values: string | null;
   profile_image: string | null;
   profile_images: string[] | null;
 };
 
-const PROFILE_FIELDS: (keyof Omit<Profile, 'profile_image' | 'profile_images'>)[] = [
-  'nickname',
-  'gender',
-  'birth_date',
-  'height',
-  'region',
-  'job',
-  'education',
-  'religion',
-  'hobby',
-  'drinking',
-  'introduction',
-];
-
 const calculateProfileCompleteness = (profile: Profile | null) => {
   if (!profile) return 0;
 
-  const completedFields = PROFILE_FIELDS.filter((field) => {
-    const value = profile[field];
-    return typeof value === 'number' ? Number.isFinite(value) : Boolean(value?.trim());
-  }).length;
+  const hasProfilePhoto = Boolean(profile.profile_image?.trim())
+    || Boolean(profile.profile_images?.some((image) => typeof image === 'string' && image.trim()));
+  const completedFields = [
+    hasProfilePhoto,
+    Boolean(profile.nickname?.trim()),
+    Boolean(profile.gender?.trim()),
+    Boolean(profile.birth_date?.trim()),
+    typeof profile.height === 'number' && Number.isFinite(profile.height) && profile.height > 0,
+    Boolean(profile.region?.trim()),
+    Boolean(profile.job?.trim()),
+    Boolean(profile.education?.trim()),
+    Boolean(profile.religion?.trim()),
+    Boolean(profile.hobby?.trim()),
+    Boolean(profile.drinking?.trim()),
+    Boolean(profile.smoking?.trim()),
+    (profile.introduction?.trim().length ?? 0) >= 10,
+    (profile.marriage_values?.trim().length ?? 0) >= 10,
+  ].filter(Boolean).length;
 
-  return Math.round((completedFields / PROFILE_FIELDS.length) * 100);
+  return Math.round((completedFields / 14) * 100);
 };
 
 const profileLinks = [
@@ -111,7 +113,7 @@ export default function DashboardPage() {
         const [profileResult, favoritesResult] = await Promise.all([
           supabase
             .from('profiles')
-            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, introduction, profile_image, profile_images')
+            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, smoking, introduction, marriage_values, profile_image, profile_images')
             .eq('id', user.id)
             .maybeSingle(),
           supabase

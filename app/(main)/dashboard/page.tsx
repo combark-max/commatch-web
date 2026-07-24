@@ -48,6 +48,21 @@ type Profile = {
   profile_images: string[] | null;
 };
 
+type MatchUnreadRow = {
+  unread_count: number | string | null;
+};
+
+const normalizeUnreadCount = (value: unknown) => {
+  const parsed = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim()
+      ? Number(value)
+      : 0;
+
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.floor(parsed);
+};
+
 const calculateProfileCompleteness = (profile: Profile | null) => {
   if (!profile) return 0;
 
@@ -91,6 +106,7 @@ export default function DashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [favoriteCount, setFavoriteCount] = useState<number | null>(null);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [profileError, setProfileError] = useState(false);
   const [favoritesError, setFavoritesError] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -110,7 +126,7 @@ export default function DashboardPage() {
 
         if (isMounted) setIsAuthenticated(true);
 
-        const [profileResult, favoritesResult] = await Promise.all([
+        const [profileResult, favoritesResult, matchesResult] = await Promise.all([
           supabase
             .from('profiles')
             .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, smoking, introduction, marriage_values, profile_image, profile_images')
@@ -120,6 +136,7 @@ export default function DashboardPage() {
             .from('favorites')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', user.id),
+          supabase.rpc('get_my_matches'),
         ]);
 
         if (profileResult.error) {
@@ -136,6 +153,22 @@ export default function DashboardPage() {
         } else if (isMounted) {
           setFavoriteCount(favoritesResult.count ?? 0);
           setFavoritesError(false);
+        }
+
+        if (matchesResult.error) {
+          console.error('마이페이지 읽지 않은 메시지 수 조회 실패:', matchesResult.error.code, matchesResult.error.message);
+          if (isMounted) setUnreadMessageCount(0);
+        } else if (isMounted) {
+          const totalUnreadCount = Array.isArray(matchesResult.data)
+            ? (matchesResult.data as MatchUnreadRow[]).reduce(
+                (total, matchRow) => {
+                  if (!matchRow || typeof matchRow !== 'object') return total;
+                  return total + normalizeUnreadCount(matchRow.unread_count);
+                },
+                0,
+              )
+            : 0;
+          setUnreadMessageCount(totalUnreadCount);
         }
       } catch (error: unknown) {
         console.error('마이페이지 정보 조회 실패:', error);
@@ -294,8 +327,20 @@ export default function DashboardPage() {
               status={favoritesError ? '확인할 수 없음' : `관심 ${favoriteCount ?? 0}명`}
               icon={Heart}
             />
-            <ActivityLink href="/matches" title="매칭목록" status="준비 중" icon={CircleCheck} muted />
-            <ActivityLink href="/matches" title="채팅" status="준비 중" icon={MessageCircle} muted />
+            <ActivityLink
+              href="/matches"
+              title="매칭목록"
+              description="서로 호감이 성립된 회원을 확인하는 기능입니다."
+              icon={CircleCheck}
+            />
+            <ActivityLink
+              href="/matches"
+              title="채팅"
+              description="매칭된 회원과 대화할 수 있는 기능입니다."
+              status="매칭 후 이용 가능"
+              icon={MessageCircle}
+              badge={unreadMessageCount}
+            />
             <ActivityLink href="/members" title="회원 둘러보기" status="회원 보기" icon={Users} />
           </div>
         </section>
@@ -408,23 +453,58 @@ type LinkIcon = React.ComponentType<{ size?: number; className?: string }>;
 function ActivityLink({
   href,
   title,
+  description,
   status,
   icon: Icon,
+  badge,
   muted = false,
+  disabled = false,
 }: {
-  href: string;
+  href?: string;
   title: string;
-  status: string;
+  description?: string;
+  status?: string;
   icon: LinkIcon;
+  badge?: number;
   muted?: boolean;
+  disabled?: boolean;
 }) {
-  return (
-    <Link href={href} className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-green-200 hover:shadow-md">
+  const content = (
+    <>
       <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${muted ? 'bg-gray-100 text-gray-400' : 'bg-green-50 text-green-600'}`}>
         <Icon size={22} />
       </span>
-      <span className="mt-5 block font-bold text-gray-900 group-hover:text-green-700">{title}</span>
-      <span className={`mt-2 block text-sm font-semibold ${muted ? 'text-[#806B26]' : 'text-gray-500'}`}>{status}</span>
+      <span className="mt-5 flex items-center gap-2 font-bold text-gray-900 group-hover:text-green-700">
+        {title}
+        {typeof badge === 'number' && badge > 0 ? (
+          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-green-600 px-2 py-0.5 text-xs font-bold text-white" aria-label={`읽지 않은 새 메시지 ${badge}개`}>
+            {badge}
+          </span>
+        ) : null}
+      </span>
+      {description ? <span className="mt-2 block text-sm leading-5 text-gray-500">{description}</span> : null}
+      {status ? (
+        <span className={`${description ? 'mt-3' : 'mt-2'} block text-sm font-semibold ${muted ? 'text-[#806B26]' : 'text-gray-500'}`}>
+          {status}
+        </span>
+      ) : null}
+    </>
+  );
+
+  if (disabled || !href) {
+    return (
+      <div
+        aria-disabled="true"
+        className="cursor-default rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"
+      >
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Link href={href} className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-green-200 hover:shadow-md">
+      {content}
     </Link>
   );
 }

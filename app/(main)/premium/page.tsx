@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   BadgeCheck,
   BrainCircuit,
-  Clock3,
   Heart,
   HelpCircle,
   Loader2,
@@ -23,42 +22,68 @@ import { createClient } from '@/lib/supabase/client';
 const premiumBenefits = [
   {
     title: '추천 인원 확대',
-    description: '더 다양한 추천 회원을 확인할 수 있도록 준비하고 있습니다.',
+    description: '기본 추천보다 더 많은 회원을 확인하고 다양한 인연을 탐색할 수 있습니다.',
     status: '도입 예정',
     icon: Users,
   },
   {
-    title: '더 세분화된 AI 추천 분석',
-    description: '현재 제공되는 추천 이유보다 더 자세한 분석 기능을 준비하고 있습니다.',
+    title: '고급 맞춤 추천',
+    description: '프로필과 이상형 조건을 바탕으로 더 세밀한 기준의 추천을 제공합니다.',
     status: '도입 예정',
     icon: BrainCircuit,
   },
   {
-    title: '좋아요 사용 범위 확대',
-    description: '향후 좋아요 기능 도입 시 더 넓은 이용 범위를 제공할 예정입니다.',
-    status: '준비 중',
+    title: '나에게 관심을 보낸 회원 확인',
+    description: '나를 관심회원으로 등록한 회원을 확인하고 서로의 관심을 더 빠르게 연결해 보세요.',
+    status: '테스트 제공 중',
     icon: Heart,
+    href: '/premium/likes-received',
   },
   {
-    title: '새로운 기능 우선 제공',
-    description: '채팅 등 새로운 기능이 도입될 경우 Premium 회원에게 우선 제공하는 방안을 준비하고 있습니다.',
+    title: '고급 회원 검색',
+    description: '나이, 지역, 직업, 학력, 종교 등 더 세밀한 조건으로 회원을 찾아볼 수 있습니다.',
     status: '도입 예정',
-    icon: MessageCircle,
+    icon: Users,
+  },
+  {
+    title: '우선 추천 노출',
+    description: '활동 중인 회원의 추천 화면에 내 프로필이 더 자주 소개될 수 있도록 준비하고 있습니다.',
+    status: '준비 중',
+    icon: Sparkles,
   },
   {
     title: 'Premium 전용 배지',
-    description: '향후 회원 등급 기능이 도입되면 닉네임 옆에 전용 배지가 표시될 예정입니다.',
+    description: '프로필에 Premium 회원임을 알 수 있는 전용 표시가 제공될 예정입니다.',
     status: '도입 예정',
     icon: BadgeCheck,
   },
+  {
+    title: '새로운 기능 우선 제공',
+    description: '새롭게 추가되는 일부 기능을 Premium 회원에게 먼저 제공할 예정입니다.',
+    status: '도입 예정',
+    icon: MessageCircle,
+  },
 ];
 
-const passes = ['월 이용권', '3개월 이용권', '12개월 이용권'];
-
 const supportItems = [
-  { label: '자주 묻는 질문', status: '준비 중', icon: HelpCircle },
-  { label: '환불 정책', status: '정책 준비 중', icon: ReceiptText },
-  { label: '문의하기', status: '준비 중', icon: MessagesSquare },
+  {
+    label: '자주 묻는 질문',
+    description: 'Premium 기능과 이용 방법에 대한 자주 묻는 질문을 준비하고 있습니다.',
+    status: '준비 중',
+    icon: HelpCircle,
+  },
+  {
+    label: '환불 및 해지 정책',
+    description: '결제 방식과 이용권 정책이 확정된 후 환불 및 해지 기준을 안내할 예정입니다.',
+    status: '정책 준비 중',
+    icon: ReceiptText,
+  },
+  {
+    label: '문의하기',
+    description: 'Premium 관련 문의 채널을 준비하고 있습니다.',
+    status: '준비 중',
+    icon: MessagesSquare,
+  },
 ];
 
 export default function PremiumPage() {
@@ -133,19 +158,21 @@ export default function PremiumPage() {
             </div>
           </div>
           <p className="mt-6 max-w-3xl text-sm leading-7 text-gray-600 sm:text-base">
-            ComMatch를 더 편리하게 이용할 수 있는 Premium 기능을 준비하고 있습니다.
-            현재 제공되는 서비스는 그대로 이용할 수 있으며, 아래 내용은 향후 제공 방향입니다.
+            기본 매칭과 채팅은 일반 회원도 이용할 수 있습니다. Premium은 더 다양한 추천과 편리한 회원 탐색 기능을 제공하기 위해 준비 중입니다.
           </p>
         </header>
 
         <section aria-labelledby="premium-benefits-heading">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="premium-benefits-heading" className="text-2xl font-bold text-gray-900">Premium 혜택</h2>
-            <span className="text-sm font-medium text-gray-500">모든 항목은 준비 중입니다.</span>
+            <span className="text-sm font-medium text-gray-500">모든 항목은 도입 예정 또는 준비 중입니다.</span>
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {premiumBenefits.map(({ title, description, status, icon: Icon }) => (
-              <article key={title} className="rounded-[1.75rem] border border-gray-100 bg-white p-6 shadow-sm">
+            {premiumBenefits.map((benefit) => {
+              const { title, description, status, icon: Icon } = benefit;
+              const href = 'href' in benefit && typeof benefit.href === 'string' ? benefit.href : null;
+              const content = (
+                <>
                 <div className="flex items-start justify-between gap-4">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-600">
                     <Icon size={21} />
@@ -154,8 +181,23 @@ export default function PremiumPage() {
                 </div>
                 <h3 className="mt-5 text-lg font-bold text-gray-900">{title}</h3>
                 <p className="mt-2 text-sm leading-6 text-gray-600">{description}</p>
-              </article>
-            ))}
+                </>
+              );
+
+              return href ? (
+                <Link
+                  key={title}
+                  href={href}
+                  className="rounded-[1.75rem] border border-gray-100 bg-white p-6 shadow-sm transition hover:border-green-200 hover:shadow-md"
+                >
+                  {content}
+                </Link>
+              ) : (
+                <article key={title} className="rounded-[1.75rem] border border-gray-100 bg-white p-6 shadow-sm">
+                  {content}
+                </article>
+              );
+            })}
           </div>
         </section>
 
@@ -163,21 +205,23 @@ export default function PremiumPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 id="passes-heading" className="flex items-center gap-2 text-2xl font-bold text-gray-900">
-                <Ticket className="text-green-600" size={23} /> 이용권
+                <Ticket className="text-green-600" size={23} /> Premium 이용권
               </h2>
-              <p className="mt-2 text-sm leading-6 text-gray-600">이용권 기간과 가격 정책을 준비하고 있습니다.</p>
+              <p className="mt-2 text-sm leading-6 text-gray-600">이용 기간과 가격은 Premium 기능 및 운영 정책이 확정된 후 안내됩니다.</p>
             </div>
-            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-[#806B26]">도입 예정</span>
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-[#806B26]">준비 중</span>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {passes.map((pass) => (
-              <div key={pass} className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
-                <div className="flex items-center gap-2 text-green-700">
-                  <Clock3 size={19} />
-                  <h3 className="font-bold text-gray-900">{pass}</h3>
-                </div>
-                <p className="mt-5 text-sm font-bold text-gray-500">가격 추후 안내</p>
+          <div className="mt-6 grid gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-6 sm:grid-cols-2">
+            {[
+              ['이용요금', '추후 안내'],
+              ['이용 기간', '추후 안내'],
+              ['결제 방식', '준비 중'],
+              ['자동 갱신 여부', '추후 안내'],
+            ].map(([label, value]) => (
+              <div key={label} className="flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3">
+                <span className="text-sm font-semibold text-gray-700">{label}</span>
+                <span className="text-sm font-bold text-gray-500">{value}</span>
               </div>
             ))}
           </div>
@@ -188,12 +232,8 @@ export default function PremiumPage() {
               disabled
               className="w-full max-w-sm cursor-not-allowed rounded-xl bg-gray-200 px-6 py-3.5 text-sm font-bold text-gray-400"
             >
-              Premium 시작하기
+              Premium 도입 예정
             </button>
-            <p className="mt-3 text-sm font-semibold text-gray-500">결제 기능 도입 예정</p>
-            <p className="mt-2 text-xs leading-5 text-gray-400">
-              이용권 상태 확인 기능은 결제 시스템 도입 후 제공될 예정입니다.
-            </p>
           </div>
         </section>
 
@@ -209,7 +249,7 @@ export default function PremiumPage() {
         <section aria-labelledby="premium-support-heading">
           <h2 id="premium-support-heading" className="text-2xl font-bold text-gray-900">고객지원</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-3">
-            {supportItems.map(({ label, status, icon: Icon }) => (
+            {supportItems.map(({ label, description, status, icon: Icon }) => (
               <button
                 key={label}
                 type="button"
@@ -220,6 +260,7 @@ export default function PremiumPage() {
                   <Icon size={20} />
                 </span>
                 <span className="mt-4 block font-bold text-gray-700">{label}</span>
+                <span className="mt-2 block text-sm leading-6 text-gray-500">{description}</span>
                 <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500">
                   {status}
                 </span>

@@ -58,6 +58,9 @@ type RecommendedMember = Profile & {
 type SetupTarget = 'profile' | 'profile-incomplete' | 'preference' | null;
 type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
 
+const DEFAULT_RECOMMENDATION_LIMIT = 10;
+const EXPANDED_RECOMMENDATION_LIMIT = 20;
+
 const calculateAge = (birthDate: string | null) => {
   if (!birthDate) return null;
 
@@ -146,16 +149,24 @@ export default function AiMatchPage() {
   const [setupTarget, setSetupTarget] = useState<SetupTarget>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const [isExpandedMode, setIsExpandedMode] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadRecommendations = async () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const expandedMode = searchParams.get('expanded') === '1';
+      const recommendationLimit = expandedMode
+        ? EXPANDED_RECOMMENDATION_LIMIT
+        : DEFAULT_RECOMMENDATION_LIMIT;
+
       setIsLoading(true);
       setError(null);
       setNotice(null);
       setCurrentIndex(0);
+      setIsExpandedMode(expandedMode);
 
       try {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -246,12 +257,11 @@ export default function AiMatchPage() {
           })
           .filter((member) => member.score > 0)
           .sort((a, b) => b.score - a.score)
-          .slice(0, 10);
+          .slice(0, recommendationLimit);
 
         let restoredIndex = 0;
 
         if (scoredMembers.length > 0 && typeof window !== 'undefined') {
-          const searchParams = new URLSearchParams(window.location.search);
           const requestedMemberId = searchParams.get('member')?.trim() ?? '';
           const requestedMemberIndex = requestedMemberId
             ? scoredMembers.findIndex((recommendation) => recommendation.id === requestedMemberId)
@@ -433,6 +443,18 @@ export default function AiMatchPage() {
             <span className="mt-1 block text-[10px] font-bold">준비 중</span>
           </button>
         </div>
+
+        {isExpandedMode ? (
+          <section className="mb-5 rounded-2xl border border-green-100 bg-green-50 p-5" aria-label="확대 추천 테스트 안내">
+            <p className="font-bold text-green-800">Premium 도입 전 테스트 제공</p>
+            <p className="mt-2 text-sm leading-6 text-gray-700">
+              일반 추천은 최대 10명까지 제공되며, 확대 추천에서는 조건에 맞는 회원을 최대 20명까지 확인할 수 있습니다.
+            </p>
+            <p className="mt-1 text-xs leading-5 text-gray-500">
+              추천 조건에 맞는 회원 수에 따라 실제 표시 인원은 달라질 수 있습니다.
+            </p>
+          </section>
+        ) : null}
 
         {notice ? (
           <div

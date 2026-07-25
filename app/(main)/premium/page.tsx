@@ -23,8 +23,9 @@ const premiumBenefits = [
   {
     title: '추천 인원 확대',
     description: '기본 추천보다 더 많은 회원을 확인하고 다양한 인연을 탐색할 수 있습니다.',
-    status: '도입 예정',
+    status: '테스트 제공 중',
     icon: Users,
+    href: '/ai-match?expanded=1',
   },
   {
     title: '고급 맞춤 추천',

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Briefcase, Loader2, MapPin, Search, Sparkles, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -10,6 +10,7 @@ import Toast from '@/components/ui/Toast';
 
 type FavoriteMember = {
   id: string;
+  favoritedAt: string | null;
   nickname: string | null;
   birth_date: string | null;
   gender: string | null;
@@ -23,6 +24,56 @@ type FavoriteMember = {
   profile_image: string | null;
 };
 
+type FavoriteProfile = Omit<FavoriteMember, 'favoritedAt'>;
+type FavoriteSort = 'default' | 'recent' | 'oldest' | 'younger' | 'older' | 'nickname';
+
+function normalizeNullableText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function normalizeDateText(value: unknown): string | null {
+  const normalized = normalizeNullableText(value);
+  if (!normalized) return null;
+  return Number.isNaN(new Date(normalized).getTime()) ? null : normalized;
+}
+
+function calculateAge(birthDate: string | null | undefined): number | null {
+  const normalized = normalizeNullableText(birthDate);
+  if (!normalized) return null;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const birth = new Date(0);
+  birth.setHours(0, 0, 0, 0);
+  birth.setFullYear(year, month - 1, day);
+
+  if (
+    birth.getFullYear() !== year
+    || birth.getMonth() !== month - 1
+    || birth.getDate() !== day
+  ) {
+    return null;
+  }
+
+  const today = new Date();
+  if (birth.getTime() > today.getTime()) return null;
+
+  let age = today.getFullYear() - year;
+  const monthDifference = today.getMonth() - (month - 1);
+
+  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < day)) {
+    age -= 1;
+  }
+
+  return Number.isInteger(age) && age >= 0 ? age : null;
+}
+
 export default function FavoritesPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -34,13 +85,22 @@ export default function FavoritesPage() {
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
   const [likeNoticeMemberId, setLikeNoticeMemberId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isAdvancedMode, setIsAdvancedMode] = useState(false);
+  const [selectedRegion, setSelectedRegion] = useState('');
+  const [selectedJob, setSelectedJob] = useState('');
+  const [ageMin, setAgeMin] = useState('');
+  const [ageMax, setAgeMax] = useState('');
+  const [favoriteSort, setFavoriteSort] = useState<FavoriteSort>('default');
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchFavorites = async () => {
+      const advancedMode = new URLSearchParams(window.location.search).get('advanced') === '1';
+
       setIsLoading(true);
       setError(null);
+      setIsAdvancedMode(advancedMode);
 
       try {
         const {
@@ -56,13 +116,22 @@ export default function FavoritesPage() {
 
         const { data: favoriteRows, error: favoriteError } = await supabase
           .from('favorites')
-          .select('favorite_user_id')
+          .select('favorite_user_id, created_at')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
         if (favoriteError) throw favoriteError;
 
-        const favoriteIds = favoriteRows?.map((item) => item.favorite_user_id) ?? [];
+        const normalizedFavoriteRows = (favoriteRows ?? []).flatMap((row) => {
+          const favoriteUserId = normalizeNullableText(row.favorite_user_id);
+          if (!favoriteUserId) return [];
+
+          return [{
+            favoriteUserId,
+            favoritedAt: normalizeDateText(row.created_at),
+          }];
+        });
+        const favoriteIds = normalizedFavoriteRows.map((row) => row.favoriteUserId);
 
         if (favoriteIds.length === 0) {
           if (isMounted) setFavorites([]);
@@ -77,16 +146,16 @@ export default function FavoritesPage() {
         if (profilesError) throw profilesError;
 
         const profilesById = new Map(
-          ((profiles as FavoriteMember[]) ?? []).map((profile) => [profile.id, {
+          ((profiles as FavoriteProfile[]) ?? []).map((profile) => [profile.id, {
             ...profile,
             profile_image: resolveProfileImageUrl(profile.profile_image),
           }]),
         );
 
         if (isMounted) {
-          setFavorites(favoriteIds.flatMap((id) => {
-            const profile = profilesById.get(id);
-            return profile ? [profile] : [];
+          setFavorites(normalizedFavoriteRows.flatMap(({ favoriteUserId, favoritedAt }) => {
+            const profile = profilesById.get(favoriteUserId);
+            return profile ? [{ ...profile, favoritedAt }] : [];
           }));
         }
       } catch (err: unknown) {
@@ -111,6 +180,128 @@ export default function FavoritesPage() {
       isMounted = false;
     };
   }, [retryKey, router, supabase]);
+
+  const regionOptions = useMemo(() => Array.from(new Set(
+    favorites.flatMap((member) => {
+      const region = normalizeNullableText(member.region);
+      return region ? [region] : [];
+    }),
+  )).sort((left, right) => left.localeCompare(right, 'ko-KR')), [favorites]);
+
+  const jobOptions = useMemo(() => Array.from(new Set(
+    favorites.flatMap((member) => {
+      const job = normalizeNullableText(member.job);
+      return job ? [job] : [];
+    }),
+  )).sort((left, right) => left.localeCompare(right, 'ko-KR')), [favorites]);
+
+  const ageFilterError = useMemo(() => {
+    const normalizedMin = ageMin.trim();
+    const normalizedMax = ageMax.trim();
+    const parsedMin = normalizedMin === '' ? null : Number(normalizedMin);
+    const parsedMax = normalizedMax === '' ? null : Number(normalizedMax);
+
+    if (
+      (parsedMin !== null && (!Number.isInteger(parsedMin) || parsedMin < 0))
+      || (parsedMax !== null && (!Number.isInteger(parsedMax) || parsedMax < 0))
+    ) {
+      return '나이 범위를 올바르게 입력해 주세요.';
+    }
+
+    if (parsedMin !== null && parsedMax !== null && parsedMin > parsedMax) {
+      return '최소 나이는 최대 나이보다 클 수 없습니다.';
+    }
+
+    return null;
+  }, [ageMax, ageMin]);
+
+  const visibleFavorites = useMemo(() => {
+    if (!isAdvancedMode) return favorites;
+    if (ageFilterError !== null) return favorites;
+
+    const parsedMin = ageMin.trim() === '' ? null : Number(ageMin);
+    const parsedMax = ageMax.trim() === '' ? null : Number(ageMax);
+    const hasAgeCondition = parsedMin !== null || parsedMax !== null;
+    const filteredFavorites = favorites
+      .map((member, originalIndex) => ({ member, originalIndex }))
+      .filter(({ member }) => {
+        const region = normalizeNullableText(member.region);
+        const job = normalizeNullableText(member.job);
+
+        if (selectedRegion && region !== selectedRegion) return false;
+        if (selectedJob && job !== selectedJob) return false;
+
+        if (hasAgeCondition) {
+          const age = calculateAge(member.birth_date);
+          if (age === null) return false;
+          if (parsedMin !== null && age < parsedMin) return false;
+          if (parsedMax !== null && age > parsedMax) return false;
+        }
+
+        return true;
+      });
+
+    if (favoriteSort === 'default') {
+      return filteredFavorites.map(({ member }) => member);
+    }
+
+    const sortedFavorites = [...filteredFavorites].sort((leftItem, rightItem) => {
+      const preserveOriginalOrder = () => leftItem.originalIndex - rightItem.originalIndex;
+
+      if (favoriteSort === 'recent' || favoriteSort === 'oldest') {
+        const leftTimestamp = leftItem.member.favoritedAt
+          ? new Date(leftItem.member.favoritedAt).getTime()
+          : null;
+        const rightTimestamp = rightItem.member.favoritedAt
+          ? new Date(rightItem.member.favoritedAt).getTime()
+          : null;
+
+        if (leftTimestamp === null && rightTimestamp === null) return preserveOriginalOrder();
+        if (leftTimestamp === null) return 1;
+        if (rightTimestamp === null) return -1;
+
+        const timestampDifference = favoriteSort === 'oldest'
+          ? leftTimestamp - rightTimestamp
+          : rightTimestamp - leftTimestamp;
+
+        return timestampDifference || preserveOriginalOrder();
+      }
+
+      if (favoriteSort === 'nickname') {
+        const leftNickname = normalizeNullableText(leftItem.member.nickname);
+        const rightNickname = normalizeNullableText(rightItem.member.nickname);
+
+        if (leftNickname === null && rightNickname === null) return preserveOriginalOrder();
+        if (leftNickname === null) return 1;
+        if (rightNickname === null) return -1;
+
+        return leftNickname.localeCompare(rightNickname, 'ko-KR') || preserveOriginalOrder();
+      }
+
+      const leftAge = calculateAge(leftItem.member.birth_date);
+      const rightAge = calculateAge(rightItem.member.birth_date);
+
+      if (leftAge === null && rightAge === null) return preserveOriginalOrder();
+      if (leftAge === null) return 1;
+      if (rightAge === null) return -1;
+
+      const ageDifference = favoriteSort === 'older'
+        ? rightAge - leftAge
+        : leftAge - rightAge;
+
+      return ageDifference || preserveOriginalOrder();
+    });
+
+    return sortedFavorites.map(({ member }) => member);
+  }, [ageFilterError, ageMax, ageMin, favoriteSort, favorites, isAdvancedMode, selectedJob, selectedRegion]);
+
+  const resetAdvancedFilters = () => {
+    setSelectedRegion('');
+    setSelectedJob('');
+    setAgeMin('');
+    setAgeMax('');
+    setFavoriteSort('default');
+  };
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -178,23 +369,6 @@ export default function FavoritesPage() {
     }
   };
 
-  const calculateAge = (birthDate: string | null | undefined) => {
-    if (!birthDate) return null;
-
-    const birth = new Date(birthDate);
-    if (Number.isNaN(birth.getTime())) return null;
-
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age -= 1;
-    }
-
-    return age;
-  };
-
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4">
@@ -226,6 +400,105 @@ export default function FavoritesPage() {
           </div>
         </div>
 
+        {isAdvancedMode ? (
+          <>
+            <section className="mb-5 rounded-[2rem] border border-green-100 bg-green-50 p-6 sm:p-7">
+              <p className="text-sm font-bold text-green-800">Premium 도입 전 테스트 제공 기능입니다.</p>
+              <p className="mt-2 text-sm leading-6 text-green-900">
+                관심회원 목록을 지역, 직업, 나이와 등록 순서에 따라 정리할 수 있습니다.
+              </p>
+            </section>
+
+            <section className="mb-6 rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-7" aria-label="관심목록 고급 관리">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <label className="min-w-0 text-sm font-bold text-gray-700">
+                  지역
+                  <select
+                    value={selectedRegion}
+                    onChange={(event) => setSelectedRegion(event.target.value)}
+                    className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                  >
+                    <option value="">전체 지역</option>
+                    {regionOptions.map((region) => <option key={region} value={region}>{region}</option>)}
+                  </select>
+                </label>
+
+                <label className="min-w-0 text-sm font-bold text-gray-700">
+                  직업
+                  <select
+                    value={selectedJob}
+                    onChange={(event) => setSelectedJob(event.target.value)}
+                    className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                  >
+                    <option value="">전체 직업</option>
+                    {jobOptions.map((job) => <option key={job} value={job}>{job}</option>)}
+                  </select>
+                </label>
+
+                <fieldset className="min-w-0">
+                  <legend className="text-sm font-bold text-gray-700">나이</legend>
+                  <div className="mt-2 flex min-w-0 items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={ageMin}
+                      onChange={(event) => setAgeMin(event.target.value)}
+                      placeholder="최소"
+                      aria-label="최소 나이"
+                      className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                    />
+                    <span className="shrink-0 text-gray-400">~</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={ageMax}
+                      onChange={(event) => setAgeMax(event.target.value)}
+                      placeholder="최대"
+                      aria-label="최대 나이"
+                      className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                    />
+                  </div>
+                </fieldset>
+
+                <label className="min-w-0 text-sm font-bold text-gray-700">
+                  정렬
+                  <select
+                    value={favoriteSort}
+                    onChange={(event) => setFavoriteSort(event.target.value as FavoriteSort)}
+                    className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                  >
+                    <option value="default">기본 순서</option>
+                    <option value="recent">최근 관심 등록순</option>
+                    <option value="oldest">오래된 관심 등록순</option>
+                    <option value="younger">나이 어린 순</option>
+                    <option value="older">나이 많은 순</option>
+                    <option value="nickname">닉네임순</option>
+                  </select>
+                </label>
+              </div>
+
+              {ageFilterError ? (
+                <p role="alert" className="mt-4 text-sm font-semibold text-red-600">{ageFilterError}</p>
+              ) : null}
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-medium text-gray-500">
+                  전체 {favorites.length}명 중 {visibleFavorites.length}명 표시
+                </p>
+                <button
+                  type="button"
+                  onClick={resetAdvancedFilters}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-600 transition hover:bg-gray-50"
+                >
+                  필터 초기화
+                </button>
+              </div>
+            </section>
+          </>
+        ) : null}
+
         {error ? (
           <div className="rounded-[2rem] border border-red-100 bg-white p-8 text-center shadow-sm">
             <p className="font-semibold text-red-600">{error}</p>
@@ -244,9 +517,15 @@ export default function FavoritesPage() {
               오늘의 추천 보기
             </Button>
           </div>
+        ) : isAdvancedMode && visibleFavorites.length === 0 && ageFilterError === null ? (
+          <div className="rounded-[2rem] border border-gray-100 bg-white p-10 text-center shadow-sm sm:p-16">
+            <Search className="mx-auto mb-4 h-12 w-12 text-gray-300" />
+            <h2 className="text-xl font-bold text-gray-800">선택한 조건에 해당하는 관심회원이 없습니다.</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-500">다른 조건을 선택하거나 필터를 초기화해 보세요.</p>
+          </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {favorites.map((member) => {
+            {visibleFavorites.map((member) => {
               const age = calculateAge(member.birth_date);
               const hasImage = Boolean(member.profile_image) && !failedImageIds.has(member.id);
 

@@ -41,9 +41,10 @@ const premiumBenefits = [
   },
   {
     title: '고급 회원 검색',
-    description: '나이, 지역, 직업, 학력, 종교 등 더 세밀한 조건으로 회원을 찾아볼 수 있습니다.',
-    status: '도입 예정',
+    description: '키, 학력, 종교, 음주 여부와 취미 조건으로 회원을 더 세밀하게 찾아보세요.',
+    status: '테스트 제공 중',
     icon: Users,
+    href: '/members?advanced=1',
   },
   {
     title: '우선 추천 노출',

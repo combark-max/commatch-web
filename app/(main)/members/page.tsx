@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import { REGIONS } from '@/constants/regions';
 import { JOBS, STANDARD_JOB_VALUES } from '@/constants/jobs';
-import { User, MapPin, Briefcase, Heart, Loader2, Search } from 'lucide-react';
+import { User, MapPin, Briefcase, ChevronDown, Heart, Loader2, Search } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 
@@ -19,10 +19,33 @@ type Member = {
   job: string | null;
   introduction: string | null;
   profile_image?: string | null;
+  height: number | null;
+  education: string | null;
+  religion: string | null;
+  drinking: string | null;
+  hobby: string | null;
 };
 
+const EDUCATION_OPTIONS = ['전체', '고졸', '전문대졸', '대졸', '석사', '박사'] as const;
+const RELIGION_OPTIONS = ['전체', '무교', '기독교', '천주교', '불교', '기타'] as const;
+const DRINKING_OPTIONS = ['전체', '전혀 안 함', '가끔 함', '자주 함'] as const;
+
 export default function MembersPage() {
+  return (
+    <React.Suspense fallback={(
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4">
+        <Loader2 className="w-10 h-10 text-[#16a34a] animate-spin mb-4" />
+        <p className="text-gray-500 font-medium animate-pulse">회원 목록을 불러오는 중...</p>
+      </div>
+    )}>
+      <MembersPageContent />
+    </React.Suspense>
+  );
+}
+
+function MembersPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +58,13 @@ export default function MembersPage() {
   const [selectedJob, setSelectedJob] = useState('상관없음');
   const [ageMin, setAgeMin] = useState('');
   const [ageMax, setAgeMax] = useState('');
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(() => searchParams.get('advanced') === '1');
+  const [heightMin, setHeightMin] = useState('');
+  const [heightMax, setHeightMax] = useState('');
+  const [selectedEducation, setSelectedEducation] = useState('전체');
+  const [selectedReligion, setSelectedReligion] = useState('전체');
+  const [selectedDrinking, setSelectedDrinking] = useState('전체');
+  const [hobbySearch, setHobbySearch] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
@@ -72,7 +102,7 @@ export default function MembersPage() {
 
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, nickname, birth_date, gender, region, job, introduction, profile_image')
+          .select('id, nickname, birth_date, gender, region, job, introduction, profile_image, height, education, religion, drinking, hobby')
           .eq('gender', expectedGender)
           .neq('id', user.id);
 
@@ -100,6 +130,13 @@ export default function MembersPage() {
             ((data as Member[]) ?? []).map((member) => ({
               ...member,
               profile_image: resolveProfileImageUrl(member.profile_image ?? null),
+              height: typeof member.height === 'number' && Number.isFinite(member.height) && member.height >= 0
+                ? member.height
+                : null,
+              education: typeof member.education === 'string' ? member.education : null,
+              religion: typeof member.religion === 'string' ? member.religion : null,
+              drinking: typeof member.drinking === 'string' ? member.drinking : null,
+              hobby: typeof member.hobby === 'string' ? member.hobby : null,
             })),
           );
           setFavoriteIds(new Set((favoritesError ? [] : favoriteRows ?? []).map((row) => row.favorite_user_id)));
@@ -213,6 +250,22 @@ export default function MembersPage() {
     return null;
   }, [ageMin, ageMax]);
 
+  const heightFilterError = useMemo(() => {
+    const parsedMin = heightMin === '' ? null : Number(heightMin);
+    const parsedMax = heightMax === '' ? null : Number(heightMax);
+
+    if ((parsedMin !== null && (!Number.isInteger(parsedMin) || parsedMin < 0))
+      || (parsedMax !== null && (!Number.isInteger(parsedMax) || parsedMax < 0))) {
+      return '키는 0 이상의 정수로 입력해주세요.';
+    }
+
+    if (parsedMin !== null && parsedMax !== null && parsedMin > parsedMax) {
+      return '최소 키는 최대 키보다 클 수 없습니다.';
+    }
+
+    return null;
+  }, [heightMin, heightMax]);
+
   const filteredMembers = useMemo(() => {
     return members.filter((member) => {
       const nickname = (member.nickname || '').toString().toLowerCase();
@@ -233,10 +286,46 @@ export default function MembersPage() {
           || (memberAge !== null
             && (parsedMin === null || memberAge >= parsedMin)
             && (parsedMax === null || memberAge <= parsedMax)));
+      const parsedHeightMin = heightMin === '' ? null : Number(heightMin);
+      const parsedHeightMax = heightMax === '' ? null : Number(heightMax);
+      const matchesHeight = heightFilterError !== null
+        || ((parsedHeightMin === null && parsedHeightMax === null)
+          || (member.height !== null
+            && (parsedHeightMin === null || member.height >= parsedHeightMin)
+            && (parsedHeightMax === null || member.height <= parsedHeightMax)));
+      const matchesEducation = selectedEducation === '전체' || member.education === selectedEducation;
+      const matchesReligion = selectedReligion === '전체' || member.religion === selectedReligion;
+      const matchesDrinking = selectedDrinking === '전체' || member.drinking === selectedDrinking;
+      const normalizedHobbySearch = hobbySearch.trim().toLowerCase();
+      const matchesHobby = normalizedHobbySearch === ''
+        || (member.hobby ?? '').toLowerCase().includes(normalizedHobbySearch);
 
-      return matchesNickname && matchesRegion && matchesJob && matchesAge;
+      return matchesNickname
+        && matchesRegion
+        && matchesJob
+        && matchesAge
+        && matchesHeight
+        && matchesEducation
+        && matchesReligion
+        && matchesDrinking
+        && matchesHobby;
     });
-  }, [members, searchTerm, selectedRegion, selectedJob, ageMin, ageMax, ageFilterError]);
+  }, [
+    members,
+    searchTerm,
+    selectedRegion,
+    selectedJob,
+    ageMin,
+    ageMax,
+    ageFilterError,
+    heightMin,
+    heightMax,
+    heightFilterError,
+    selectedEducation,
+    selectedReligion,
+    selectedDrinking,
+    hobbySearch,
+  ]);
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -244,6 +333,12 @@ export default function MembersPage() {
     setSelectedJob('상관없음');
     setAgeMin('');
     setAgeMax('');
+    setHeightMin('');
+    setHeightMax('');
+    setSelectedEducation('전체');
+    setSelectedReligion('전체');
+    setSelectedDrinking('전체');
+    setHobbySearch('');
   };
 
   if (isLoading) {
@@ -336,8 +431,111 @@ export default function MembersPage() {
               </div>
             </div>
           </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
+            <button
+              type="button"
+              aria-expanded={isAdvancedOpen}
+              aria-controls="advanced-member-search"
+              onClick={() => setIsAdvancedOpen((current) => !current)}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-bold text-green-700 transition hover:bg-green-100"
+            >
+              {isAdvancedOpen ? '고급 검색 닫기' : '고급 검색 열기'}
+              <ChevronDown className={`h-4 w-4 transition-transform ${isAdvancedOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-[#806B26]">
+              Premium 도입 전 테스트 제공
+            </span>
+          </div>
+
+          {isAdvancedOpen ? (
+            <div id="advanced-member-search" className="mt-4 rounded-2xl border border-green-100 bg-green-50/50 p-5">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">고급 회원 검색</h2>
+                <p className="mt-1 text-sm leading-6 text-gray-600">
+                  키, 학력, 종교, 음주 여부와 취미 조건으로 회원을 더 세밀하게 찾아볼 수 있습니다.
+                </p>
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">키</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={heightMin}
+                      onChange={(event) => setHeightMin(event.target.value)}
+                      placeholder="최소 키"
+                      aria-label="최소 키"
+                      className="min-w-0 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 shadow-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                    />
+                    <span className="text-gray-400">~</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={heightMax}
+                      onChange={(event) => setHeightMax(event.target.value)}
+                      placeholder="최대 키"
+                      aria-label="최대 키"
+                      className="min-w-0 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 shadow-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">학력</label>
+                  <select
+                    value={selectedEducation}
+                    onChange={(event) => setSelectedEducation(event.target.value)}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 shadow-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                  >
+                    {EDUCATION_OPTIONS.map((education) => <option key={education} value={education}>{education}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">종교</label>
+                  <select
+                    value={selectedReligion}
+                    onChange={(event) => setSelectedReligion(event.target.value)}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 shadow-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                  >
+                    {RELIGION_OPTIONS.map((religion) => <option key={religion} value={religion}>{religion}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">음주 여부</label>
+                  <select
+                    value={selectedDrinking}
+                    onChange={(event) => setSelectedDrinking(event.target.value)}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 shadow-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                  >
+                    {DRINKING_OPTIONS.map((drinking) => <option key={drinking} value={drinking}>{drinking}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">취미</label>
+                  <input
+                    type="text"
+                    value={hobbySearch}
+                    onChange={(event) => setHobbySearch(event.target.value)}
+                    placeholder="취미를 입력하세요"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 shadow-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="mt-4 flex items-center justify-between gap-4">
-            <p className="text-sm text-red-600">{ageFilterError}</p>
+            <div className="space-y-1 text-sm text-red-600">
+              {ageFilterError ? <p>{ageFilterError}</p> : null}
+              {heightFilterError ? <p>{heightFilterError}</p> : null}
+            </div>
             <Button type="button" variant="outline" onClick={resetFilters} className="shrink-0 rounded-2xl px-5 py-2.5 text-sm font-bold">
               검색 초기화
             </Button>

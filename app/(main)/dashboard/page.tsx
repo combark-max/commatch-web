@@ -381,7 +381,7 @@ export default function DashboardPage() {
               <p className="mt-3 text-sm leading-6 text-gray-600">Premium 이용권 기능은 추후 제공될 예정입니다.</p>
             </div>
             <Link
-              href="/premium"
+              href="/premium#premium-benefits"
               className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-green-700"
             >
               Premium 혜택 보기 <ChevronRight size={17} />

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Church,
+  Cigarette,
   Flag,
   GraduationCap,
   Heart,
@@ -34,6 +35,8 @@ type MemberProfile = {
   religion: string | null;
   hobby: string | null;
   drinking: string | null;
+  smoking: string | null;
+  marriage_values: string | null;
   profile_image?: string | null;
   profile_images?: string[] | null;
 };
@@ -65,6 +68,13 @@ const getIntroductionPreview = (introduction: string | null) => {
   if (firstSentence && firstSentence.length <= 90) return firstSentence;
   if (text.length <= 90) return text;
   return `${text.slice(0, 87).trimEnd()}...`;
+};
+
+const getVisibleProfileValue = (value: string | null) => {
+  const normalizedValue = value?.trim() ?? '';
+  return normalizedValue && !['미입력', '선택하지 않음', '공개하지 않음'].includes(normalizedValue)
+    ? normalizedValue
+    : '';
 };
 
 const resolveProfileImageUrls = (profileImage: unknown, profileImages: unknown) => {
@@ -145,7 +155,7 @@ export default function MemberDetailPage() {
 
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, nickname, birth_date, gender, height, job, region, introduction, education, religion, hobby, drinking, profile_image, profile_images')
+          .select('id, nickname, birth_date, gender, height, job, region, introduction, education, religion, hobby, drinking, smoking, marriage_values, profile_image, profile_images')
           .eq('id', memberId)
           .maybeSingle();
 
@@ -350,7 +360,9 @@ export default function MemberDetailPage() {
   const introductionText = introduction
     ? `${introduction.slice(0, 500)}${introduction.length > 500 ? '...' : ''}`
     : '아직 자기소개를 작성하지 않았습니다.';
-  const hasLifestyle = Boolean(member.hobby || member.drinking || member.religion);
+  const visibleSmoking = getVisibleProfileValue(member.smoking);
+  const marriageValues = getVisibleProfileValue(member.marriage_values);
+  const hasLifestyle = Boolean(member.hobby || member.drinking || member.religion || visibleSmoking);
   const isOwnProfile = currentUserId === member.id;
   const additionalProfileImages = (member.profile_images ?? [])
     .slice(1)
@@ -498,28 +510,33 @@ export default function MemberDetailPage() {
                 </p>
               )}
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <ComingSoonItem label="흡연 여부" description="정보 제공 기능 도입 예정" />
+                <ProfileFact icon={<Cigarette size={18} />} label="흡연 여부" value={visibleSmoking || '정보 없음'} />
                 <ComingSoonItem label="MBTI" description="선택 기능 도입 예정" />
               </div>
             </section>
 
-            <section className="rounded-[1.75rem] border border-dashed border-gray-200 bg-gray-50 p-6 sm:p-8" aria-labelledby="marriage-values-heading">
+            <section className="rounded-[1.75rem] border border-gray-200 bg-gray-50 p-6 sm:p-8" aria-labelledby="marriage-values-heading">
               <div className="flex items-center justify-between gap-3">
                 <h2 id="marriage-values-heading" className="text-xl font-bold text-gray-700">결혼 가치관</h2>
-                <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-500">도입 예정</span>
+                {!marriageValues ? (
+                  <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-500">정보 없음</span>
+                ) : null}
               </div>
-              <p className="mt-3 text-sm leading-6 text-gray-500">결혼 가치관 정보는 도입 예정입니다.</p>
+              <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-gray-600">
+                {marriageValues || '등록된 결혼 가치관 정보가 없습니다.'}
+              </p>
             </section>
 
             <section className="rounded-[1.75rem] border border-dashed border-gray-200 bg-white p-6 sm:p-8" aria-labelledby="ai-summary-heading">
               <div className="flex items-center justify-between gap-3">
                 <h2 id="ai-summary-heading" className="flex items-center gap-2 text-xl font-bold text-gray-700">
-                  <Sparkles size={21} className="text-gray-400" /> AI 분석 요약
+                  <Sparkles size={21} className="text-gray-400" /> 맞춤 분석 요약
                 </h2>
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">도입 예정</span>
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">추천 화면 제공</span>
               </div>
-              <p className="mt-4 text-sm leading-6 text-gray-500">AI 분석 요약 기능은 현재 준비 중입니다.</p>
-              <p className="mt-5 border-t border-gray-100 pt-4 text-xs text-gray-400">AI 분석 결과는 참고용입니다.</p>
+              <p className="mt-4 text-sm leading-6 text-gray-500">
+                입력된 프로필과 이상형 조건을 바탕으로 한 맞춤 분석은 추천 화면에서 확인할 수 있습니다.
+              </p>
             </section>
           </div>
         </article>

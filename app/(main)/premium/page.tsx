@@ -25,7 +25,7 @@ const premiumBenefits = [
     description: '기본 추천보다 더 많은 회원을 확인하고 다양한 인연을 탐색할 수 있습니다.',
     status: '테스트 제공 중',
     icon: Users,
-    href: '/ai-match?expanded=1',
+    href: '/ai-match?expanded=1&analysis=1',
   },
   {
     title: '고급 맞춤 추천',
@@ -173,7 +173,7 @@ export default function PremiumPage() {
           </p>
         </header>
 
-        <section aria-labelledby="premium-benefits-heading">
+        <section id="premium-benefits" className="scroll-mt-24" aria-labelledby="premium-benefits-heading">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="premium-benefits-heading" className="text-2xl font-bold text-gray-900">Premium 혜택</h2>
             <span className="text-sm font-medium text-gray-500">일부 기능은 Premium 도입 전 테스트로 제공 중이며, 나머지 기능은 준비 중 또는 도입 예정입니다.</span>

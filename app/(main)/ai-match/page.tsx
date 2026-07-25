@@ -64,6 +64,13 @@ type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
 const DEFAULT_RECOMMENDATION_LIMIT = 10;
 const EXPANDED_RECOMMENDATION_LIMIT = 20;
 
+const getVisibleProfileValue = (value: string | null) => {
+  const normalizedValue = value?.trim() ?? '';
+  return normalizedValue && !['미입력', '선택하지 않음', '공개하지 않음'].includes(normalizedValue)
+    ? normalizedValue
+    : '';
+};
+
 const calculateAge = (birthDate: string | null) => {
   if (!birthDate) return null;
 
@@ -702,9 +709,10 @@ export default function AiMatchPage() {
                 <section className="mt-6 rounded-2xl border border-green-100 bg-green-50 p-5">
                   {isAnalysisMode ? (
                     <>
-                      <h3 className="flex items-center gap-2 text-sm font-bold text-green-800">
-                        <Sparkles size={17} /> 잘 맞는 점
+                      <h3 className="flex items-center gap-2 text-base font-bold text-green-900">
+                        <Sparkles size={18} /> 맞춤 분석 요약
                       </h3>
+                      <h4 className="mt-4 text-sm font-bold text-green-800">잘 맞는 점</h4>
                       <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
                         {currentMember.strengths.map((strength) => (
                           <li key={strength} className="flex items-start gap-2">
@@ -729,6 +737,20 @@ export default function AiMatchPage() {
                       {currentMember.dataNote ? (
                         <p className="mt-4 text-xs leading-5 text-gray-500">{currentMember.dataNote}</p>
                       ) : null}
+                      <div className="mt-5 space-y-4 border-t border-green-200 pt-4">
+                        <div>
+                          <p className="text-xs font-bold text-gray-500">흡연 여부</p>
+                          <p className="mt-1 text-sm font-medium text-gray-800">
+                            {getVisibleProfileValue(currentMember.smoking) || '정보 없음'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-gray-500">결혼 가치관</p>
+                          <p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-6 text-gray-800">
+                            {getVisibleProfileValue(currentMember.marriage_values) || '정보 없음'}
+                          </p>
+                        </div>
+                      </div>
                     </>
                   ) : (
                     <>

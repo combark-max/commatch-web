@@ -97,6 +97,9 @@ export default function ChatPage() {
   const [draft, setDraft] = useState('');
   const [sendError, setSendError] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isEndConfirmOpen, setIsEndConfirmOpen] = useState(false);
+  const [isEndingMatch, setIsEndingMatch] = useState(false);
+  const [endError, setEndError] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
@@ -107,6 +110,8 @@ export default function ChatPage() {
       setPageState('loading');
       setLoadError('');
       setDeniedMessage('');
+      setEndError('');
+      setIsEndConfirmOpen(false);
 
       if (!matchId || !UUID_PATTERN.test(matchId)) {
         if (isMounted) {
@@ -143,7 +148,7 @@ export default function ChatPage() {
           return;
         }
 
-        if (selectedMatch.match_status !== 'active') {
+        if (selectedMatch.match_status !== 'active' && selectedMatch.match_status !== 'ended') {
           if (isMounted) {
             setDeniedMessage('현재 채팅을 이용할 수 없는 매칭입니다.');
             setPageState('denied');
@@ -226,7 +231,7 @@ export default function ChatPage() {
 
   const sendMessage = async () => {
     const content = draft.trim();
-    if (!content || isSending || pageState !== 'ready') return;
+    if (!content || isSending || isEndingMatch || pageState !== 'ready' || match?.status !== 'active') return;
 
     setIsSending(true);
     setSendError('');
@@ -259,6 +264,31 @@ export default function ChatPage() {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       void sendMessage();
+    }
+  };
+
+  const handleEndMatch = async () => {
+    if (!match || match.status !== 'active' || isEndingMatch || isSending) return;
+
+    setIsEndingMatch(true);
+    setEndError('');
+
+    try {
+      const { data, error } = await supabase.rpc('end_match', {
+        p_match_id: matchId,
+      });
+
+      if (error || data !== 'ended') throw error ?? new Error('Unexpected end_match response');
+
+      setMatch((current) => current ? { ...current, status: 'ended' } : current);
+      setDraft('');
+      setSendError('');
+      setIsEndConfirmOpen(false);
+    } catch {
+      console.error('매칭 종료에 실패했습니다.');
+      setEndError('매칭 종료에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setIsEndingMatch(false);
     }
   };
 
@@ -352,10 +382,36 @@ export default function ChatPage() {
             </p>
           </div>
 
-          <span className="hidden shrink-0 rounded-full bg-green-50 px-3 py-1.5 text-xs font-bold text-green-700 sm:inline-flex">
-            매칭 중
-          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className={`hidden rounded-full px-3 py-1.5 text-xs font-bold sm:inline-flex ${
+              match.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'
+            }`}>
+              {match.status === 'active' ? '매칭 중' : '종료된 매칭'}
+            </span>
+            {match.status === 'active' ? (
+              <button
+                type="button"
+                disabled={isEndingMatch || isSending}
+                onClick={() => {
+                  setEndError('');
+                  setIsEndConfirmOpen(true);
+                }}
+                className="min-h-10 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-sm"
+              >
+                매칭 종료
+              </button>
+            ) : null}
+          </div>
         </header>
+
+        {match.status === 'ended' ? (
+          <section className="shrink-0 border-b border-amber-100 bg-amber-50 px-5 py-4 sm:px-7" aria-live="polite">
+            <p className="text-sm font-bold text-amber-800">종료된 매칭입니다.</p>
+            <p className="mt-1 text-xs leading-5 text-amber-700 sm:text-sm">
+              기존 대화는 확인할 수 있지만 새로운 메시지는 보낼 수 없습니다.
+            </p>
+          </section>
+        ) : null}
 
         <main className="min-h-0 flex-1 overflow-y-auto bg-[#f8faf8] px-4 py-6 sm:px-7" aria-live="polite">
           {messages.length === 0 ? (
@@ -431,9 +487,10 @@ export default function ChatPage() {
                   if (sendError) setSendError('');
                 }}
                 onKeyDown={handleKeyDown}
+                disabled={match.status !== 'active' || isEndingMatch}
                 maxLength={MAX_MESSAGE_LENGTH}
                 rows={2}
-                placeholder="메시지를 입력하세요"
+                placeholder={match.status === 'active' ? '메시지를 입력하세요' : '종료된 매칭에서는 메시지를 보낼 수 없습니다.'}
                 aria-label="메시지 입력"
                 className="max-h-32 min-h-12 w-full resize-none bg-transparent py-1 text-sm leading-6 text-gray-900 outline-none placeholder:text-gray-400"
               />
@@ -441,7 +498,7 @@ export default function ChatPage() {
             </div>
             <button
               type="submit"
-              disabled={!draft.trim() || isSending}
+              disabled={match.status !== 'active' || !draft.trim() || isSending || isEndingMatch}
               className="inline-flex min-h-14 shrink-0 items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 text-sm font-bold text-white shadow-md shadow-green-100 transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none"
             >
               {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -451,6 +508,52 @@ export default function ChatPage() {
           <p className="mt-2 px-1 text-xs text-gray-400">Enter로 전송 · Shift+Enter로 줄바꿈</p>
         </footer>
       </div>
+
+      {isEndConfirmOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="end-match-title"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => {
+            if (!isEndingMatch) setIsEndConfirmOpen(false);
+          }}
+        >
+          <section
+            className="w-full max-w-md rounded-[2rem] bg-white p-7 shadow-2xl sm:p-8"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="end-match-title" className="text-xl font-extrabold text-gray-900">매칭을 종료하시겠습니까?</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-600">
+              종료 후에는 새로운 메시지를 보낼 수 없지만 기존 대화는 확인할 수 있습니다.
+            </p>
+            {endError ? (
+              <p className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600" role="alert">
+                {endError}
+              </p>
+            ) : null}
+            <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={isEndingMatch}
+                onClick={() => setIsEndConfirmOpen(false)}
+                className="min-h-11 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={isEndingMatch}
+                onClick={() => void handleEndMatch()}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+              >
+                {isEndingMatch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isEndingMatch ? '종료 중...' : '매칭 종료'}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

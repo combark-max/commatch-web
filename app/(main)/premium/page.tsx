@@ -176,7 +176,7 @@ export default function PremiumPage() {
         <section aria-labelledby="premium-benefits-heading">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="premium-benefits-heading" className="text-2xl font-bold text-gray-900">Premium 혜택</h2>
-            <span className="text-sm font-medium text-gray-500">모든 항목은 도입 예정 또는 준비 중입니다.</span>
+            <span className="text-sm font-medium text-gray-500">일부 기능은 Premium 도입 전 테스트로 제공 중이며, 나머지 기능은 준비 중 또는 도입 예정입니다.</span>
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {premiumBenefits.map((benefit) => {

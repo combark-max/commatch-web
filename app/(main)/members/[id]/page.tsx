@@ -362,7 +362,6 @@ export default function MemberDetailPage() {
     : '아직 자기소개를 작성하지 않았습니다.';
   const visibleSmoking = getVisibleProfileValue(member.smoking);
   const marriageValues = getVisibleProfileValue(member.marriage_values);
-  const hasLifestyle = Boolean(member.hobby || member.drinking || member.religion || visibleSmoking);
   const isOwnProfile = currentUserId === member.id;
   const additionalProfileImages = (member.profile_images ?? [])
     .slice(1)
@@ -498,18 +497,10 @@ export default function MemberDetailPage() {
 
             <section aria-labelledby="lifestyle-heading">
               <h2 id="lifestyle-heading" className="text-xl font-bold text-gray-900">생활 스타일</h2>
-              {hasLifestyle ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <ProfileFact icon={<Palette size={18} />} label="취미" value={member.hobby || '정보 미입력'} />
-                  <ProfileFact icon={<Wine size={18} />} label="음주 여부" value={member.drinking || '정보 미입력'} />
-                  <ProfileFact icon={<Church size={18} />} label="종교" value={member.religion || '정보 미입력'} />
-                </div>
-              ) : (
-                <p className="mt-4 rounded-2xl bg-gray-50 p-5 text-sm text-gray-500">
-                  아직 등록된 생활 스타일 정보가 없습니다.
-                </p>
-              )}
-              <div className="mt-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <ProfileFact icon={<Palette size={18} />} label="취미" value={member.hobby || '정보 미입력'} />
+                <ProfileFact icon={<Church size={18} />} label="종교" value={member.religion || '정보 미입력'} />
+                <ProfileFact icon={<Wine size={18} />} label="음주 여부" value={member.drinking || '정보 미입력'} />
                 <ProfileFact icon={<Cigarette size={18} />} label="흡연 여부" value={visibleSmoking || '정보 없음'} />
               </div>
             </section>

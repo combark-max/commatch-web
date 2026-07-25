@@ -52,6 +52,9 @@ type RecommendedMember = Profile & {
   age: number | null;
   score: number;
   reasons: string[];
+  strengths: string[];
+  considerations: string[];
+  dataNote?: string;
   completeness: number;
 };
 
@@ -136,6 +139,116 @@ const getRecommendationReasons = (member: Profile, preference: Preference, age: 
   return reasons.slice(0, 3);
 };
 
+const getAdvancedRecommendationAnalysis = (
+  currentProfile: Profile,
+  candidateProfile: Profile,
+  preference: Preference,
+  candidateAge: number | null,
+  existingReasons: string[],
+) => {
+  const strengths = [...existingReasons];
+  const preferenceMismatches: string[] = [];
+  const lifestyleDifferences: string[] = [];
+  let hasMissingComparisonData = false;
+
+  const hasAgePreference = preference.age_min !== null || preference.age_max !== null;
+  if (hasAgePreference) {
+    if (candidateAge === null) {
+      hasMissingComparisonData = true;
+    } else if ((preference.age_min !== null && candidateAge < preference.age_min)
+      || (preference.age_max !== null && candidateAge > preference.age_max)) {
+      preferenceMismatches.push('희망 연령 범위와 차이가 있어 대화로 확인해 보세요.');
+    }
+  }
+
+  const hasHeightPreference = preference.height_min !== null || preference.height_max !== null;
+  if (hasHeightPreference) {
+    if (candidateProfile.height === null) {
+      hasMissingComparisonData = true;
+    } else if ((preference.height_min !== null && candidateProfile.height < preference.height_min)
+      || (preference.height_max !== null && candidateProfile.height > preference.height_max)) {
+      preferenceMismatches.push('희망 키 조건과 차이가 있어요.');
+    }
+  }
+
+  if (isSpecified(preference.preferred_region)) {
+    if (!candidateProfile.region) {
+      hasMissingComparisonData = true;
+    } else if (candidateProfile.region !== preference.preferred_region) {
+      preferenceMismatches.push('선호 지역과 현재 생활권이 다를 수 있어요.');
+    }
+  }
+
+  if (isSpecified(preference.preferred_job)) {
+    if (!candidateProfile.job) {
+      hasMissingComparisonData = true;
+    } else if (!matchesPreferredJob(candidateProfile.job, preference.preferred_job)) {
+      preferenceMismatches.push('직업 조건은 프로필과 대화를 통해 확인해 보세요.');
+    }
+  }
+
+  const currentReligion = currentProfile.religion?.trim() ?? '';
+  const candidateReligion = candidateProfile.religion?.trim() ?? '';
+  const hasComparableReligion = (value: string) => value !== '' && value !== '기타';
+  if (hasComparableReligion(currentReligion) && hasComparableReligion(candidateReligion)) {
+    if (currentReligion === candidateReligion && strengths.length < 3) {
+      strengths.push('두 분의 종교 정보가 같아요.');
+    }
+  } else {
+    hasMissingComparisonData = true;
+  }
+
+  const currentDrinking = currentProfile.drinking?.trim() ?? '';
+  const candidateDrinking = candidateProfile.drinking?.trim() ?? '';
+  if (currentDrinking && candidateDrinking) {
+    if (currentDrinking === candidateDrinking) {
+      if (strengths.length < 3) strengths.push('음주 성향이 비슷해요.');
+    } else {
+      lifestyleDifferences.push('음주 성향의 차이는 대화로 확인해 보세요.');
+    }
+  } else {
+    hasMissingComparisonData = true;
+  }
+
+  const currentSmoking = currentProfile.smoking?.trim() ?? '';
+  const candidateSmoking = candidateProfile.smoking?.trim() ?? '';
+  const hasComparableSmoking = (value: string) => value !== '' && value !== '미입력' && value !== '공개하지 않음';
+  if (hasComparableSmoking(currentSmoking) && hasComparableSmoking(candidateSmoking)) {
+    if (currentSmoking === candidateSmoking) {
+      if (strengths.length < 3) strengths.push('흡연 관련 생활 습관이 비슷해요.');
+    } else {
+      lifestyleDifferences.push('흡연 관련 생활 습관은 대화로 확인해 보세요.');
+    }
+  } else {
+    hasMissingComparisonData = true;
+  }
+
+  const currentHobby = currentProfile.hobby?.trim().toLowerCase() ?? '';
+  const candidateHobby = candidateProfile.hobby?.trim().toLowerCase() ?? '';
+  if (currentHobby && candidateHobby) {
+    if (currentHobby === candidateHobby && strengths.length < 3) {
+      strengths.push('입력한 취미가 같아요.');
+    }
+  } else {
+    hasMissingComparisonData = true;
+  }
+
+  const considerations = [
+    ...preferenceMismatches,
+    ...lifestyleDifferences,
+    ...(hasMissingComparisonData ? ['일부 프로필 정보가 없어 해당 조건은 직접 확인해 보세요.'] : []),
+  ].slice(0, 2);
+  const dataNote = hasMissingComparisonData || strengths.length + considerations.length < 2
+    ? '일부 정보가 없어 입력된 프로필을 기준으로 제한된 항목만 비교했습니다.'
+    : undefined;
+
+  return {
+    strengths: strengths.slice(0, 3),
+    considerations,
+    dataNote,
+  };
+};
+
 export default function AiMatchPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -150,6 +263,7 @@ export default function AiMatchPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [isExpandedMode, setIsExpandedMode] = useState(false);
+  const [isAnalysisMode, setIsAnalysisMode] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
@@ -158,6 +272,7 @@ export default function AiMatchPage() {
     const loadRecommendations = async () => {
       const searchParams = new URLSearchParams(window.location.search);
       const expandedMode = searchParams.get('expanded') === '1';
+      const analysisMode = searchParams.get('analysis') === '1';
       const recommendationLimit = expandedMode
         ? EXPANDED_RECOMMENDATION_LIMIT
         : DEFAULT_RECOMMENDATION_LIMIT;
@@ -167,6 +282,7 @@ export default function AiMatchPage() {
       setNotice(null);
       setCurrentIndex(0);
       setIsExpandedMode(expandedMode);
+      setIsAnalysisMode(analysisMode);
 
       try {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -246,11 +362,21 @@ export default function AiMatchPage() {
               score += 1;
             }
 
+            const reasons = getRecommendationReasons(member, preference, age);
+            const analysis = getAdvancedRecommendationAnalysis(
+              currentProfile,
+              member,
+              preference,
+              age,
+              reasons,
+            );
+
             return {
               ...member,
               age,
               score,
-              reasons: getRecommendationReasons(member, preference, age),
+              reasons,
+              ...analysis,
               completeness: calculateProfileCompleteness(member),
               profile_image: resolveProfileImageUrl(member.profile_image),
             };
@@ -456,6 +582,15 @@ export default function AiMatchPage() {
           </section>
         ) : null}
 
+        {isAnalysisMode ? (
+          <section className="mb-5 rounded-2xl border border-green-100 bg-green-50 p-5" aria-label="고급 맞춤 추천 테스트 안내">
+            <p className="font-bold text-green-800">Premium 도입 전 테스트 제공 기능입니다.</p>
+            <p className="mt-2 text-sm leading-6 text-gray-700">
+              입력된 프로필과 이상형 조건을 기준으로 잘 맞는 점과 확인할 점을 분석합니다.
+            </p>
+          </section>
+        ) : null}
+
         {notice ? (
           <div
             role="status"
@@ -565,22 +700,56 @@ export default function AiMatchPage() {
                 </div>
 
                 <section className="mt-6 rounded-2xl border border-green-100 bg-green-50 p-5">
-                  <h3 className="flex items-center gap-2 text-sm font-bold text-green-800">
-                    <Sparkles size={17} /> 추천 이유
-                  </h3>
-                  {currentMember.reasons.length > 0 ? (
-                    <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
-                      {currentMember.reasons.map((reason) => (
-                        <li key={reason} className="flex items-start gap-2">
-                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#16a34a]" />
-                          {reason}
-                        </li>
-                      ))}
-                    </ul>
+                  {isAnalysisMode ? (
+                    <>
+                      <h3 className="flex items-center gap-2 text-sm font-bold text-green-800">
+                        <Sparkles size={17} /> 잘 맞는 점
+                      </h3>
+                      <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
+                        {currentMember.strengths.map((strength) => (
+                          <li key={strength} className="flex items-start gap-2">
+                            <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#16a34a]" />
+                            {strength}
+                          </li>
+                        ))}
+                      </ul>
+                      {currentMember.considerations.length > 0 ? (
+                        <div className="mt-5 border-t border-green-200 pt-4">
+                          <h4 className="text-sm font-bold text-gray-800">확인할 점</h4>
+                          <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
+                            {currentMember.considerations.map((consideration) => (
+                              <li key={consideration} className="flex items-start gap-2">
+                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                                {consideration}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {currentMember.dataNote ? (
+                        <p className="mt-4 text-xs leading-5 text-gray-500">{currentMember.dataNote}</p>
+                      ) : null}
+                    </>
                   ) : (
-                    <p className="mt-3 text-sm font-medium leading-6 text-gray-700">
-                      회원님의 기본 이상형 조건을 바탕으로 추천한 회원입니다.
-                    </p>
+                    <>
+                      <h3 className="flex items-center gap-2 text-sm font-bold text-green-800">
+                        <Sparkles size={17} /> 추천 이유
+                      </h3>
+                      {currentMember.reasons.length > 0 ? (
+                        <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
+                          {currentMember.reasons.map((reason) => (
+                            <li key={reason} className="flex items-start gap-2">
+                              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#16a34a]" />
+                              {reason}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-3 text-sm font-medium leading-6 text-gray-700">
+                          회원님의 기본 이상형 조건을 바탕으로 추천한 회원입니다.
+                        </p>
+                      )}
+                    </>
                   )}
                 </section>
 

@@ -29,9 +29,10 @@ const premiumBenefits = [
   },
   {
     title: '고급 맞춤 추천',
-    description: '프로필과 이상형 조건을 바탕으로 더 세밀한 기준의 추천을 제공합니다.',
-    status: '도입 예정',
+    description: '프로필과 이상형 조건을 바탕으로 잘 맞는 점과 확인할 점을 자세히 보여드립니다.',
+    status: '테스트 제공 중',
     icon: BrainCircuit,
+    href: '/ai-match?analysis=1',
   },
   {
     title: '나에게 관심을 보낸 회원 확인',

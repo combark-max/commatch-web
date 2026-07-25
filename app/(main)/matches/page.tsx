@@ -29,6 +29,7 @@ type MatchRpcRow = {
   last_message_at: string | null;
   other_user_id: string | null;
   other_nickname: string | null;
+  other_birth_date?: string | null;
   other_profile_image: string | null;
   other_region: string | null;
   other_job: string | null;
@@ -48,6 +49,7 @@ type MatchListItem = {
   matchedAt: string | null;
   otherUserId: string | null;
   nickname: string | null;
+  birthDate: string | null;
   profileImageUrl: string | null;
   region: string | null;
   job: string | null;
@@ -119,6 +121,7 @@ function normalizeMatchRows(value: unknown): MatchListItem[] {
       matchedAt: normalizeNullableText(row.matched_at),
       otherUserId: normalizeNullableText(row.other_user_id),
       nickname: normalizeNullableText(row.other_nickname),
+      birthDate: normalizeNullableText(row.other_birth_date),
       profileImageUrl: resolveProfileImageUrl(storedProfileImage),
       region: normalizeNullableText(row.other_region),
       job: normalizeNullableText(row.other_job),
@@ -134,6 +137,40 @@ function parseDate(value: string | null): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function calculateAge(birthDate: string | null): number | null {
+  if (!birthDate) return null;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDate);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const birth = new Date(0);
+  birth.setHours(0, 0, 0, 0);
+  birth.setFullYear(year, month - 1, day);
+
+  if (
+    birth.getFullYear() !== year
+    || birth.getMonth() !== month - 1
+    || birth.getDate() !== day
+  ) {
+    return null;
+  }
+
+  const today = new Date();
+  if (birth.getTime() > today.getTime()) return null;
+
+  let age = today.getFullYear() - year;
+  const monthDifference = today.getMonth() - (month - 1);
+
+  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < day)) {
+    age -= 1;
+  }
+
+  return Number.isInteger(age) && age >= 0 ? age : null;
 }
 
 function formatMatchDate(value: string | null): string {
@@ -438,6 +475,7 @@ export default function MatchesPage() {
             {visibleMatches.map((match) => {
               const hasImage = Boolean(match.profileImageUrl) && !failedImageIds.has(match.matchId);
               const latestMessageDate = formatMessageDate(match.latestMessageAt);
+              const age = calculateAge(match.birthDate);
               const isActive = match.status === 'active';
               const statusLabel = isActive
                 ? '매칭 중'
@@ -485,8 +523,11 @@ export default function MatchesPage() {
 
                     <div className="min-w-0 flex-1 p-6">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h2 className="truncate text-xl font-bold text-gray-900">{match.nickname ?? '익명'}</h2>
+                        <div className="min-w-0 flex-1">
+                          <h2 className="flex min-w-0 items-baseline gap-2 text-xl font-bold text-gray-900">
+                            <span className="truncate">{match.nickname ?? '익명'}</span>
+                            {age !== null ? <span className="shrink-0">· 만 {age}세</span> : null}
+                          </h2>
                           <p className="mt-2 flex items-center gap-2 text-sm text-gray-500">
                             <MapPin size={15} className="shrink-0 text-gray-400" />
                             <span className="truncate">{match.region ?? '지역 정보 미입력'}</span>

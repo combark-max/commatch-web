@@ -214,16 +214,24 @@ begin
                 ''
               ) = ''
           )
-          or pg_catalog.md5(
-            pg_catalog.regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')
-          ) is distinct from case v_function_name
-            when 'set_matching_chat_updated_at' then 'b25753681841752f1957406894e6fb56'
-            when 'handle_mutual_favorite_match' then '66480c23c1656a656d5f035c4b157785'
-            when 'send_match_message' then 'b5aae1246f5c93c776d7f4e21bc8b38b'
-            when 'mark_match_read' then '1b63ddc3e76fc74811c951b2d3f92fb7'
-            when 'end_match' then '081cb634975a573b117dae4ec84dcba2'
-            when 'get_my_matches' then 'efd3e318d960957a79dab0be1855835e'
-          end
+          or (
+            pg_catalog.md5(
+              pg_catalog.regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')
+            ) is distinct from case v_function_name
+              when 'set_matching_chat_updated_at' then 'b25753681841752f1957406894e6fb56'
+              when 'handle_mutual_favorite_match' then '66480c23c1656a656d5f035c4b157785'
+              when 'send_match_message' then 'b5aae1246f5c93c776d7f4e21bc8b38b'
+              when 'mark_match_read' then '1b63ddc3e76fc74811c951b2d3f92fb7'
+              when 'end_match' then '081cb634975a573b117dae4ec84dcba2'
+              when 'get_my_matches' then 'efd3e318d960957a79dab0be1855835e'
+            end
+            and not (
+              v_function_name = 'get_my_matches'
+              and pg_catalog.md5(
+                pg_catalog.regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')
+              ) = 'cc8078e24d925acb9e7b28fc34f34a38'
+            )
+          )
         )
     ) then
       raise exception 'public.% already exists with an unapproved definition', v_function_name;
@@ -974,7 +982,9 @@ $function$;
 
 comment on function public.end_match(uuid) is 'commatch_matching_chat_v1';
 
-create or replace function public.get_my_matches()
+drop function if exists public.get_my_matches();
+
+create function public.get_my_matches()
 returns table (
   match_id uuid,
   match_status text,
@@ -983,6 +993,7 @@ returns table (
   last_message_at timestamptz,
   other_user_id uuid,
   other_nickname text,
+  other_birth_date date,
   other_profile_image text,
   other_region text,
   other_job text,
@@ -1013,6 +1024,7 @@ begin
     match_row.last_message_at,
     other_profile.id,
     other_profile.nickname,
+    other_profile.birth_date,
     coalesce(
       nullif(pg_catalog.btrim(other_profile.profile_image), ''),
       fallback_image.path

@@ -61,10 +61,11 @@ const premiumBenefits = [
     icon: BadgeCheck,
   },
   {
-    title: '새로운 기능 우선 제공',
-    description: '새롭게 추가되는 일부 기능을 Premium 회원에게 먼저 제공할 예정입니다.',
-    status: '도입 예정',
+    title: '고급 매칭 관리',
+    description: '읽지 않은 메시지와 대화 상태에 따라 매칭 목록을 정리하고 원하는 순서로 확인할 수 있습니다.',
+    status: '테스트 제공 중',
     icon: MessageCircle,
+    href: '/matches?advanced=1',
   },
 ];
 

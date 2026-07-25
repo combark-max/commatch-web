@@ -39,6 +39,8 @@ type MatchRpcRow = {
 };
 
 type MatchStatus = 'active' | 'ended' | 'unknown';
+type MatchFilter = 'all' | 'unread' | 'no-conversation' | 'active' | 'ended';
+type MatchSort = 'default' | 'unread-first' | 'recent-conversation' | 'recent-match' | 'oldest-match';
 
 type MatchListItem = {
   matchId: string;
@@ -163,17 +165,24 @@ export default function MatchesPage() {
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
   const [selectedImage, setSelectedImage] = useState<{ url: string; alt: string } | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const [isAdvancedMode, setIsAdvancedMode] = useState(false);
+  const [matchFilter, setMatchFilter] = useState<MatchFilter>('all');
+  const [matchSort, setMatchSort] = useState<MatchSort>('default');
 
   useEffect(() => {
     let isMounted = true;
     let loadingPhase: 'auth' | 'matches' = 'auth';
 
     const loadMatches = async () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const advancedMode = searchParams.get('advanced') === '1';
+
       setIsLoading(true);
       setLoadingStage('auth');
       setIsAuthenticated(false);
       setAuthError(null);
       setMatchesError(null);
+      setIsAdvancedMode(advancedMode);
 
       try {
         const {
@@ -228,6 +237,54 @@ export default function MatchesPage() {
       isMounted = false;
     };
   }, [retryKey, router, supabase]);
+
+  const visibleMatches = useMemo(() => {
+    if (!isAdvancedMode) return matches;
+
+    const filteredMatches = matches
+      .map((match, originalIndex) => ({ match, originalIndex }))
+      .filter(({ match }) => {
+        if (matchFilter === 'unread') return match.unreadCount > 0;
+        if (matchFilter === 'no-conversation') {
+          return match.latestMessage === null && match.latestMessageAt === null;
+        }
+        if (matchFilter === 'active') return match.status === 'active';
+        if (matchFilter === 'ended') return match.status === 'ended';
+        return true;
+      });
+
+    if (matchSort === 'default') {
+      return filteredMatches.map(({ match }) => match);
+    }
+
+    const getTimestamp = (value: string | null) => parseDate(value)?.getTime() ?? null;
+    const sortedMatches = [...filteredMatches].sort((leftItem, rightItem) => {
+      const preserveOriginalOrder = () => leftItem.originalIndex - rightItem.originalIndex;
+
+      if (matchSort === 'unread-first') {
+        return rightItem.match.unreadCount - leftItem.match.unreadCount || preserveOriginalOrder();
+      }
+
+      const leftTimestamp = getTimestamp(
+        matchSort === 'recent-conversation' ? leftItem.match.latestMessageAt : leftItem.match.matchedAt,
+      );
+      const rightTimestamp = getTimestamp(
+        matchSort === 'recent-conversation' ? rightItem.match.latestMessageAt : rightItem.match.matchedAt,
+      );
+
+      if (leftTimestamp === null && rightTimestamp === null) return preserveOriginalOrder();
+      if (leftTimestamp === null) return 1;
+      if (rightTimestamp === null) return -1;
+
+      const timestampDifference = matchSort === 'oldest-match'
+        ? leftTimestamp - rightTimestamp
+        : rightTimestamp - leftTimestamp;
+
+      return timestampDifference || preserveOriginalOrder();
+    });
+
+    return sortedMatches.map(({ match }) => match);
+  }, [isAdvancedMode, matchFilter, matchSort, matches]);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -299,6 +356,54 @@ export default function MatchesPage() {
           </div>
         </header>
 
+        {isAdvancedMode && !matchesError ? (
+          <>
+            <section className="mb-5 rounded-[2rem] border border-green-100 bg-green-50 p-6 sm:p-7">
+              <p className="text-sm font-bold text-green-800">Premium 도입 전 테스트 제공 기능입니다.</p>
+              <p className="mt-2 text-sm leading-6 text-green-900">
+                매칭 목록을 메시지 상태와 대화 진행 상황에 따라 정리할 수 있습니다.
+              </p>
+            </section>
+
+            <section className="mb-6 rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-7" aria-label="고급 매칭 관리">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-bold text-gray-700">
+                  보기
+                  <select
+                    value={matchFilter}
+                    onChange={(event) => setMatchFilter(event.target.value as MatchFilter)}
+                    className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                  >
+                    <option value="all">전체</option>
+                    <option value="unread">읽지 않은 메시지 있음</option>
+                    <option value="no-conversation">아직 대화 없음</option>
+                    <option value="active">진행 중</option>
+                    <option value="ended">종료됨</option>
+                  </select>
+                </label>
+
+                <label className="text-sm font-bold text-gray-700">
+                  정렬
+                  <select
+                    value={matchSort}
+                    onChange={(event) => setMatchSort(event.target.value as MatchSort)}
+                    className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                  >
+                    <option value="default">기본 순서</option>
+                    <option value="unread-first">읽지 않은 메시지 많은 순</option>
+                    <option value="recent-conversation">최근 대화순</option>
+                    <option value="recent-match">최근 매칭순</option>
+                    <option value="oldest-match">오래된 매칭순</option>
+                  </select>
+                </label>
+              </div>
+              <p className="mt-4 text-sm font-medium text-gray-500">
+                전체 {matches.length}개 중 {visibleMatches.length}개 표시
+              </p>
+            </section>
+          </>
+        ) : null}
+
         {matchesError ? (
           <section className="rounded-[2rem] border border-red-100 bg-white p-8 text-center shadow-sm sm:p-12" aria-live="polite">
             <p className="font-semibold text-red-600">{matchesError}</p>
@@ -322,9 +427,15 @@ export default function MatchesPage() {
               회원 둘러보기 <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </section>
+        ) : isAdvancedMode && visibleMatches.length === 0 ? (
+          <section className="rounded-[2rem] border border-gray-100 bg-white p-10 text-center shadow-sm sm:p-16">
+            <Search className="mx-auto mb-4 h-12 w-12 text-gray-300" />
+            <h2 className="text-xl font-bold text-gray-800">선택한 조건에 해당하는 매칭이 없습니다.</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-500">다른 보기 조건을 선택해 보세요.</p>
+          </section>
         ) : (
           <section className="grid gap-6 lg:grid-cols-2" aria-label="매칭 회원 목록">
-            {matches.map((match) => {
+            {visibleMatches.map((match) => {
               const hasImage = Boolean(match.profileImageUrl) && !failedImageIds.has(match.matchId);
               const latestMessageDate = formatMessageDate(match.latestMessageAt);
               const isActive = match.status === 'active';

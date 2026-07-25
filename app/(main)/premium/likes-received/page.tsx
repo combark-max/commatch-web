@@ -48,6 +48,8 @@ type ReceivedFavorite = {
 };
 
 type PageState = 'loading' | 'ready' | 'error';
+type ReceivedFavoriteFilter = 'all' | 'mutual' | 'not-mutual' | 'active-match' | 'ended-match';
+type ReceivedFavoriteSort = 'default' | 'recent' | 'oldest' | 'younger' | 'older';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -121,18 +123,36 @@ function normalizeReceivedFavorites(value: unknown): ReceivedFavorite[] {
 
 function calculateAge(birthDate: string | null): number | null {
   if (!birthDate) return null;
-  const birth = new Date(birthDate);
-  if (Number.isNaN(birth.getTime())) return null;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDate);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const birth = new Date(0);
+  birth.setHours(0, 0, 0, 0);
+  birth.setFullYear(year, month - 1, day);
+
+  if (
+    birth.getFullYear() !== year
+    || birth.getMonth() !== month - 1
+    || birth.getDate() !== day
+  ) {
+    return null;
+  }
 
   const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDifference = today.getMonth() - birth.getMonth();
+  if (birth.getTime() > today.getTime()) return null;
 
-  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birth.getDate())) {
+  let age = today.getFullYear() - year;
+  const monthDifference = today.getMonth() - (month - 1);
+
+  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < day)) {
     age -= 1;
   }
 
-  return age >= 0 ? age : null;
+  return Number.isInteger(age) && age >= 0 ? age : null;
 }
 
 function getRelationshipStatus(favorite: ReceivedFavorite) {
@@ -155,12 +175,18 @@ export default function LikesReceivedPage() {
   const [favorites, setFavorites] = useState<ReceivedFavorite[]>([]);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
   const [retryKey, setRetryKey] = useState(0);
+  const [isAdvancedMode, setIsAdvancedMode] = useState(false);
+  const [favoriteFilter, setFavoriteFilter] = useState<ReceivedFavoriteFilter>('all');
+  const [favoriteSort, setFavoriteSort] = useState<ReceivedFavoriteSort>('default');
 
   useEffect(() => {
     let isMounted = true;
 
     const loadReceivedFavorites = async () => {
+      const advancedMode = new URLSearchParams(window.location.search).get('advanced') === '1';
+
       setPageState('loading');
+      setIsAdvancedMode(advancedMode);
 
       try {
         const {
@@ -198,6 +224,67 @@ export default function LikesReceivedPage() {
       isMounted = false;
     };
   }, [retryKey, router, supabase]);
+
+  const visibleFavorites = useMemo(() => {
+    if (!isAdvancedMode) return favorites;
+
+    const filteredFavorites = favorites
+      .map((favorite, originalIndex) => ({ favorite, originalIndex }))
+      .filter(({ favorite }) => {
+        if (favoriteFilter === 'mutual') return favorite.isMutual === true;
+        if (favoriteFilter === 'not-mutual') return favorite.isMutual === false;
+        if (favoriteFilter === 'active-match') {
+          return favorite.matchId !== null && favorite.matchStatus === 'active';
+        }
+        if (favoriteFilter === 'ended-match') {
+          return favorite.matchId !== null && favorite.matchStatus === 'ended';
+        }
+        return true;
+      });
+
+    if (favoriteSort === 'default') {
+      return filteredFavorites.map(({ favorite }) => favorite);
+    }
+
+    const getTimestamp = (value: string): number | null => {
+      const timestamp = new Date(value).getTime();
+      return Number.isNaN(timestamp) ? null : timestamp;
+    };
+
+    const sortedFavorites = [...filteredFavorites].sort((leftItem, rightItem) => {
+      const preserveOriginalOrder = () => leftItem.originalIndex - rightItem.originalIndex;
+
+      if (favoriteSort === 'recent' || favoriteSort === 'oldest') {
+        const leftTimestamp = getTimestamp(leftItem.favorite.createdAt);
+        const rightTimestamp = getTimestamp(rightItem.favorite.createdAt);
+
+        if (leftTimestamp === null && rightTimestamp === null) return preserveOriginalOrder();
+        if (leftTimestamp === null) return 1;
+        if (rightTimestamp === null) return -1;
+
+        const timestampDifference = favoriteSort === 'oldest'
+          ? leftTimestamp - rightTimestamp
+          : rightTimestamp - leftTimestamp;
+
+        return timestampDifference || preserveOriginalOrder();
+      }
+
+      const leftAge = calculateAge(leftItem.favorite.birthDate);
+      const rightAge = calculateAge(rightItem.favorite.birthDate);
+
+      if (leftAge === null && rightAge === null) return preserveOriginalOrder();
+      if (leftAge === null) return 1;
+      if (rightAge === null) return -1;
+
+      const ageDifference = favoriteSort === 'older'
+        ? rightAge - leftAge
+        : leftAge - rightAge;
+
+      return ageDifference || preserveOriginalOrder();
+    });
+
+    return sortedFavorites.map(({ favorite }) => favorite);
+  }, [favoriteFilter, favoriteSort, favorites, isAdvancedMode]);
 
   if (pageState === 'loading') {
     return (
@@ -255,6 +342,54 @@ export default function LikesReceivedPage() {
           </div>
         </header>
 
+        {isAdvancedMode ? (
+          <>
+            <section className="mt-6 rounded-[2rem] border border-green-100 bg-green-50 p-6 sm:p-7">
+              <p className="text-sm font-bold text-green-800">Premium 도입 전 테스트 제공 기능입니다.</p>
+              <p className="mt-2 text-sm leading-6 text-green-900">
+                받은 관심을 관계와 매칭 상태에 따라 정리할 수 있습니다.
+              </p>
+            </section>
+
+            <section className="mt-5 rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-7" aria-label="받은 관심 고급 관리">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-bold text-gray-700">
+                  보기
+                  <select
+                    value={favoriteFilter}
+                    onChange={(event) => setFavoriteFilter(event.target.value as ReceivedFavoriteFilter)}
+                    className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                  >
+                    <option value="all">전체</option>
+                    <option value="mutual">서로 관심</option>
+                    <option value="not-mutual">아직 상호 관심 아님</option>
+                    <option value="active-match">진행 중인 매칭</option>
+                    <option value="ended-match">종료된 매칭</option>
+                  </select>
+                </label>
+
+                <label className="text-sm font-bold text-gray-700">
+                  정렬
+                  <select
+                    value={favoriteSort}
+                    onChange={(event) => setFavoriteSort(event.target.value as ReceivedFavoriteSort)}
+                    className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                  >
+                    <option value="default">기본 순서</option>
+                    <option value="recent">최근 받은 관심순</option>
+                    <option value="oldest">오래된 관심순</option>
+                    <option value="younger">나이 어린 순</option>
+                    <option value="older">나이 많은 순</option>
+                  </select>
+                </label>
+              </div>
+              <p className="mt-4 text-sm font-medium text-gray-500">
+                전체 {favorites.length}명 중 {visibleFavorites.length}명 표시
+              </p>
+            </section>
+          </>
+        ) : null}
+
         {favorites.length === 0 ? (
           <section className="mt-8 rounded-[2rem] border border-gray-100 bg-white p-10 text-center shadow-sm sm:p-16">
             <Heart className="mx-auto h-12 w-12 text-gray-300" />
@@ -263,9 +398,15 @@ export default function LikesReceivedPage() {
               프로필을 충실하게 작성하고 회원 활동을 이어가면 새로운 관심을 받을 수 있습니다.
             </p>
           </section>
+        ) : isAdvancedMode && visibleFavorites.length === 0 ? (
+          <section className="mt-8 rounded-[2rem] border border-gray-100 bg-white p-10 text-center shadow-sm sm:p-16">
+            <Heart className="mx-auto h-12 w-12 text-gray-300" />
+            <h2 className="mt-5 text-xl font-bold text-gray-800">선택한 조건에 해당하는 회원이 없습니다.</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-500">다른 보기 조건을 선택해 보세요.</p>
+          </section>
         ) : (
           <section className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3" aria-label="나에게 관심을 보낸 회원 목록">
-            {favorites.map((favorite) => {
+            {visibleFavorites.map((favorite) => {
               const age = calculateAge(favorite.birthDate);
               const relationship = getRelationshipStatus(favorite);
               const hasImage = Boolean(favorite.profileImageUrl) && !failedImageIds.has(favorite.favoriteId);

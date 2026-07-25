@@ -39,7 +39,7 @@ const premiumBenefits = [
     description: '나를 관심회원으로 등록한 회원을 확인하고 서로의 관심을 더 빠르게 연결해 보세요.',
     status: '테스트 제공 중',
     icon: Heart,
-    href: '/premium/likes-received',
+    href: '/premium/likes-received?advanced=1',
   },
   {
     title: '고급 회원 검색',

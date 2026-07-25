@@ -509,9 +509,8 @@ export default function MemberDetailPage() {
                   아직 등록된 생활 스타일 정보가 없습니다.
                 </p>
               )}
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="mt-3">
                 <ProfileFact icon={<Cigarette size={18} />} label="흡연 여부" value={visibleSmoking || '정보 없음'} />
-                <ComingSoonItem label="MBTI" description="선택 기능 도입 예정" />
               </div>
             </section>
 
@@ -604,18 +603,6 @@ function ProfileFact({ icon, label, value }: { icon: React.ReactNode; label: str
         <p className="text-xs font-bold text-gray-400">{label}</p>
         <p className="mt-1 break-words text-sm font-bold text-gray-800">{value}</p>
       </div>
-    </div>
-  );
-}
-
-function ComingSoonItem({ label, description }: { label: string; description: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-bold text-gray-500">{label}</p>
-        <span className="rounded-full bg-gray-200 px-2 py-1 text-[10px] font-bold text-gray-500">도입 예정</span>
-      </div>
-      <p className="mt-2 text-xs text-gray-400">{description}</p>
     </div>
   );
 }

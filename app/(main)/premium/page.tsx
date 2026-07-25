@@ -134,6 +134,19 @@ export default function PremiumPage() {
     };
   }, [router, supabase]);
 
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || window.location.hash !== '#premium-benefits') return;
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      document.getElementById('premium-benefits')?.scrollIntoView({
+        behavior: 'auto',
+        block: 'start',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [isAuthenticated, isLoading]);
+
   if (isLoading || !isAuthenticated) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4">

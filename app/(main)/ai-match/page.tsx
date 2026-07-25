@@ -64,13 +64,6 @@ type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
 const DEFAULT_RECOMMENDATION_LIMIT = 10;
 const EXPANDED_RECOMMENDATION_LIMIT = 20;
 
-const getVisibleProfileValue = (value: string | null) => {
-  const normalizedValue = value?.trim() ?? '';
-  return normalizedValue && !['미입력', '선택하지 않음', '공개하지 않음'].includes(normalizedValue)
-    ? normalizedValue
-    : '';
-};
-
 const calculateAge = (birthDate: string | null) => {
   if (!birthDate) return null;
 
@@ -454,6 +447,8 @@ export default function AiMatchPage() {
   }, [retryKey, router, supabase]);
 
   const currentMember = recommendations[currentIndex];
+  const visibleStrengths = currentMember?.strengths.filter((strength) => !strength.includes('흡연')) ?? [];
+  const visibleConsiderations = currentMember?.considerations.filter((consideration) => !consideration.includes('흡연')) ?? [];
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex < recommendations.length - 1;
 
@@ -714,18 +709,18 @@ export default function AiMatchPage() {
                       </h3>
                       <h4 className="mt-4 text-sm font-bold text-green-800">잘 맞는 점</h4>
                       <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
-                        {currentMember.strengths.map((strength) => (
+                        {visibleStrengths.map((strength) => (
                           <li key={strength} className="flex items-start gap-2">
                             <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#16a34a]" />
                             {strength}
                           </li>
                         ))}
                       </ul>
-                      {currentMember.considerations.length > 0 ? (
+                      {visibleConsiderations.length > 0 ? (
                         <div className="mt-5 border-t border-green-200 pt-4">
                           <h4 className="text-sm font-bold text-gray-800">확인할 점</h4>
                           <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
-                            {currentMember.considerations.map((consideration) => (
+                            {visibleConsiderations.map((consideration) => (
                               <li key={consideration} className="flex items-start gap-2">
                                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
                                 {consideration}
@@ -737,20 +732,6 @@ export default function AiMatchPage() {
                       {currentMember.dataNote ? (
                         <p className="mt-4 text-xs leading-5 text-gray-500">{currentMember.dataNote}</p>
                       ) : null}
-                      <div className="mt-5 space-y-4 border-t border-green-200 pt-4">
-                        <div>
-                          <p className="text-xs font-bold text-gray-500">흡연 여부</p>
-                          <p className="mt-1 text-sm font-medium text-gray-800">
-                            {getVisibleProfileValue(currentMember.smoking) || '정보 없음'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-gray-500">결혼 가치관</p>
-                          <p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-6 text-gray-800">
-                            {getVisibleProfileValue(currentMember.marriage_values) || '정보 없음'}
-                          </p>
-                        </div>
-                      </div>
                     </>
                   ) : (
                     <>

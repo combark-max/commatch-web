@@ -24,7 +24,7 @@ type AppShellProps = {
 };
 
 const accountLinks = [
-  { href: '/dashboard', label: '대시보드', icon: LayoutDashboard },
+  { href: '/dashboard', label: '마이페이지', icon: LayoutDashboard },
   { href: '/profile/create', label: '내 프로필 수정', icon: UserRound },
   { href: '/preference', label: '이상형 수정', icon: SlidersHorizontal },
   { href: '/favorites', label: '관심회원', icon: Heart },

@@ -6,6 +6,31 @@ import { useSearchParams } from 'next/navigation';
 import { AlertCircle, CheckCircle2, ExternalLink, Loader2, Mail, RotateCw } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
+type VerificationStatus = 'confirmed' | 'session_error' | 'expired' | 'invalid' | 'error';
+
+const verificationStatusContent: Record<VerificationStatus, { title: string; description: string }> = {
+  confirmed: {
+    title: '이메일 인증이 완료되었습니다.',
+    description: '프로필 작성 또는 로그인 화면에서 계속 진행해 주세요.',
+  },
+  session_error: {
+    title: '로그인 연결에 실패했습니다.',
+    description: '이메일 인증은 완료되었지만 로그인 연결에 실패했습니다. 로그인 화면에서 다시 로그인해 주세요.',
+  },
+  expired: {
+    title: '인증 링크가 만료되었습니다.',
+    description: '인증 링크가 만료되었거나 이미 사용되었습니다.',
+  },
+  invalid: {
+    title: '유효하지 않은 인증 링크입니다.',
+    description: '가장 최근에 받은 인증메일의 링크를 다시 확인해 주세요.',
+  },
+  error: {
+    title: '이메일 인증 처리 중 문제가 발생했습니다.',
+    description: '잠시 후 다시 시도하거나 인증메일을 다시 요청해 주세요.',
+  },
+};
+
 const getWebmailUrl = (email: string) => {
   const normalizedEmail = email.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+$/.test(normalizedEmail)) return null;
@@ -23,7 +48,14 @@ function VerifyEmailContent() {
   const [email, setEmail] = useState(searchParams.get('email') ?? '');
   const [isResending, setIsResending] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-  const hasConfirmationError = searchParams.get('status') === 'error';
+  const rawStatus = searchParams.get('status');
+  const verificationStatus: VerificationStatus | null = rawStatus === null
+    ? null
+    : ['confirmed', 'session_error', 'expired', 'invalid', 'error'].includes(rawStatus)
+      ? rawStatus as VerificationStatus
+      : 'error';
+  const statusContent = verificationStatus ? verificationStatusContent[verificationStatus] : null;
+  const hasConfirmationError = verificationStatus !== null && verificationStatus !== 'confirmed';
 
   useEffect(() => {
     if (email) {
@@ -56,7 +88,7 @@ function VerifyEmailContent() {
 
     setMessage(error
       ? { text: '인증 메일 재전송에 실패했습니다. 잠시 후 다시 시도해주세요.', type: 'error' }
-      : { text: '인증 메일을 다시 발송했습니다.', type: 'success' });
+      : { text: '인증 메일을 다시 발송했습니다. 가장 최근에 받은 메일의 링크를 사용해 주세요.', type: 'success' });
     setIsResending(false);
   };
 
@@ -70,12 +102,10 @@ function VerifyEmailContent() {
               : <Mail className="h-10 w-10 text-[#16a34a]" />}
           </div>
           <h1 className="mb-4 text-3xl font-bold tracking-tight text-gray-900">
-            {hasConfirmationError ? '이메일 인증에 실패했습니다.' : '회원가입이 완료되었습니다.'}
+            {statusContent?.title ?? '회원가입이 완료되었습니다.'}
           </h1>
           <p className="text-lg leading-relaxed text-gray-600">
-            {hasConfirmationError
-              ? '이메일 인증 링크가 만료되었거나 올바르지 않습니다.'
-              : '입력하신 이메일로 인증 메일을 발송했습니다.'}
+            {statusContent?.description ?? '입력하신 이메일로 인증 메일을 발송했습니다.'}
           </p>
         </div>
 
@@ -93,7 +123,7 @@ function VerifyEmailContent() {
                 {email}
               </a>
             ) : (
-              <span className="break-all font-bold text-green-700 underline underline-offset-4">
+              <span className="break-all font-bold text-green-700">
                 {email}
               </span>
             )}
@@ -101,7 +131,7 @@ function VerifyEmailContent() {
           </div>
         ) : null}
 
-        {!hasConfirmationError ? (
+        {verificationStatus === null ? (
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6">
             <p className="leading-relaxed text-gray-700">
               이메일을 확인한 후 <strong className="text-[#16a34a]">‘Confirm email address’</strong>를 눌러주세요.
@@ -123,13 +153,22 @@ function VerifyEmailContent() {
             <ExternalLink size={18} /> 인증 메일 확인하기
           </a>
         ) : email ? (
-          <button
-            type="button"
-            disabled
-            className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-[#16a34a] py-4 font-bold text-white opacity-60 shadow-lg shadow-green-100"
-          >
-            <ExternalLink size={18} /> 인증 메일 확인하기
-          </button>
+          <div>
+            <button
+              type="button"
+              disabled
+              className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-[#16a34a] py-4 font-bold text-white opacity-60 shadow-lg shadow-green-100"
+            >
+              <ExternalLink size={18} /> 메일 서비스에서 직접 확인
+            </button>
+            <p className="mt-3 text-sm text-gray-600">사용 중인 메일 서비스에 직접 접속해 인증메일을 확인해 주세요.</p>
+          </div>
+        ) : null}
+
+        {!email ? (
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 text-sm text-gray-600">
+            가입할 때 사용한 이메일에서 인증메일을 확인해 주세요.
+          </div>
         ) : null}
 
         <div className="rounded-2xl border border-gray-200 p-5">
@@ -148,6 +187,7 @@ function VerifyEmailContent() {
               {message.text}
             </p>
           ) : null}
+          <p className="mt-3 text-xs text-gray-500">인증메일을 다시 요청한 경우 가장 최근에 받은 메일의 링크를 사용해 주세요.</p>
         </div>
 
         <div className="flex flex-col gap-3">

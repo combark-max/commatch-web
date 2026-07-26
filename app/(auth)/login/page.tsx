@@ -14,20 +14,18 @@ import {
   Loader2,
   Lock,
   LogIn,
+  Mail,
   MessageCircle,
   UserRound,
 } from 'lucide-react';
 import { signIn } from '@/lib/auth/auth';
-import { isValidLoginId, normalizeLoginId, toInternalAuthEmail } from '@/lib/auth/login-id';
 import { createClient } from '@/lib/supabase/client';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 
-const loginIdMessage = '아이디는 영문 소문자, 숫자, 밑줄을 사용해 5~20자로 입력해주세요.';
-
 const loginSchema = z.object({
-  loginId: z.string().trim().min(1, { message: '아이디를 입력해주세요.' }).refine(isValidLoginId, {
-    message: loginIdMessage,
+  email: z.string().trim().min(1, { message: '이메일을 입력해주세요.' }).email({
+    message: '올바른 이메일 주소를 입력해주세요.',
   }),
   password: z.string().min(1, { message: '비밀번호를 입력해주세요.' }),
 });
@@ -53,19 +51,17 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { loginId: '', password: '' },
+    defaultValues: { email: '', password: '' },
   });
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
 
     try {
-      const normalizedLoginId = normalizeLoginId(data.loginId);
-      const authEmail = toInternalAuthEmail(normalizedLoginId);
-      const { error: signInError } = await signIn(authEmail, data.password);
+      const { error: signInError } = await signIn(data.email.trim(), data.password);
 
       if (signInError) {
-        setToast({ message: '아이디 또는 비밀번호가 올바르지 않습니다.', type: 'error' });
+        setToast({ message: '이메일 또는 비밀번호가 올바르지 않습니다.', type: 'error' });
         return;
       }
 
@@ -89,7 +85,7 @@ export default function LoginPage() {
 
       router.push(profile ? '/dashboard' : '/profile/create');
     } catch {
-      setToast({ message: '아이디 또는 비밀번호가 올바르지 않습니다.', type: 'error' });
+      setToast({ message: '이메일 또는 비밀번호가 올바르지 않습니다.', type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -117,35 +113,34 @@ export default function LoginPage() {
               </p>
             </div>
             <p className="mt-16 text-sm leading-6 text-green-100">
-              아이디로 로그인하고 나에게 맞는 인연을 만나보세요.
+              이메일로 로그인하고 나에게 맞는 인연을 만나보세요.
             </p>
           </section>
 
           <div className="p-8 lg:p-12">
             <div className="border-b border-gray-200">
               <p className="inline-flex border-b-2 border-green-600 px-1 pb-4 text-base font-bold text-green-700">
-                아이디 로그인
+                이메일 로그인
               </p>
             </div>
 
             <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)} noValidate>
               <div>
-                <label htmlFor="loginId" className="mb-2 block text-sm font-semibold text-gray-800">아이디</label>
+                <label htmlFor="email" className="mb-2 block text-sm font-semibold text-gray-800">이메일</label>
                 <div className="relative">
-                  <UserRound className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                  <Mail className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                   <input
-                    {...register('loginId')}
-                    id="loginId"
-                    type="text"
+                    {...register('email')}
+                    id="email"
+                    type="email"
                     autoComplete="username"
-                    autoCapitalize="none"
-                    aria-invalid={Boolean(errors.loginId)}
-                    className={`h-14 w-full rounded-xl border bg-white pl-12 pr-4 text-base outline-none transition focus:ring-2 focus:ring-green-500/20 ${errors.loginId ? 'border-red-400' : 'border-gray-300 focus:border-green-600'}`}
-                    placeholder="아이디를 입력해주세요"
+                    aria-invalid={Boolean(errors.email)}
+                    className={`h-14 w-full rounded-xl border bg-white pl-12 pr-4 text-base outline-none transition focus:ring-2 focus:ring-green-500/20 ${errors.email ? 'border-red-400' : 'border-gray-300 focus:border-green-600'}`}
+                    placeholder="example@email.com"
                   />
                 </div>
-                {errors.loginId ? (
-                  <p role="alert" className="mt-2 flex items-center gap-1 text-sm text-red-600"><AlertCircle size={14} />{errors.loginId.message}</p>
+                {errors.email ? (
+                  <p role="alert" className="mt-2 flex items-center gap-1 text-sm text-red-600"><AlertCircle size={14} />{errors.email.message}</p>
                 ) : null}
               </div>
 
@@ -177,9 +172,9 @@ export default function LoginPage() {
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm">
-                <span className="text-gray-500">아이디 찾기 — 준비 중</span>
+                <Link href="/find-email" className="font-semibold text-green-700 transition hover:text-green-800">가입 이메일 찾기</Link>
                 <span className="text-gray-300">|</span>
-                <span className="text-gray-500">비밀번호 재설정 — 준비 중</span>
+                <Link href="/forgot-password" className="font-semibold text-green-700 transition hover:text-green-800">비밀번호 재설정</Link>
                 <span className="text-gray-300">|</span>
                 <Link href="/signup" className="font-bold text-green-700 transition hover:text-green-800">회원가입</Link>
               </div>

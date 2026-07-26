@@ -63,8 +63,9 @@ const premiumBenefits = [
   {
     title: '고급 매칭 관리',
     description: '읽지 않은 메시지와 대화 상태에 따라 매칭 목록을 정리하고 원하는 순서로 확인할 수 있습니다.',
-    status: '준비 중',
+    status: '테스트 제공 중',
     icon: MessageCircle,
+    href: '/matches?advanced=1',
   },
   {
     title: '관심목록 고급 관리',

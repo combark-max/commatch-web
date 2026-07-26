@@ -3,7 +3,7 @@
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   AlertCircle,
@@ -84,9 +84,11 @@ function dateKey(value: string): string {
 export default function ChatPage() {
   const params = useParams<{ matchId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const matchId = params.matchId;
+  const matchesHref = searchParams.get('from') === 'advanced' ? '/matches?advanced=1' : '/matches';
 
   const [pageState, setPageState] = useState<PageState>('loading');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -292,7 +294,7 @@ export default function ChatPage() {
     }
   };
 
-  const handleBack = () => router.push('/matches');
+  const handleBack = () => router.push(matchesHref);
 
   if (pageState === 'loading') {
     return (
@@ -311,7 +313,7 @@ export default function ChatPage() {
           <h1 className="mt-5 text-xl font-bold text-gray-900">채팅방에 들어갈 수 없습니다.</h1>
           <p className="mt-3 text-sm leading-6 text-gray-600">{deniedMessage}</p>
           <Link
-            href="/matches"
+            href={matchesHref}
             className="mt-7 inline-flex min-h-12 items-center justify-center rounded-2xl bg-green-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-green-700"
           >
             매칭목록으로 돌아가기
@@ -333,7 +335,7 @@ export default function ChatPage() {
               <RefreshCw className="mr-2 h-4 w-4" /> 다시 시도
             </Button>
             <Link
-              href="/matches"
+              href={matchesHref}
               className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-gray-300 bg-white px-6 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
             >
               매칭목록으로

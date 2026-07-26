@@ -40,13 +40,14 @@ type MatchRpcRow = {
 };
 
 type MatchStatus = 'active' | 'ended' | 'unknown';
-type MatchFilter = 'all' | 'unread' | 'no-conversation' | 'active' | 'ended';
+type MatchFilter = 'all' | 'active' | 'ended';
 type MatchSort = 'default' | 'unread-first' | 'recent-conversation' | 'recent-match' | 'oldest-match';
 
 type MatchListItem = {
   matchId: string;
   status: MatchStatus;
   matchedAt: string | null;
+  endedAt: string | null;
   otherUserId: string | null;
   nickname: string | null;
   birthDate: string | null;
@@ -119,6 +120,7 @@ function normalizeMatchRows(value: unknown): MatchListItem[] {
       matchId,
       status,
       matchedAt: normalizeNullableText(row.matched_at),
+      endedAt: normalizeNullableText(row.ended_at),
       otherUserId: normalizeNullableText(row.other_user_id),
       nickname: normalizeNullableText(row.other_nickname),
       birthDate: normalizeNullableText(row.other_birth_date),
@@ -204,7 +206,10 @@ export default function MatchesPage() {
   const [retryKey, setRetryKey] = useState(0);
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [matchFilter, setMatchFilter] = useState<MatchFilter>('all');
-  const [matchSort, setMatchSort] = useState<MatchSort>('default');
+  const [matchSort, setMatchSort] = useState<MatchSort>('recent-conversation');
+  const [nicknameSearch, setNicknameSearch] = useState('');
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [showNoConversationOnly, setShowNoConversationOnly] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -275,18 +280,30 @@ export default function MatchesPage() {
     };
   }, [retryKey, router, supabase]);
 
+  const matchCounts = useMemo(() => ({
+    total: matches.length,
+    active: matches.filter((match) => match.status === 'active').length,
+    ended: matches.filter((match) => match.status === 'ended').length,
+    unread: matches.filter((match) => match.unreadCount > 0).length,
+  }), [matches]);
+
   const visibleMatches = useMemo(() => {
     if (!isAdvancedMode) return matches;
 
+    const normalizedSearch = nicknameSearch.trim().toLocaleLowerCase('ko-KR');
     const filteredMatches = matches
       .map((match, originalIndex) => ({ match, originalIndex }))
       .filter(({ match }) => {
-        if (matchFilter === 'unread') return match.unreadCount > 0;
-        if (matchFilter === 'no-conversation') {
-          return match.latestMessage === null && match.latestMessageAt === null;
+        if (normalizedSearch) {
+          const normalizedNickname = match.nickname?.trim().toLocaleLowerCase('ko-KR') ?? '';
+          if (!normalizedNickname.includes(normalizedSearch)) return false;
         }
-        if (matchFilter === 'active') return match.status === 'active';
-        if (matchFilter === 'ended') return match.status === 'ended';
+
+        if (matchFilter === 'active' && match.status !== 'active') return false;
+        if (matchFilter === 'ended' && match.status !== 'ended') return false;
+        if (showNoConversationOnly && (match.latestMessage !== null || match.latestMessageAt !== null)) return false;
+        if (showUnreadOnly && match.unreadCount <= 0) return false;
+
         return true;
       });
 
@@ -303,10 +320,14 @@ export default function MatchesPage() {
       }
 
       const leftTimestamp = getTimestamp(
-        matchSort === 'recent-conversation' ? leftItem.match.latestMessageAt : leftItem.match.matchedAt,
+        matchSort === 'recent-conversation'
+          ? leftItem.match.latestMessageAt ?? leftItem.match.matchedAt
+          : leftItem.match.matchedAt,
       );
       const rightTimestamp = getTimestamp(
-        matchSort === 'recent-conversation' ? rightItem.match.latestMessageAt : rightItem.match.matchedAt,
+        matchSort === 'recent-conversation'
+          ? rightItem.match.latestMessageAt ?? rightItem.match.matchedAt
+          : rightItem.match.matchedAt,
       );
 
       if (leftTimestamp === null && rightTimestamp === null) return preserveOriginalOrder();
@@ -321,7 +342,15 @@ export default function MatchesPage() {
     });
 
     return sortedMatches.map(({ match }) => match);
-  }, [isAdvancedMode, matchFilter, matchSort, matches]);
+  }, [isAdvancedMode, matchFilter, matchSort, matches, nicknameSearch, showNoConversationOnly, showUnreadOnly]);
+
+  const resetAdvancedFilters = () => {
+    setNicknameSearch('');
+    setMatchFilter('all');
+    setShowUnreadOnly(false);
+    setShowNoConversationOnly(false);
+    setMatchSort('recent-conversation');
+  };
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -402,18 +431,44 @@ export default function MatchesPage() {
               </p>
             </section>
 
+            <section className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="매칭 상태 요약">
+              {[
+                { label: '전체', value: matchCounts.total },
+                { label: '진행 중', value: matchCounts.active },
+                { label: '종료', value: matchCounts.ended },
+                { label: '미읽음 있는 매칭', value: matchCounts.unread },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-2xl border border-gray-100 bg-white px-4 py-4 shadow-sm sm:px-5">
+                  <p className="text-xs font-bold text-gray-500">{label}</p>
+                  <p className="mt-2 text-2xl font-black text-gray-900">{value}</p>
+                </div>
+              ))}
+            </section>
+
             <section className="mb-6 rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-7" aria-label="고급 매칭 관리">
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-3">
                 <label className="text-sm font-bold text-gray-700">
-                  보기
+                  닉네임 검색
+                  <span className="relative mt-2 block">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="search"
+                      value={nicknameSearch}
+                      onChange={(event) => setNicknameSearch(event.target.value)}
+                      placeholder="상대방 닉네임 검색"
+                      className="min-h-12 w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-sm font-semibold text-gray-700 outline-none transition placeholder:font-medium placeholder:text-gray-400 focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                    />
+                  </span>
+                </label>
+
+                <label className="text-sm font-bold text-gray-700">
+                  상태
                   <select
                     value={matchFilter}
                     onChange={(event) => setMatchFilter(event.target.value as MatchFilter)}
                     className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
                   >
                     <option value="all">전체</option>
-                    <option value="unread">읽지 않은 메시지 있음</option>
-                    <option value="no-conversation">아직 대화 없음</option>
                     <option value="active">진행 중</option>
                     <option value="ended">종료됨</option>
                   </select>
@@ -427,15 +482,52 @@ export default function MatchesPage() {
                     className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
                   >
                     <option value="default">기본 순서</option>
-                    <option value="unread-first">읽지 않은 메시지 많은 순</option>
                     <option value="recent-conversation">최근 대화순</option>
                     <option value="recent-match">최근 매칭순</option>
                     <option value="oldest-match">오래된 매칭순</option>
+                    <option value="unread-first">읽지 않은 메시지 많은 순</option>
                   </select>
                 </label>
               </div>
+
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-gray-100 pt-5">
+                <div className="flex flex-wrap gap-3">
+                  <label className="inline-flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm font-bold text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={showUnreadOnly}
+                      onChange={(event) => {
+                        setShowUnreadOnly(event.target.checked);
+                        if (event.target.checked) setShowNoConversationOnly(false);
+                      }}
+                      className="h-4 w-4 rounded border-gray-300 accent-green-600"
+                    />
+                    미읽음 있는 매칭만 보기
+                  </label>
+                  <label className="inline-flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm font-bold text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={showNoConversationOnly}
+                      onChange={(event) => {
+                        setShowNoConversationOnly(event.target.checked);
+                        if (event.target.checked) setShowUnreadOnly(false);
+                      }}
+                      className="h-4 w-4 rounded border-gray-300 accent-green-600"
+                    />
+                    아직 대화 없음
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  onClick={resetAdvancedFilters}
+                  className="min-h-11 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
+                >
+                  필터 초기화
+                </button>
+              </div>
+
               <p className="mt-4 text-sm font-medium text-gray-500">
-                전체 {matches.length}개 중 {visibleMatches.length}개 표시
+                전체 {matches.length}개 중 {visibleMatches.length}개 매칭을 표시하고 있습니다.
               </p>
             </section>
           </>
@@ -548,6 +640,12 @@ export default function MatchesPage() {
                         <CalendarDays size={15} className="text-gray-400" />
                         매칭일 {formatMatchDate(match.matchedAt)}
                       </p>
+                      {match.status === 'ended' && match.endedAt ? (
+                        <p className="mt-2 flex items-center gap-2 text-xs font-medium text-gray-500">
+                          <Clock3 size={15} className="text-gray-400" />
+                          {formatMatchDate(match.endedAt)} 종료
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
@@ -575,7 +673,9 @@ export default function MatchesPage() {
                     ) : null}
 
                     <Link
-                      href={`/matches/${match.matchId}/chat`}
+                      href={isAdvancedMode
+                        ? `/matches/${match.matchId}/chat?from=advanced`
+                        : `/matches/${match.matchId}/chat`}
                       className={`mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold transition ${
                         isActive
                           ? 'bg-green-600 text-white shadow-md shadow-green-100 hover:bg-green-700'

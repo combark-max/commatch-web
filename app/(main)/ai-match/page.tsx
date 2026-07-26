@@ -48,11 +48,24 @@ type Preference = {
   preferred_job: string | null;
 };
 
+type PreferenceMatchStatus = 'match' | 'mismatch' | 'preference-missing' | 'member-missing';
+
+type PreferenceMatchResult = {
+  label: '희망 연령' | '희망 키' | '선호 지역' | '선호 직업';
+  status: PreferenceMatchStatus;
+  detail: string;
+};
+
 type RecommendedMember = Profile & {
   age: number | null;
   score: number;
   reasons: string[];
-  strengths: string[];
+  preferenceMatches: PreferenceMatchResult[];
+  preferenceMatchRate: number | null;
+  matchedPreferenceCount: number;
+  enteredPreferenceCount: number;
+  commonPoints: string[];
+  recommendationReason: string | null;
   considerations: string[];
   dataNote?: string;
   completeness: number;
@@ -63,6 +76,34 @@ type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
 
 const DEFAULT_RECOMMENDATION_LIMIT = 10;
 const EXPANDED_RECOMMENDATION_LIMIT = 20;
+
+const UNAVAILABLE_COMPARISON_VALUES = new Set([
+  '',
+  '미입력',
+  '미설정',
+  '미공개',
+  '비공개',
+  '선택하지 않음',
+  '공개하지 않음',
+  '알 수 없음',
+  '알수없음',
+  '정보 없음',
+  '상관없음',
+]);
+
+const PREFERENCE_STATUS_LABELS: Record<PreferenceMatchStatus, string> = {
+  match: '일치',
+  mismatch: '조건과 다름',
+  'preference-missing': '선호조건 미입력',
+  'member-missing': '상대방 정보 부족',
+};
+
+const PREFERENCE_STATUS_CLASSES: Record<PreferenceMatchStatus, string> = {
+  match: 'bg-green-100 text-green-700',
+  mismatch: 'bg-amber-100 text-amber-700',
+  'preference-missing': 'bg-gray-100 text-gray-500',
+  'member-missing': 'bg-gray-100 text-gray-500',
+};
 
 const calculateAge = (birthDate: string | null) => {
   if (!birthDate) return null;
@@ -106,6 +147,24 @@ const calculateProfileCompleteness = (profile: Profile) => {
 
 const isSpecified = (value: string | null) => Boolean(value && value !== '상관없음');
 
+const normalizeComparableText = (value: string | null) => (
+  value?.trim().replace(/\s+/g, ' ').toLocaleLowerCase('ko-KR') ?? ''
+);
+
+const getComparableText = (value: string | null, excludeOther = false) => {
+  const normalizedValue = normalizeComparableText(value);
+  return UNAVAILABLE_COMPARISON_VALUES.has(normalizedValue) || (excludeOther && normalizedValue === '기타')
+    ? ''
+    : normalizedValue;
+};
+
+const formatRange = (min: number | null, max: number | null, unit: string) => {
+  if (min !== null && max !== null) return `${min}~${max}${unit}`;
+  if (min !== null) return `${min}${unit} 이상`;
+  if (max !== null) return `${max}${unit} 이하`;
+  return '';
+};
+
 const matchesPreferredJob = (job: string | null, preferredJob: string | null) => {
   if (!isSpecified(preferredJob) || !job) return false;
   if (preferredJob === '기타') {
@@ -144,106 +203,124 @@ const getAdvancedRecommendationAnalysis = (
   candidateProfile: Profile,
   preference: Preference,
   candidateAge: number | null,
-  existingReasons: string[],
 ) => {
-  const strengths = [...existingReasons];
-  const preferenceMismatches: string[] = [];
-  const lifestyleDifferences: string[] = [];
-  let hasMissingComparisonData = false;
-
   const hasAgePreference = preference.age_min !== null || preference.age_max !== null;
-  if (hasAgePreference) {
-    if (candidateAge === null) {
-      hasMissingComparisonData = true;
-    } else if ((preference.age_min !== null && candidateAge < preference.age_min)
-      || (preference.age_max !== null && candidateAge > preference.age_max)) {
-      preferenceMismatches.push('희망 연령 범위와 차이가 있어 대화로 확인해 보세요.');
-    }
-  }
-
   const hasHeightPreference = preference.height_min !== null || preference.height_max !== null;
-  if (hasHeightPreference) {
-    if (candidateProfile.height === null) {
-      hasMissingComparisonData = true;
-    } else if ((preference.height_min !== null && candidateProfile.height < preference.height_min)
-      || (preference.height_max !== null && candidateProfile.height > preference.height_max)) {
-      preferenceMismatches.push('희망 키 조건과 차이가 있어요.');
-    }
-  }
+  const hasRegionPreference = isSpecified(preference.preferred_region);
+  const hasJobPreference = isSpecified(preference.preferred_job);
+  const candidateRegion = getComparableText(candidateProfile.region);
+  const candidateJob = getComparableText(candidateProfile.job);
 
-  if (isSpecified(preference.preferred_region)) {
-    if (!candidateProfile.region) {
-      hasMissingComparisonData = true;
-    } else if (candidateProfile.region !== preference.preferred_region) {
-      preferenceMismatches.push('선호 지역과 현재 생활권이 다를 수 있어요.');
-    }
-  }
+  const preferenceMatches: PreferenceMatchResult[] = [
+    !hasAgePreference
+      ? { label: '희망 연령', status: 'preference-missing', detail: '희망 연령을 입력하지 않았습니다.' }
+      : candidateAge === null
+        ? { label: '희망 연령', status: 'member-missing', detail: '상대방의 생년월일 정보가 없습니다.' }
+        : {
+            label: '희망 연령',
+            status: (preference.age_min === null || candidateAge >= preference.age_min)
+              && (preference.age_max === null || candidateAge <= preference.age_max)
+              ? 'match'
+              : 'mismatch',
+            detail: `희망 ${formatRange(preference.age_min, preference.age_max, '세')} · 상대 만 ${candidateAge}세`,
+          },
+    !hasHeightPreference
+      ? { label: '희망 키', status: 'preference-missing', detail: '희망 키를 입력하지 않았습니다.' }
+      : candidateProfile.height === null
+        ? { label: '희망 키', status: 'member-missing', detail: '상대방의 키 정보가 없습니다.' }
+        : {
+            label: '희망 키',
+            status: (preference.height_min === null || candidateProfile.height >= preference.height_min)
+              && (preference.height_max === null || candidateProfile.height <= preference.height_max)
+              ? 'match'
+              : 'mismatch',
+            detail: `희망 ${formatRange(preference.height_min, preference.height_max, 'cm')} · 상대 ${candidateProfile.height}cm`,
+          },
+    !hasRegionPreference
+      ? { label: '선호 지역', status: 'preference-missing', detail: '선호 지역을 입력하지 않았습니다.' }
+      : !candidateRegion
+        ? { label: '선호 지역', status: 'member-missing', detail: '상대방의 지역 정보가 없습니다.' }
+        : {
+            label: '선호 지역',
+            status: candidateProfile.region === preference.preferred_region ? 'match' : 'mismatch',
+            detail: `선호 ${preference.preferred_region} · 상대 ${candidateProfile.region}`,
+          },
+    !hasJobPreference
+      ? { label: '선호 직업', status: 'preference-missing', detail: '선호 직업을 입력하지 않았습니다.' }
+      : !candidateJob
+        ? { label: '선호 직업', status: 'member-missing', detail: '상대방의 직업 정보가 없습니다.' }
+        : {
+            label: '선호 직업',
+            status: matchesPreferredJob(candidateProfile.job, preference.preferred_job) ? 'match' : 'mismatch',
+            detail: `선호 ${preference.preferred_job} · 상대 ${candidateProfile.job}`,
+          },
+  ];
 
-  if (isSpecified(preference.preferred_job)) {
-    if (!candidateProfile.job) {
-      hasMissingComparisonData = true;
-    } else if (!matchesPreferredJob(candidateProfile.job, preference.preferred_job)) {
-      preferenceMismatches.push('직업 조건은 프로필과 대화를 통해 확인해 보세요.');
-    }
-  }
+  const enteredPreferenceMatches = preferenceMatches.filter(({ status }) => status !== 'preference-missing');
+  const matchedPreferenceMatches = enteredPreferenceMatches.filter(({ status }) => status === 'match');
+  const preferenceMatchRate = enteredPreferenceMatches.length > 0
+    ? Math.round((matchedPreferenceMatches.length / enteredPreferenceMatches.length) * 100)
+    : null;
+  const matchedPreferenceLabels = matchedPreferenceMatches.map(({ label }) => label);
+  const recommendationReason = matchedPreferenceLabels.length > 0
+    ? `${matchedPreferenceLabels.join('·')} 조건이 일치하여 추천되었습니다.`
+    : null;
 
-  const currentReligion = currentProfile.religion?.trim() ?? '';
-  const candidateReligion = candidateProfile.religion?.trim() ?? '';
-  const hasComparableReligion = (value: string) => value !== '' && value !== '기타';
-  if (hasComparableReligion(currentReligion) && hasComparableReligion(candidateReligion)) {
-    if (currentReligion === candidateReligion && strengths.length < 3) {
-      strengths.push('두 분의 종교 정보가 같아요.');
-    }
-  } else {
-    hasMissingComparisonData = true;
-  }
+  const commonPoints: string[] = [];
+  const lifestyleDifferences: string[] = [];
+  let hasUnavailableProfileComparison = false;
 
-  const currentDrinking = currentProfile.drinking?.trim() ?? '';
-  const candidateDrinking = candidateProfile.drinking?.trim() ?? '';
-  if (currentDrinking && candidateDrinking) {
-    if (currentDrinking === candidateDrinking) {
-      if (strengths.length < 3) strengths.push('음주 성향이 비슷해요.');
+  const compareSelectedValue = (
+    label: '종교' | '음주' | '흡연',
+    currentValue: string | null,
+    candidateValue: string | null,
+  ) => {
+    const excludeOther = label === '종교';
+    const normalizedCurrentValue = getComparableText(currentValue, excludeOther);
+    const normalizedCandidateValue = getComparableText(candidateValue, excludeOther);
+
+    if (!normalizedCurrentValue || !normalizedCandidateValue) {
+      hasUnavailableProfileComparison = true;
+      return;
+    }
+
+    if (normalizedCurrentValue === normalizedCandidateValue) {
+      commonPoints.push(`${label} 정보가 같습니다: ${candidateValue?.trim()}`);
     } else {
-      lifestyleDifferences.push('음주 성향의 차이는 대화로 확인해 보세요.');
+      lifestyleDifferences.push(`${label} 정보가 서로 다릅니다. 대화로 확인해 보세요.`);
     }
-  } else {
-    hasMissingComparisonData = true;
-  }
+  };
 
-  const currentSmoking = currentProfile.smoking?.trim() ?? '';
-  const candidateSmoking = candidateProfile.smoking?.trim() ?? '';
-  const hasComparableSmoking = (value: string) => value !== '' && value !== '미입력' && value !== '공개하지 않음';
-  if (hasComparableSmoking(currentSmoking) && hasComparableSmoking(candidateSmoking)) {
-    if (currentSmoking === candidateSmoking) {
-      if (strengths.length < 3) strengths.push('흡연 관련 생활 습관이 비슷해요.');
-    } else {
-      lifestyleDifferences.push('흡연 관련 생활 습관은 대화로 확인해 보세요.');
-    }
-  } else {
-    hasMissingComparisonData = true;
-  }
+  compareSelectedValue('종교', currentProfile.religion, candidateProfile.religion);
+  compareSelectedValue('음주', currentProfile.drinking, candidateProfile.drinking);
+  compareSelectedValue('흡연', currentProfile.smoking, candidateProfile.smoking);
 
-  const currentHobby = currentProfile.hobby?.trim().toLowerCase() ?? '';
-  const candidateHobby = candidateProfile.hobby?.trim().toLowerCase() ?? '';
+  const currentHobby = getComparableText(currentProfile.hobby, true);
+  const candidateHobby = getComparableText(candidateProfile.hobby, true);
   if (currentHobby && candidateHobby) {
-    if (currentHobby === candidateHobby && strengths.length < 3) {
-      strengths.push('입력한 취미가 같아요.');
+    if (currentHobby === candidateHobby) {
+      commonPoints.push(`취미로 입력한 내용이 같습니다: ${candidateProfile.hobby?.trim()}`);
     }
   } else {
-    hasMissingComparisonData = true;
+    hasUnavailableProfileComparison = true;
   }
 
-  const considerations = [
-    ...preferenceMismatches,
-    ...lifestyleDifferences,
-    ...(hasMissingComparisonData ? ['일부 프로필 정보가 없어 해당 조건은 직접 확인해 보세요.'] : []),
-  ].slice(0, 2);
-  const dataNote = hasMissingComparisonData || strengths.length + considerations.length < 2
-    ? '일부 정보가 없어 입력된 프로필을 기준으로 제한된 항목만 비교했습니다.'
+  const preferenceDifferences = preferenceMatches
+    .filter(({ status }) => status === 'mismatch')
+    .map(({ label }) => `${label} 조건과 상대방 정보가 다릅니다. 프로필과 대화로 확인해 보세요.`);
+  const hasMissingPreferredMemberData = preferenceMatches.some(({ status }) => status === 'member-missing');
+  const considerations = [...preferenceDifferences, ...lifestyleDifferences];
+  const dataNote = hasMissingPreferredMemberData || hasUnavailableProfileComparison
+    ? '미입력·비공개 등 확인할 수 없는 프로필 값은 공통점과 차이점 판단에서 제외했습니다.'
     : undefined;
 
   return {
-    strengths: strengths.slice(0, 3),
+    preferenceMatches,
+    preferenceMatchRate,
+    matchedPreferenceCount: matchedPreferenceMatches.length,
+    enteredPreferenceCount: enteredPreferenceMatches.length,
+    commonPoints,
+    recommendationReason,
     considerations,
     dataNote,
   };
@@ -264,6 +341,7 @@ export default function AiMatchPage() {
   const [notice, setNotice] = useState<Notice>(null);
   const [isExpandedMode, setIsExpandedMode] = useState(false);
   const [isAnalysisMode, setIsAnalysisMode] = useState(false);
+  const [hasEnteredPreference, setHasEnteredPreference] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
@@ -283,6 +361,7 @@ export default function AiMatchPage() {
       setCurrentIndex(0);
       setIsExpandedMode(expandedMode);
       setIsAnalysisMode(analysisMode);
+      setHasEnteredPreference(false);
 
       try {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -312,6 +391,17 @@ export default function AiMatchPage() {
 
         const currentProfile = profileResult.data as Profile | null;
         const preference = preferenceResult.data as Preference | null;
+
+        if (preference && isMounted) {
+          setHasEnteredPreference(
+            preference.age_min !== null
+              || preference.age_max !== null
+              || preference.height_min !== null
+              || preference.height_max !== null
+              || isSpecified(preference.preferred_region)
+              || isSpecified(preference.preferred_job),
+          );
+        }
 
         if (!currentProfile?.gender || !['남성', '여성'].includes(currentProfile.gender)) {
           if (isMounted) setSetupTarget('profile');
@@ -368,7 +458,6 @@ export default function AiMatchPage() {
               member,
               preference,
               age,
-              reasons,
             );
 
             return {
@@ -447,8 +536,6 @@ export default function AiMatchPage() {
   }, [retryKey, router, supabase]);
 
   const currentMember = recommendations[currentIndex];
-  const visibleStrengths = currentMember?.strengths.filter((strength) => !strength.includes('흡연')) ?? [];
-  const visibleConsiderations = currentMember?.considerations.filter((consideration) => !consideration.includes('흡연')) ?? [];
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex < recommendations.length - 1;
 
@@ -585,7 +672,7 @@ export default function AiMatchPage() {
         ) : null}
 
         {isAnalysisMode ? (
-          <section className="mb-5 rounded-2xl border border-green-100 bg-green-50 p-5" aria-label="고급 맞춤 추천 테스트 안내">
+          <section className="mb-5 rounded-2xl border border-green-100 bg-green-50 p-5" aria-label="AI 추천 분석 테스트 안내">
             <p className="font-bold text-green-800">Premium 도입 전 테스트 제공 기능입니다.</p>
             <p className="mt-2 text-sm leading-6 text-gray-700">
               입력된 프로필과 이상형 조건을 기준으로 잘 맞는 점과 확인할 점을 분석합니다.
@@ -640,7 +727,16 @@ export default function AiMatchPage() {
         ) : recommendations.length === 0 ? (
           <div className="rounded-[2rem] border border-gray-100 bg-white p-8 text-center shadow-sm sm:p-12">
             <User className="mx-auto mb-4 h-12 w-12 text-gray-300" />
-            <h2 className="text-xl font-bold text-gray-900">현재 조건에 맞는 추천 회원을 준비 중입니다.</h2>
+            <h2 className="text-xl font-bold text-gray-900">
+              {isAnalysisMode && !hasEnteredPreference
+                ? '선호조건을 입력하면 일치 결과를 확인할 수 있습니다.'
+                : '현재 조건에 맞는 추천 회원을 준비 중입니다.'}
+            </h2>
+            {isAnalysisMode && !hasEnteredPreference ? (
+              <p className="mt-3 text-sm leading-6 text-gray-500">
+                희망 연령, 희망 키, 선호 지역, 선호 직업 중 한 가지 이상을 설정해 주세요.
+              </p>
+            ) : null}
             <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
               <Button variant="outline" className="rounded-2xl px-5 py-3 text-sm font-bold" onClick={() => router.push('/preference')}>
                 이상형 조건 수정
@@ -707,20 +803,72 @@ export default function AiMatchPage() {
                       <h3 className="flex items-center gap-2 text-base font-bold text-green-900">
                         <Sparkles size={18} /> 맞춤 분석 요약
                       </h3>
-                      <h4 className="mt-4 text-sm font-bold text-green-800">잘 맞는 점</h4>
-                      <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
-                        {visibleStrengths.map((strength) => (
-                          <li key={strength} className="flex items-start gap-2">
-                            <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#16a34a]" />
-                            {strength}
-                          </li>
+                      {currentMember.preferenceMatchRate !== null ? (
+                        <div className="mt-4 rounded-xl border border-green-200 bg-white/80 p-4">
+                          <p className="text-sm font-black text-green-800">
+                            선호조건 일치율 {currentMember.preferenceMatchRate}%
+                          </p>
+                          <p className="mt-1 text-xs text-gray-600">
+                            입력한 선호조건 {currentMember.enteredPreferenceCount}개 중 {currentMember.matchedPreferenceCount}개 일치
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mt-4 rounded-xl border border-gray-200 bg-white/80 p-4">
+                          <p className="text-sm font-bold text-gray-700">
+                            입력된 선호조건이 없습니다.
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-gray-500">
+                            이상형 조건을 입력하면 조건별 일치 결과를 확인할 수 있습니다.
+                          </p>
+                        </div>
+                      )}
+
+                      <h4 className="mt-5 text-sm font-bold text-green-800">선호조건 비교</h4>
+                      <div className="mt-3 grid gap-2">
+                        {currentMember.preferenceMatches.map((result) => (
+                          <div key={result.label} className="rounded-xl border border-green-100 bg-white/80 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-sm font-bold text-gray-800">{result.label}</span>
+                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${PREFERENCE_STATUS_CLASSES[result.status]}`}>
+                                {PREFERENCE_STATUS_LABELS[result.status]}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-gray-600">{result.detail}</p>
+                          </div>
                         ))}
-                      </ul>
-                      {visibleConsiderations.length > 0 ? (
+                      </div>
+
+                      <div className="mt-5 border-t border-green-200 pt-4">
+                        <h4 className="text-sm font-bold text-gray-800">추천 이유</h4>
+                        <p className="mt-2 text-sm font-medium leading-6 text-gray-700">
+                          {currentMember.recommendationReason
+                            ?? '현재 표시할 수 있는 일치 조건으로는 추천 이유 문장을 생성할 수 없습니다.'}
+                        </p>
+                      </div>
+
+                      <div className="mt-5 border-t border-green-200 pt-4">
+                        <h4 className="text-sm font-bold text-gray-800">공통점</h4>
+                        {currentMember.commonPoints.length > 0 ? (
+                          <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
+                            {currentMember.commonPoints.map((commonPoint) => (
+                              <li key={commonPoint} className="flex items-start gap-2">
+                                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#16a34a]" />
+                                {commonPoint}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-2 text-sm leading-6 text-gray-600">
+                            종교, 음주, 흡연, 취미 중 신뢰할 수 있게 같은 값을 확인하지 못했습니다.
+                          </p>
+                        )}
+                      </div>
+
+                      {currentMember.considerations.length > 0 ? (
                         <div className="mt-5 border-t border-green-200 pt-4">
                           <h4 className="text-sm font-bold text-gray-800">확인할 점</h4>
                           <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
-                            {visibleConsiderations.map((consideration) => (
+                            {currentMember.considerations.map((consideration) => (
                               <li key={consideration} className="flex items-start gap-2">
                                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
                                 {consideration}
@@ -732,6 +880,9 @@ export default function AiMatchPage() {
                       {currentMember.dataNote ? (
                         <p className="mt-4 text-xs leading-5 text-gray-500">{currentMember.dataNote}</p>
                       ) : null}
+                      <p className="mt-4 rounded-xl border border-gray-200 bg-white/80 p-3 text-xs leading-5 text-gray-600">
+                        자기소개와 결혼 가치관은 자유롭게 작성한 내용이므로 현재 테스트 분석 점수에는 포함하지 않습니다. 회원 상세 화면에서 직접 확인해 주세요.
+                      </p>
                     </>
                   ) : (
                     <>

@@ -14,8 +14,10 @@ import { getProfileImageUrl, normalizeProfileImagePath } from '@/lib/profile-ima
 import { normalizeRegion, PROFILE_REGIONS } from '@/constants/regions';
 import { PROFILE_JOBS, STANDARD_JOB_VALUES } from '@/constants/jobs';
 
+const nicknameSchema = z.string().trim().min(2, { message: "닉네임은 최소 2자 이상이어야 합니다." });
+
 const profileSchema = z.object({
-  nickname: z.string().min(2, { message: "닉네임은 최소 2자 이상이어야 합니다." }),
+  nickname: nicknameSchema,
   gender: z.enum(['남성', '여성']).refine((value) => value !== undefined, {
     message: "성별을 선택해주세요.",
   }),
@@ -46,6 +48,7 @@ const profileSchema = z.object({
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
+type NicknameCheckStatus = 'idle' | 'checking' | 'available' | 'unavailable' | 'error';
 
 type StoredPhoto = {
   id: string;
@@ -101,9 +104,14 @@ export default function ProfileCreatePage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [modalImageUrl, setModalImageUrl] = useState<string | null>(null);
+  const [originalNickname, setOriginalNickname] = useState<string | null>(null);
+  const [checkedNicknameInput, setCheckedNicknameInput] = useState<string | null>(null);
+  const [nicknameCheckStatus, setNicknameCheckStatus] = useState<NicknameCheckStatus>('idle');
+  const [nicknameCheckMessage, setNicknameCheckMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingPreviewUrlsRef = useRef<Set<string>>(new Set());
   const hasScrolledToSectionRef = useRef(false);
+  const nicknameInputValueRef = useRef('');
 
   const {
     register,
@@ -111,6 +119,8 @@ export default function ProfileCreatePage() {
     setValue,
     watch,
     reset,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -149,6 +159,64 @@ export default function ProfileCreatePage() {
   ];
   const completedFieldCount = completionFields.filter(Boolean).length;
   const profileCompletion = Math.round((completedFieldCount / completionFields.length) * 100);
+
+  useEffect(() => {
+    const currentNicknameInput = formValues.nickname ?? '';
+    nicknameInputValueRef.current = currentNicknameInput;
+
+    if (checkedNicknameInput !== null && currentNicknameInput !== checkedNicknameInput) {
+      setCheckedNicknameInput(null);
+      setNicknameCheckStatus('idle');
+      setNicknameCheckMessage(null);
+    }
+  }, [checkedNicknameInput, formValues.nickname]);
+
+  const handleNicknameAvailabilityCheck = async () => {
+    const currentNicknameInput = formValues.nickname ?? '';
+    const parsedNickname = nicknameSchema.safeParse(currentNicknameInput);
+
+    if (!parsedNickname.success) {
+      setError('nickname', {
+        type: 'manual',
+        message: parsedNickname.error.issues[0]?.message ?? '닉네임을 확인해 주세요.',
+      });
+      setCheckedNicknameInput(null);
+      setNicknameCheckStatus('idle');
+      setNicknameCheckMessage(null);
+      return;
+    }
+
+    clearErrors('nickname');
+    setCheckedNicknameInput(currentNicknameInput);
+    setNicknameCheckStatus('checking');
+    setNicknameCheckMessage('닉네임을 확인하고 있습니다.');
+
+    try {
+      const response = await fetch('/api/profile/nickname-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname: parsedNickname.data }),
+      });
+      const result = await response.json().catch(() => null) as { available?: boolean; message?: string } | null;
+
+      if (nicknameInputValueRef.current !== currentNicknameInput) return;
+
+      if (!response.ok || typeof result?.available !== 'boolean') {
+        setNicknameCheckStatus('error');
+        setNicknameCheckMessage(result?.message ?? '닉네임 중복 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+
+      setNicknameCheckStatus(result.available ? 'available' : 'unavailable');
+      setNicknameCheckMessage(result.message ?? (result.available
+        ? '사용 가능한 닉네임입니다.'
+        : '이미 사용 중인 닉네임입니다.'));
+    } catch {
+      if (nicknameInputValueRef.current !== currentNicknameInput) return;
+      setNicknameCheckStatus('error');
+      setNicknameCheckMessage('닉네임 중복 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    }
+  };
 
   const releasePendingPreview = (previewUrl: string) => {
     URL.revokeObjectURL(previewUrl);
@@ -361,9 +429,11 @@ export default function ProfileCreatePage() {
 
         if (profileData) {
           const existingJob = (profileData.job as string | null) ?? '';
+          const existingNickname = ((profileData.nickname as string | null) ?? '').trim();
           const isStandardJob = (STANDARD_JOB_VALUES as readonly string[]).includes(existingJob);
+          setOriginalNickname(existingNickname);
           reset({
-            nickname: (profileData.nickname as string | null) ?? '',
+            nickname: existingNickname,
             gender: profileData.gender as '남성' | '여성',
             birth_date: (profileData.birth_date as string | null) ?? '',
             height: profileData.height ? String(profileData.height) : '',
@@ -441,6 +511,17 @@ export default function ProfileCreatePage() {
   }, [isFetchingProfile]);
 
   const onSubmit = async (data: ProfileFormValues) => {
+    const isOriginalNickname = originalNickname !== null && data.nickname === originalNickname;
+    const isCheckedNicknameCurrent = nicknameCheckStatus === 'available'
+      && checkedNicknameInput !== null
+      && checkedNicknameInput === nicknameInputValueRef.current
+      && checkedNicknameInput.trim() === data.nickname;
+
+    if (!isOriginalNickname && !isCheckedNicknameCurrent) {
+      setToast({ message: '닉네임 중복 확인을 완료해 주세요.', type: 'error' });
+      return;
+    }
+
     setIsLoading(true);
     const isPendingPhotoExpanded = photos.some(
       (photo) => photo.kind === 'pending' && photo.previewUrl === modalImageUrl,
@@ -510,7 +591,7 @@ export default function ProfileCreatePage() {
       const finalJob = data.job === '기타' ? data.job_other?.trim() ?? '' : data.job;
       const profileData = {
         id: user.id,
-        nickname: data.nickname,
+        nickname: data.nickname.trim(),
         gender: data.gender,
         birth_date: data.birth_date,
         height: parseInt(data.height, 10),
@@ -543,7 +624,18 @@ export default function ProfileCreatePage() {
         });
 
         await cleanupUploadedFiles();
-        setToast({ message: '프로필 저장에 실패했습니다. 다시 시도해주세요.', type: 'error' });
+        if (error.code === '23505') {
+          setNicknameCheckStatus('unavailable');
+          setNicknameCheckMessage('이미 사용 중인 닉네임입니다.');
+          setToast({ message: '이미 사용 중인 닉네임입니다. 다른 닉네임을 입력해 주세요.', type: 'error' });
+        } else if (isMissingMarriageValuesColumnError(error)) {
+          setToast({
+            message: '프로필 저장 구조가 아직 적용되지 않았습니다. Supabase SQL을 먼저 실행해 주세요.',
+            type: 'error',
+          });
+        } else {
+          setToast({ message: '프로필 저장에 실패했습니다. 다시 시도해주세요.', type: 'error' });
+        }
         return;
       }
 
@@ -732,13 +824,37 @@ export default function ProfileCreatePage() {
                 <User size={16} className="mr-2 text-[#16a34a]" />
                 닉네임
               </label>
-              <input
-                {...register("nickname")}
-                type="text"
-                placeholder="멋진 닉네임을 입력하세요"
-                className={`w-full px-4 py-2.5 border ${errors.nickname ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
-              />
+              <div className="flex items-stretch gap-2">
+                <input
+                  {...register("nickname")}
+                  type="text"
+                  placeholder="멋진 닉네임을 입력하세요"
+                  className={`min-w-0 flex-1 px-4 py-2.5 border ${errors.nickname ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0 rounded-lg px-4 py-2.5 text-sm shadow-none"
+                  onClick={handleNicknameAvailabilityCheck}
+                  disabled={nicknameCheckStatus === 'checking' || isLoading}
+                >
+                  {nicknameCheckStatus === 'checking' ? (
+                    <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> 확인 중</>
+                  ) : '중복 확인'}
+                </Button>
+              </div>
               {errors.nickname && <p className="mt-1 text-xs text-red-500">{errors.nickname.message}</p>}
+              {nicknameCheckMessage ? (
+                <p className={`mt-1 text-xs font-medium ${
+                  nicknameCheckStatus === 'available'
+                    ? 'text-green-600'
+                    : nicknameCheckStatus === 'checking'
+                      ? 'text-gray-500'
+                      : 'text-red-500'
+                }`}>
+                  {nicknameCheckMessage}
+                </p>
+              ) : null}
             </div>
 
             {/* 3. Gender */}

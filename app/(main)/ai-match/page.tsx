@@ -59,6 +59,7 @@ type PreferenceMatchResult = {
 type RecommendedMember = Profile & {
   age: number | null;
   score: number;
+  isPriorityRecommendation: boolean;
   reasons: string[];
   preferenceMatches: PreferenceMatchResult[];
   preferenceMatchRate: number | null;
@@ -69,6 +70,10 @@ type RecommendedMember = Profile & {
   considerations: string[];
   dataNote?: string;
   completeness: number;
+};
+
+type PriorityRecommendationRpcRow = {
+  user_id?: unknown;
 };
 
 type SetupTarget = 'profile' | 'profile-incomplete' | 'preference' | null;
@@ -427,6 +432,27 @@ export default function AiMatchPage() {
 
         if (membersError) throw membersError;
 
+        const priorityRecommendationIds = new Set<string>();
+
+        try {
+          const { data: priorityRows, error: priorityError } = await supabase
+            .rpc('get_priority_recommendation_candidate_ids');
+
+          if (priorityError) {
+            console.error('우선 추천 내부 테스트 대상 조회 실패:', priorityError.code, priorityError.message);
+          } else if (Array.isArray(priorityRows)) {
+            (priorityRows as PriorityRecommendationRpcRow[]).forEach((row) => {
+              if (!row || typeof row !== 'object') return;
+              const priorityUserId = typeof row.user_id === 'string' ? row.user_id.trim() : '';
+              if (priorityUserId) priorityRecommendationIds.add(priorityUserId);
+            });
+          } else {
+            console.error('우선 추천 내부 테스트 대상 응답 형식이 올바르지 않습니다.');
+          }
+        } catch {
+          console.error('우선 추천 내부 테스트 대상 조회 중 예기치 않은 오류가 발생했습니다.');
+        }
+
         const scoredMembers = ((data as Profile[]) ?? [])
           .map((member) => {
             const age = calculateAge(member.birth_date);
@@ -464,6 +490,7 @@ export default function AiMatchPage() {
               ...member,
               age,
               score,
+              isPriorityRecommendation: priorityRecommendationIds.has(member.id),
               reasons,
               ...analysis,
               completeness: calculateProfileCompleteness(member),
@@ -471,7 +498,11 @@ export default function AiMatchPage() {
             };
           })
           .filter((member) => member.score > 0)
-          .sort((a, b) => b.score - a.score)
+          .sort((a, b) => (
+            b.score - a.score
+            || Number(b.isPriorityRecommendation) - Number(a.isPriorityRecommendation)
+            || a.id.localeCompare(b.id)
+          ))
           .slice(0, recommendationLimit);
 
         let restoredIndex = 0;

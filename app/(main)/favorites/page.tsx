@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Briefcase, Loader2, MapPin, Search, Sparkles, User } from 'lucide-react';
+import { ArrowLeft, Briefcase, CalendarDays, Loader2, MapPin, Search, Sparkles, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import Button from '@/components/ui/Button';
@@ -22,10 +22,39 @@ type FavoriteMember = {
   hobby: string | null;
   introduction: string | null;
   profile_image: string | null;
+  isMutual: boolean | null;
+  matchId: string | null;
+  matchStatus: MatchStatus | null;
+  matchedAt: string | null;
 };
 
-type FavoriteProfile = Omit<FavoriteMember, 'favoritedAt'>;
-type FavoriteSort = 'default' | 'recent' | 'oldest' | 'younger' | 'older' | 'nickname';
+type FavoriteProfile = Omit<FavoriteMember, 'favoritedAt' | 'isMutual' | 'matchId' | 'matchStatus' | 'matchedAt'>;
+type FavoriteSort = 'default' | 'recent' | 'oldest' | 'younger' | 'older' | 'nickname' | 'mutual-first' | 'matched-first';
+type RelationshipFilter = 'all' | 'mutual' | 'matched' | 'not-mutual';
+type MatchStatus = 'active' | 'ended';
+
+type ReceivedFavoriteRpcRow = {
+  sender_user_id?: unknown;
+};
+
+type MatchRpcRow = {
+  match_id?: unknown;
+  match_status?: unknown;
+  matched_at?: unknown;
+  other_user_id?: unknown;
+};
+
+type FavoriteMatch = {
+  matchId: string;
+  matchStatus: MatchStatus;
+  matchedAt: string | null;
+};
+
+const favoriteDateFormatter = new Intl.DateTimeFormat('ko-KR', {
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+});
 
 function normalizeNullableText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -86,11 +115,15 @@ export default function FavoritesPage() {
   const [likeNoticeMemberId, setLikeNoticeMemberId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
+  const [isMutualInfoAvailable, setIsMutualInfoAvailable] = useState(false);
+  const [isMatchInfoAvailable, setIsMatchInfoAvailable] = useState(false);
+  const [nicknameSearch, setNicknameSearch] = useState('');
   const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedJob, setSelectedJob] = useState('');
   const [ageMin, setAgeMin] = useState('');
   const [ageMax, setAgeMax] = useState('');
-  const [favoriteSort, setFavoriteSort] = useState<FavoriteSort>('default');
+  const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>('all');
+  const [favoriteSort, setFavoriteSort] = useState<FavoriteSort>('recent');
 
   useEffect(() => {
     let isMounted = true;
@@ -101,6 +134,8 @@ export default function FavoritesPage() {
       setIsLoading(true);
       setError(null);
       setIsAdvancedMode(advancedMode);
+      setIsMutualInfoAvailable(false);
+      setIsMatchInfoAvailable(false);
 
       try {
         const {
@@ -112,6 +147,62 @@ export default function FavoritesPage() {
           if (isMounted) setFavorites([]);
           router.replace('/login');
           return;
+        }
+
+        let receivedFavoriteIds: Set<string> | null = null;
+        let matchesByMemberId: Map<string, FavoriteMatch> | null = null;
+
+        if (advancedMode) {
+          const [receivedFavoritesOutcome, matchesOutcome] = await Promise.allSettled([
+            supabase.rpc('get_received_favorites'),
+            supabase.rpc('get_my_matches'),
+          ]);
+
+          if (receivedFavoritesOutcome.status === 'rejected') {
+            console.error('상호 관심 정보 조회 중 예기치 않은 오류가 발생했습니다.');
+          } else if (receivedFavoritesOutcome.value.error) {
+            const receivedFavoritesResult = receivedFavoritesOutcome.value;
+            console.error('상호 관심 정보 조회 실패:', receivedFavoritesResult.error.code, receivedFavoritesResult.error.message);
+          } else if (!Array.isArray(receivedFavoritesOutcome.value.data)) {
+            console.error('상호 관심 정보 응답 형식이 올바르지 않습니다.');
+          } else {
+            receivedFavoriteIds = new Set(
+              (receivedFavoritesOutcome.value.data as ReceivedFavoriteRpcRow[]).flatMap((row) => {
+                if (!row || typeof row !== 'object') return [];
+                const senderUserId = normalizeNullableText(row.sender_user_id);
+                return senderUserId ? [senderUserId] : [];
+              }),
+            );
+          }
+
+          if (matchesOutcome.status === 'rejected') {
+            console.error('관심회원 매칭 정보 조회 중 예기치 않은 오류가 발생했습니다.');
+          } else if (matchesOutcome.value.error) {
+            const matchesResult = matchesOutcome.value;
+            console.error('관심회원 매칭 정보 조회 실패:', matchesResult.error.code, matchesResult.error.message);
+          } else if (!Array.isArray(matchesOutcome.value.data)) {
+            console.error('관심회원 매칭 정보 응답 형식이 올바르지 않습니다.');
+          } else {
+            matchesByMemberId = new Map(
+              (matchesOutcome.value.data as MatchRpcRow[]).flatMap((row) => {
+                if (!row || typeof row !== 'object') return [];
+                const otherUserId = normalizeNullableText(row.other_user_id);
+                const matchId = normalizeNullableText(row.match_id);
+                const normalizedStatus = normalizeNullableText(row.match_status);
+                const matchStatus: MatchStatus | null = normalizedStatus === 'active' || normalizedStatus === 'ended'
+                  ? normalizedStatus
+                  : null;
+
+                if (!otherUserId || !matchId || !matchStatus) return [];
+
+                return [[otherUserId, {
+                  matchId,
+                  matchStatus,
+                  matchedAt: normalizeDateText(row.matched_at),
+                }] as const];
+              }),
+            );
+          }
         }
 
         const { data: favoriteRows, error: favoriteError } = await supabase
@@ -134,7 +225,11 @@ export default function FavoritesPage() {
         const favoriteIds = normalizedFavoriteRows.map((row) => row.favoriteUserId);
 
         if (favoriteIds.length === 0) {
-          if (isMounted) setFavorites([]);
+          if (isMounted) {
+            setFavorites([]);
+            setIsMutualInfoAvailable(receivedFavoriteIds !== null);
+            setIsMatchInfoAvailable(matchesByMemberId !== null);
+          }
           return;
         }
 
@@ -155,8 +250,20 @@ export default function FavoritesPage() {
         if (isMounted) {
           setFavorites(normalizedFavoriteRows.flatMap(({ favoriteUserId, favoritedAt }) => {
             const profile = profilesById.get(favoriteUserId);
-            return profile ? [{ ...profile, favoritedAt }] : [];
+            if (!profile) return [];
+
+            const match = matchesByMemberId?.get(favoriteUserId) ?? null;
+            return [{
+              ...profile,
+              favoritedAt,
+              isMutual: receivedFavoriteIds ? receivedFavoriteIds.has(favoriteUserId) : null,
+              matchId: match?.matchId ?? null,
+              matchStatus: match?.matchStatus ?? null,
+              matchedAt: match?.matchedAt ?? null,
+            }];
           }));
+          setIsMutualInfoAvailable(receivedFavoriteIds !== null);
+          setIsMatchInfoAvailable(matchesByMemberId !== null);
         }
       } catch (err: unknown) {
         const supabaseError = err as { code?: string; message?: string; details?: string; hint?: string };
@@ -219,15 +326,18 @@ export default function FavoritesPage() {
     if (!isAdvancedMode) return favorites;
     if (ageFilterError !== null) return favorites;
 
+    const normalizedNicknameSearch = nicknameSearch.trim().toLocaleLowerCase('ko-KR');
     const parsedMin = ageMin.trim() === '' ? null : Number(ageMin);
     const parsedMax = ageMax.trim() === '' ? null : Number(ageMax);
     const hasAgeCondition = parsedMin !== null || parsedMax !== null;
     const filteredFavorites = favorites
       .map((member, originalIndex) => ({ member, originalIndex }))
       .filter(({ member }) => {
+        const nickname = normalizeNullableText(member.nickname)?.toLocaleLowerCase('ko-KR') ?? '';
         const region = normalizeNullableText(member.region);
         const job = normalizeNullableText(member.job);
 
+        if (normalizedNicknameSearch && !nickname.includes(normalizedNicknameSearch)) return false;
         if (selectedRegion && region !== selectedRegion) return false;
         if (selectedJob && job !== selectedJob) return false;
 
@@ -237,6 +347,13 @@ export default function FavoritesPage() {
           if (parsedMin !== null && age < parsedMin) return false;
           if (parsedMax !== null && age > parsedMax) return false;
         }
+
+        if (relationshipFilter === 'mutual' && member.isMutual !== true) return false;
+        if (
+          relationshipFilter === 'matched'
+          && !(member.matchId && (member.matchStatus === 'active' || member.matchStatus === 'ended'))
+        ) return false;
+        if (relationshipFilter === 'not-mutual' && member.isMutual !== false) return false;
 
         return true;
       });
@@ -278,6 +395,35 @@ export default function FavoritesPage() {
         return leftNickname.localeCompare(rightNickname, 'ko-KR') || preserveOriginalOrder();
       }
 
+      const compareRecentFavorite = () => {
+        const leftTimestamp = leftItem.member.favoritedAt
+          ? new Date(leftItem.member.favoritedAt).getTime()
+          : null;
+        const rightTimestamp = rightItem.member.favoritedAt
+          ? new Date(rightItem.member.favoritedAt).getTime()
+          : null;
+
+        if (leftTimestamp === null && rightTimestamp === null) return preserveOriginalOrder();
+        if (leftTimestamp === null) return 1;
+        if (rightTimestamp === null) return -1;
+        return rightTimestamp - leftTimestamp || preserveOriginalOrder();
+      };
+
+      if (favoriteSort === 'mutual-first') {
+        const mutualDifference = Number(rightItem.member.isMutual === true) - Number(leftItem.member.isMutual === true);
+        return mutualDifference || compareRecentFavorite();
+      }
+
+      if (favoriteSort === 'matched-first') {
+        const getMatchRank = (member: FavoriteMember) => member.matchStatus === 'active'
+          ? 2
+          : member.matchStatus === 'ended'
+            ? 1
+            : 0;
+        const matchDifference = getMatchRank(rightItem.member) - getMatchRank(leftItem.member);
+        return matchDifference || compareRecentFavorite();
+      }
+
       const leftAge = calculateAge(leftItem.member.birth_date);
       const rightAge = calculateAge(rightItem.member.birth_date);
 
@@ -293,14 +439,32 @@ export default function FavoritesPage() {
     });
 
     return sortedFavorites.map(({ member }) => member);
-  }, [ageFilterError, ageMax, ageMin, favoriteSort, favorites, isAdvancedMode, selectedJob, selectedRegion]);
+  }, [ageFilterError, ageMax, ageMin, favoriteSort, favorites, isAdvancedMode, nicknameSearch, relationshipFilter, selectedJob, selectedRegion]);
+
+  const advancedCounts = useMemo(() => ({
+    total: favorites.length,
+    mutual: isMutualInfoAvailable ? favorites.filter((member) => member.isMutual === true).length : null,
+    matched: isMatchInfoAvailable
+      ? favorites.filter((member) => member.matchId && (member.matchStatus === 'active' || member.matchStatus === 'ended')).length
+      : null,
+    notMutual: isMutualInfoAvailable ? favorites.filter((member) => member.isMutual === false).length : null,
+  }), [favorites, isMatchInfoAvailable, isMutualInfoAvailable]);
+
+  const advancedInfoNotice = useMemo(() => {
+    if (!isAdvancedMode || (isMutualInfoAvailable && isMatchInfoAvailable)) return null;
+    if (!isMutualInfoAvailable && !isMatchInfoAvailable) return '상호 관심과 매칭 정보를 불러오지 못했습니다. 기존 관심목록 기능은 계속 이용할 수 있습니다.';
+    if (!isMutualInfoAvailable) return '상호 관심 정보를 불러오지 못해 관련 요약, 필터와 정렬을 사용할 수 없습니다.';
+    return '매칭 정보를 불러오지 못해 관련 요약, 필터와 정렬을 사용할 수 없습니다.';
+  }, [isAdvancedMode, isMatchInfoAvailable, isMutualInfoAvailable]);
 
   const resetAdvancedFilters = () => {
+    setNicknameSearch('');
     setSelectedRegion('');
     setSelectedJob('');
     setAgeMin('');
     setAgeMax('');
-    setFavoriteSort('default');
+    setRelationshipFilter('all');
+    setFavoriteSort('recent');
   };
 
   const handleBack = () => {
@@ -409,8 +573,45 @@ export default function FavoritesPage() {
               </p>
             </section>
 
+            <section className="mb-5" aria-label="관심회원 상태 요약">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: '전체', value: advancedCounts.total },
+                  { label: '상호 관심', value: advancedCounts.mutual },
+                  { label: '매칭', value: advancedCounts.matched },
+                  { label: '상대 관심 없음', value: advancedCounts.notMutual },
+                ].map(({ label, value }) => (
+                  <article key={label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                    <p className="text-sm font-bold text-gray-500">{label}</p>
+                    <p className="mt-2 text-2xl font-black text-gray-900">
+                      {value === null ? '확인 불가' : `${value}명`}
+                    </p>
+                  </article>
+                ))}
+              </div>
+              <p className="mt-3 text-xs leading-5 text-gray-500">
+                상호 관심과 매칭은 서로 독립적으로 집계되어 같은 회원이 두 항목에 모두 포함될 수 있습니다.
+              </p>
+              {advancedInfoNotice ? (
+                <p role="status" className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-semibold text-[#806B26]">
+                  {advancedInfoNotice}
+                </p>
+              ) : null}
+            </section>
+
             <section className="mb-6 rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-7" aria-label="관심목록 고급 관리">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <label className="min-w-0 text-sm font-bold text-gray-700">
+                  닉네임 검색
+                  <input
+                    type="search"
+                    value={nicknameSearch}
+                    onChange={(event) => setNicknameSearch(event.target.value)}
+                    placeholder="닉네임을 입력하세요"
+                    className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                  />
+                </label>
+
                 <label className="min-w-0 text-sm font-bold text-gray-700">
                   지역
                   <select
@@ -463,6 +664,21 @@ export default function FavoritesPage() {
                 </fieldset>
 
                 <label className="min-w-0 text-sm font-bold text-gray-700">
+                  관계 상태
+                  <select
+                    value={relationshipFilter}
+                    onChange={(event) => setRelationshipFilter(event.target.value as RelationshipFilter)}
+                    disabled={!isMutualInfoAvailable || !isMatchInfoAvailable}
+                    className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                  >
+                    <option value="all">전체</option>
+                    <option value="mutual">상호 관심</option>
+                    <option value="matched">매칭</option>
+                    <option value="not-mutual">상대 관심 없음</option>
+                  </select>
+                </label>
+
+                <label className="min-w-0 text-sm font-bold text-gray-700">
                   정렬
                   <select
                     value={favoriteSort}
@@ -475,6 +691,8 @@ export default function FavoritesPage() {
                     <option value="younger">나이 어린 순</option>
                     <option value="older">나이 많은 순</option>
                     <option value="nickname">닉네임순</option>
+                    <option value="mutual-first" disabled={!isMutualInfoAvailable}>상호 관심 우선</option>
+                    <option value="matched-first" disabled={!isMatchInfoAvailable}>매칭된 회원 우선</option>
                   </select>
                 </label>
               </div>
@@ -485,7 +703,7 @@ export default function FavoritesPage() {
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm font-medium text-gray-500">
-                  전체 {favorites.length}명 중 {visibleFavorites.length}명 표시
+                  전체 {favorites.length}명 중 {visibleFavorites.length}명을 표시하고 있습니다.
                 </p>
                 <button
                   type="button"
@@ -556,6 +774,19 @@ export default function FavoritesPage() {
                       </div>
                     </div>
 
+                    {isAdvancedMode && (member.isMutual === true || member.matchStatus) ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {member.isMutual === true ? (
+                          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-[#806B26]">상호 관심</span>
+                        ) : null}
+                        {member.matchStatus === 'active' ? (
+                          <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">진행 중 매칭</span>
+                        ) : member.matchStatus === 'ended' ? (
+                          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">종료된 매칭</span>
+                        ) : null}
+                      </div>
+                    ) : null}
+
                     <div className="mt-4 space-y-2 text-sm text-gray-500">
                       <p className="flex items-center gap-2">
                         <MapPin size={15} className="text-gray-400" />
@@ -565,6 +796,12 @@ export default function FavoritesPage() {
                         <Briefcase size={15} className="text-gray-400" />
                         {member.job || '직업 정보 미입력'}
                       </p>
+                      {isAdvancedMode && member.favoritedAt ? (
+                        <p className="flex items-center gap-2">
+                          <CalendarDays size={15} className="text-gray-400" />
+                          {favoriteDateFormatter.format(new Date(member.favoritedAt))} 관심 등록
+                        </p>
+                      ) : null}
                     </div>
 
                     <section className="mt-5 rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
@@ -597,6 +834,15 @@ export default function FavoritesPage() {
                       >
                         좋아요 · 도입 예정
                       </button>
+                      {isAdvancedMode && member.matchId && member.matchStatus ? (
+                        <Button
+                          variant="outline"
+                          className="min-h-11 rounded-2xl px-4 py-3 text-sm font-bold sm:col-span-2"
+                          onClick={() => router.push(`/matches/${member.matchId}/chat`)}
+                        >
+                          {member.matchStatus === 'active' ? '채팅하기' : '대화 기록 보기'}
+                        </Button>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => handleDeleteFavorite(member.id)}

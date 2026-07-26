@@ -70,8 +70,9 @@ const premiumBenefits = [
   {
     title: '관심목록 고급 관리',
     description: '저장한 관심회원을 지역, 직업, 나이와 등록 순서에 따라 정리할 수 있습니다.',
-    status: '준비 중',
+    status: '테스트 제공 중',
     icon: Heart,
+    href: '/favorites?advanced=1',
   },
 ];
 

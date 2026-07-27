@@ -1,12 +1,44 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { KeyRound, Loader2, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-export default function ResetPasswordPage() {
+type ResetStatus = 'expired' | 'session_error' | 'invalid' | 'error';
+
+const resetStatusContent: Record<ResetStatus, { title: string; description: string; alert: string }> = {
+  expired: {
+    title: '재설정 링크가 만료되었습니다.',
+    description: '링크가 만료되었거나 이미 사용되었습니다. 최신 재설정 메일을 요청해주세요.',
+    alert: '최신 재설정 메일을 다시 요청해주세요.',
+  },
+  session_error: {
+    title: '재설정 연결에 실패했습니다.',
+    description: '복구 세션 연결에 실패했습니다. 재설정 메일을 다시 요청해주세요.',
+    alert: '재설정 메일을 다시 요청한 후 최신 링크를 사용해주세요.',
+  },
+  invalid: {
+    title: '올바르지 않은 재설정 요청입니다.',
+    description: '가장 최근에 받은 재설정 메일의 링크를 확인해주세요.',
+    alert: '재설정 인증 정보를 확인할 수 없습니다.',
+  },
+  error: {
+    title: '비밀번호 재설정을 준비하는 중 오류가 발생했습니다.',
+    description: '재설정 메일을 다시 요청하거나 잠시 후 다시 시도해주세요.',
+    alert: '비밀번호 재설정을 준비할 수 없습니다.',
+  },
+};
+
+const defaultResetStatusContent = {
+  title: '재설정 인증이 필요합니다.',
+  description: '비밀번호 재설정 링크가 만료되었거나 인증 정보를 확인할 수 없습니다.',
+  alert: '재설정 인증 정보를 확인할 수 없습니다.',
+};
+
+function ResetPasswordContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -18,6 +50,22 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [isComplete, setIsComplete] = useState(false);
+  const rawStatus = searchParams.get('status');
+  const callbackStatus: ResetStatus | null = rawStatus === 'expired'
+    || rawStatus === 'session_error'
+    || rawStatus === 'invalid'
+    || rawStatus === 'error'
+    ? rawStatus
+    : null;
+
+  useEffect(() => {
+    if (!window.location.hash) return;
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${window.location.search}`,
+    );
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -131,6 +179,8 @@ export default function ResetPasswordPage() {
 
   if (isCheckingSession) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
 
+  const statusContent = callbackStatus ? resetStatusContent[callbackStatus] : defaultResetStatusContent;
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
       <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-8 shadow-xl">
@@ -153,9 +203,9 @@ export default function ResetPasswordPage() {
         ) : (
           <>
             <Mail className="mx-auto mb-3 h-8 w-8 text-gray-400" />
-            <h1 className="text-center text-2xl font-bold text-gray-900">재설정 인증이 필요합니다.</h1>
-            <p className="mt-3 text-center text-sm leading-relaxed text-gray-500">비밀번호 재설정 링크가 만료되었거나 인증 정보를 확인할 수 없습니다.</p>
-            <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">재설정 인증 정보를 확인할 수 없습니다.</p>
+            <h1 className="text-center text-2xl font-bold text-gray-900">{statusContent.title}</h1>
+            <p className="mt-3 text-center text-sm leading-relaxed text-gray-500">{statusContent.description}</p>
+            <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">{statusContent.alert}</p>
             <form onSubmit={handleResend} className="mt-6 space-y-4">
               <div><label htmlFor="recoveryEmail" className="mb-1 block text-sm font-medium text-gray-700">이메일</label><input id="recoveryEmail" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required className="w-full rounded-lg border border-gray-300 px-4 py-3" /></div>
               <button type="submit" disabled={isResending} className="flex w-full items-center justify-center rounded-xl bg-green-600 py-3 font-bold text-white disabled:cursor-wait disabled:opacity-60">{isResending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}{isResending ? '발송 중...' : '재설정 메일 다시 보내기'}</button>
@@ -166,5 +216,13 @@ export default function ResetPasswordPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

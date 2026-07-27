@@ -58,6 +58,15 @@ function VerifyEmailContent() {
   const hasConfirmationError = verificationStatus !== null && verificationStatus !== 'confirmed';
 
   useEffect(() => {
+    if (!window.location.hash) return;
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${window.location.search}`,
+    );
+  }, []);
+
+  useEffect(() => {
     if (email) {
       sessionStorage.setItem('commatch.pendingEmail', email);
       return;

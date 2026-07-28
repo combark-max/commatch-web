@@ -162,7 +162,9 @@ export default function FavoritesPage() {
             console.error('상호 관심 정보 조회 중 예기치 않은 오류가 발생했습니다.');
           } else if (receivedFavoritesOutcome.value.error) {
             const receivedFavoritesResult = receivedFavoritesOutcome.value;
-            console.error('상호 관심 정보 조회 실패:', receivedFavoritesResult.error.code, receivedFavoritesResult.error.message);
+            if (receivedFavoritesResult.error.code !== '42501') {
+              console.error('상호 관심 정보 조회 실패:', receivedFavoritesResult.error.code, receivedFavoritesResult.error.message);
+            }
           } else if (!Array.isArray(receivedFavoritesOutcome.value.data)) {
             console.error('상호 관심 정보 응답 형식이 올바르지 않습니다.');
           } else {

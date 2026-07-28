@@ -8,6 +8,24 @@
 
 begin;
 
+do $premium_dependency_validation$
+begin
+  if pg_catalog.to_regprocedure('public.has_premium_feature(text)') is null
+     or not exists (
+       select 1
+       from pg_catalog.pg_proc as function_info
+       where function_info.oid = pg_catalog.to_regprocedure(
+           'public.has_premium_feature(text)'
+         )
+         and function_info.pronargs = 1
+         and not function_info.proretset
+         and function_info.prorettype = 'pg_catalog.bool'::pg_catalog.regtype
+     ) then
+    raise exception 'public.has_premium_feature(text) is missing or incompatible';
+  end if;
+end
+$premium_dependency_validation$;
+
 create index if not exists favorites_received_created_at_idx
 on public.favorites (favorite_user_id, created_at desc);
 
@@ -39,6 +57,15 @@ begin
     raise exception using
       errcode = '42501',
       message = 'Authentication required';
+  end if;
+
+  if not coalesce(
+    public.has_premium_feature('likes_received'),
+    false
+  ) then
+    raise exception using
+      errcode = '42501',
+      message = 'Premium feature access required';
   end if;
 
   return query
@@ -85,7 +112,7 @@ end
 $function$;
 
 comment on function public.get_received_favorites() is
-  'Returns received favorites for auth.uid() only';
+  'Returns received favorites for auth.uid() with Premium feature access';
 
 revoke all on function public.get_received_favorites() from public, anon, authenticated;
 grant execute on function public.get_received_favorites() to authenticated;

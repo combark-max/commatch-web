@@ -19,6 +19,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { signIn } from '@/lib/auth/auth';
+import { parseMemberAccessRpcResponse } from '@/lib/member/access-parser';
 import { createClient } from '@/lib/supabase/client';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
@@ -69,6 +70,18 @@ export default function LoginPage() {
 
       if (userError || !user?.id) {
         setToast({ message: '로그인 처리 중 오류가 발생했습니다.', type: 'error' });
+        return;
+      }
+
+      const { data: memberAccessData, error: memberAccessError } = await supabase.rpc(
+        'get_my_member_access',
+      );
+      const memberAccess = memberAccessError
+        ? null
+        : parseMemberAccessRpcResponse(memberAccessData);
+
+      if (!memberAccess || !memberAccess.isAllowed) {
+        router.replace('/account-suspended');
         return;
       }
 

@@ -33,6 +33,7 @@ const accountLinks = [
 
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const isAccountSuspendedPage = pathname === '/account-suspended';
   const router = useRouter();
   const supabase = createClient();
   const headerRef = useRef<HTMLElement | null>(null);
@@ -42,6 +43,8 @@ export default function AppShell({ children }: AppShellProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
+    if (isAccountSuspendedPage) return;
+
     let isMounted = true;
 
     const syncUser = async (userId?: string) => {
@@ -77,7 +80,7 @@ export default function AppShell({ children }: AppShellProps) {
       isMounted = false;
       authListener.subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [isAccountSuspendedPage, supabase]);
 
   useEffect(() => {
     const closeMenus = () => {
@@ -130,6 +133,21 @@ export default function AppShell({ children }: AppShellProps) {
 
   const accountLabel = nickname ? `${nickname}님` : '내정보';
   const isHome = pathname === '/';
+
+  if (isAccountSuspendedPage) {
+    return (
+      <div className="flex min-h-screen flex-col bg-gray-50">
+        <header className="border-b border-gray-100 bg-white">
+          <div className="mx-auto flex h-16 max-w-7xl items-center px-4 sm:px-6 lg:px-8">
+            <Link href="/" className="text-2xl font-black text-green-600">
+              ComMatch
+            </Link>
+          </div>
+        </header>
+        <main className="flex-1">{children}</main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">

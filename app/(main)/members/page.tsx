@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { requireMemberServiceAccess } from '@/lib/member/access';
 import { getPremiumFeatureAccess } from '@/lib/premium/server';
 import MembersClient from './members-client';
 
@@ -9,6 +10,8 @@ type MembersPageProps = {
 };
 
 export default async function MembersPage({ searchParams }: MembersPageProps) {
+  await requireMemberServiceAccess();
+
   const [access, query] = await Promise.all([
     getPremiumFeatureAccess('advanced_member_search'),
     searchParams,

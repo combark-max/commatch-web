@@ -17,6 +17,7 @@ type Profile = {
   hobby: string | null;
   drinking: string | null;
   smoking: string | null;
+  marriage_history: string | null;
   introduction: string | null;
   marriage_values: string | null;
   profile_image: string | null;
@@ -133,11 +134,12 @@ const calculateProfileCompleteness = (profile: Profile) => {
     Boolean(profile.hobby?.trim()),
     Boolean(profile.drinking?.trim()),
     Boolean(profile.smoking?.trim()),
+    Boolean(profile.marriage_history?.trim()),
     (profile.introduction?.trim().length ?? 0) >= 10,
     (profile.marriage_values?.trim().length ?? 0) >= 10,
   ].filter(Boolean).length;
 
-  return Math.round((completedFields / 14) * 100);
+  return Math.round((completedFields / 15) * 100);
 };
 
 const isSpecified = (value: string | null) => Boolean(value && value !== '상관없음');
@@ -360,7 +362,7 @@ export async function GET(request: NextRequest) {
     const [profileResult, preferenceResult] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, smoking, introduction, marriage_values, profile_image, profile_images')
+        .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, smoking, marriage_history, introduction, marriage_values, profile_image, profile_images')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -414,7 +416,7 @@ export async function GET(request: NextRequest) {
     const oppositeGender = currentProfile.gender === '남성' ? '여성' : '남성';
     const { data, error: membersError } = await supabase
       .from('profiles')
-      .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, smoking, introduction, marriage_values, profile_image, profile_images')
+      .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, smoking, marriage_history, introduction, marriage_values, profile_image, profile_images')
       .eq('gender', oppositeGender)
       .neq('id', user.id);
 

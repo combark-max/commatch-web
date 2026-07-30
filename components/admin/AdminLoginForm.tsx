@@ -12,7 +12,9 @@ type AdminPermission =
   | 'admin_dashboard_view'
   | 'reports_view'
   | 'reports_manage'
-  | 'admin_accounts_manage';
+  | 'admin_accounts_manage'
+  | 'member_restrictions_view'
+  | 'member_restrictions_manage';
 
 type AdminAccessSnapshot = {
   isAdmin: boolean;
@@ -37,6 +39,8 @@ const ADMIN_PERMISSIONS = new Set<AdminPermission>([
   'reports_view',
   'reports_manage',
   'admin_accounts_manage',
+  'member_restrictions_view',
+  'member_restrictions_manage',
 ]);
 
 const GENERIC_ACCESS_ERROR = '관리자 권한을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.';

@@ -2,15 +2,25 @@ import Link from 'next/link';
 import {
   AlertCircle,
   ArrowLeft,
-  Ban,
   FileWarning,
   MessageSquareWarning,
-  ShieldAlert,
+  ShieldCheck,
   Trash2,
   UserRound,
 } from 'lucide-react';
+import AdminMemberRestrictionForm from '@/components/admin/AdminMemberRestrictionForm';
 import AdminReportStatusForm from '@/components/admin/AdminReportStatusForm';
 import { type AdminRole, requireAdminAccess } from '@/lib/admin/access';
+import {
+  isMemberCurrentlyAllowed,
+  MEMBER_ACCOUNT_STATUS_LABELS,
+  MEMBER_PROFILE_VISIBILITY_LABELS,
+  MEMBER_RESTRICTION_ACTION_LABELS,
+  parseAdminMemberRestriction,
+  parseAdminMemberRestrictionActions,
+  type AdminMemberRestriction,
+  type AdminMemberRestrictionAction,
+} from '@/lib/admin/member-restrictions';
 import { getAdminRoleLabel } from '@/lib/admin/presentation';
 import {
   getReportStatusClassName,
@@ -205,6 +215,39 @@ export default async function AdminReportDetailPage({
     );
   }
 
+  const canViewRestrictions = adminAccess.permissions.includes('member_restrictions_view');
+  const canManageRestrictions = adminAccess.permissions.includes('member_restrictions_manage');
+  const messageTargetMatches = detail.targetType !== 'message'
+    || detail.message.senderId === detail.reportedUserId;
+  let restriction: AdminMemberRestriction | null = null;
+  let restrictionActions: AdminMemberRestrictionAction[] | null = null;
+  let restrictionLoadFailed = false;
+  let restrictionActionsLoadFailed = false;
+
+  if (canViewRestrictions) {
+    const [restrictionResult, restrictionActionsResult] = await Promise.all([
+      supabase.rpc('get_admin_member_restriction', {
+        p_target_user_id: detail.reportedUserId,
+      }),
+      supabase.rpc('get_admin_member_restriction_actions', {
+        p_target_user_id: detail.reportedUserId,
+      }),
+    ]);
+    restriction = restrictionResult.error
+      ? null
+      : parseAdminMemberRestriction(restrictionResult.data);
+    restrictionActions = restrictionActionsResult.error
+      ? null
+      : parseAdminMemberRestrictionActions(restrictionActionsResult.data);
+    restrictionLoadFailed = restriction === null;
+    restrictionActionsLoadFailed = restrictionActions === null;
+  }
+
+  const restrictionTargetLabel = restriction?.nickname
+    ?? detail.reported.nickname
+    ?? '닉네임 정보 없음';
+  const currentlyAllowed = restriction ? isMemberCurrentlyAllowed(restriction) : null;
+
   return (
     <div className="space-y-6">
       <Link href={backHref} className="inline-flex items-center gap-1 text-sm font-bold text-gray-600 hover:text-gray-900">
@@ -286,17 +329,176 @@ export default async function AdminReportDetailPage({
         </div>
       </section>
 
+      <section aria-labelledby="member-restriction-management" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="text-green-700" size={22} aria-hidden="true" />
+          <h2 id="member-restriction-management" className="text-xl font-black text-gray-900">회원 제재 관리</h2>
+        </div>
+        <p className="mt-2 text-sm text-gray-500">
+          회원 이용 정지와 프로필 숨김의 일반 서비스 적용은 다음 단계에서 연결됩니다.
+        </p>
+
+        {!canViewRestrictions ? (
+          <p className="mt-5 rounded-2xl bg-amber-50 p-5 text-sm font-semibold text-amber-800">
+            회원 제재 정보를 조회할 권한이 없습니다.
+          </p>
+        ) : restrictionLoadFailed || !restriction ? (
+          <p className="mt-5 rounded-2xl bg-red-50 p-5 text-sm font-semibold text-red-700">
+            회원 제재 정보를 불러오지 못했습니다.
+          </p>
+        ) : (
+          <>
+            <div className="mt-5 rounded-2xl border border-gray-100 bg-gray-50 p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-gray-500">제재 대상 회원</p>
+                  <p className="mt-1 font-black text-gray-900">
+                    {restrictionTargetLabel}
+                    {detail.targetType === 'message' && messageTargetMatches ? (
+                      <span className="ml-2 text-xs font-bold text-green-700">· 메시지 작성자</span>
+                    ) : null}
+                  </p>
+                </div>
+                <span className={`inline-flex self-start rounded-full px-3 py-1 text-xs font-bold ${restriction.accountStatus === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>
+                  {MEMBER_ACCOUNT_STATUS_LABELS[restriction.accountStatus]}
+                </span>
+              </div>
+              <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                <div>
+                  <dt className="font-semibold text-gray-500">저장된 이용 상태</dt>
+                  <dd className="mt-1 text-gray-900">{MEMBER_ACCOUNT_STATUS_LABELS[restriction.accountStatus]}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-gray-500">현재 이용 가능 여부</dt>
+                  <dd className="mt-1 text-gray-900">
+                    {currentlyAllowed
+                      ? restriction.accountStatus === 'suspended'
+                        ? '정지 기간 만료로 이용 가능'
+                        : '이용 가능'
+                      : '이용 불가'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-gray-500">프로필 노출 상태</dt>
+                  <dd className="mt-1 text-gray-900">{MEMBER_PROFILE_VISIBILITY_LABELS[restriction.profileVisibility]}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-gray-500">정지 종료</dt>
+                  <dd className="mt-1 text-gray-900">
+                    {restriction.accountStatus === 'active'
+                      ? '해당 없음'
+                      : restriction.suspendedUntil
+                        ? dateTimeFormatter.format(new Date(restriction.suspendedUntil))
+                        : '무기한'}
+                  </dd>
+                </div>
+              </dl>
+              {restriction.reason ? (
+                <p className="mt-4 whitespace-pre-wrap break-words border-t border-gray-200 pt-4 text-sm text-gray-700">
+                  <strong className="text-gray-900">제재 사유:</strong> {restriction.reason}
+                </p>
+              ) : null}
+              {restriction.adminNote ? (
+                <p className="mt-3 whitespace-pre-wrap break-words text-sm text-gray-700">
+                  <strong className="text-gray-900">관리자 메모:</strong> {restriction.adminNote}
+                </p>
+              ) : null}
+              {!restriction.profileExists ? (
+                <p className="mt-4 text-sm font-semibold text-amber-700">현재 프로필 정보가 없습니다.</p>
+              ) : null}
+            </div>
+
+            {!messageTargetMatches ? (
+              <p className="mt-5 rounded-2xl bg-red-50 p-5 text-sm font-semibold text-red-700">
+                신고 대상 회원과 메시지 작성자 정보가 일치하지 않아 제재를 적용할 수 없습니다.
+              </p>
+            ) : null}
+
+            <div className="mt-6 border-t border-gray-100 pt-6">
+              <AdminMemberRestrictionForm
+                reportId={detail.reportId}
+                targetUserId={detail.reportedUserId}
+                targetLabel={restrictionTargetLabel}
+                restriction={restriction}
+                canManage={canManageRestrictions}
+                canApply={messageTargetMatches}
+              />
+            </div>
+          </>
+        )}
+      </section>
+
+      <section aria-labelledby="member-restriction-history" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="text-gray-500" size={22} aria-hidden="true" />
+          <h2 id="member-restriction-history" className="text-xl font-black text-gray-900">회원 제재 이력</h2>
+        </div>
+        {!canViewRestrictions ? (
+          <p className="mt-5 rounded-2xl bg-amber-50 p-5 text-sm font-semibold text-amber-800">회원 제재 이력을 조회할 권한이 없습니다.</p>
+        ) : restrictionActionsLoadFailed || restrictionActions === null ? (
+          <p className="mt-5 rounded-2xl bg-red-50 p-5 text-sm font-semibold text-red-700">회원 제재 이력을 불러오지 못했습니다.</p>
+        ) : restrictionActions.length === 0 ? (
+          <p className="mt-5 rounded-2xl bg-gray-50 p-5 text-sm font-semibold text-gray-500">아직 회원 제재 이력이 없습니다.</p>
+        ) : (
+          <ol className="mt-5 space-y-4">
+            {restrictionActions.map((action) => (
+              <li key={action.actionId} className="rounded-2xl border border-gray-100 p-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="font-bold text-gray-900">{MEMBER_RESTRICTION_ACTION_LABELS[action.actionType]}</p>
+                  <time className="text-xs font-medium text-gray-500" dateTime={action.createdAt}>
+                    {dateTimeFormatter.format(new Date(action.createdAt))}
+                  </time>
+                </div>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                  <div>
+                    <dt className="font-semibold text-gray-500">이용 상태</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {MEMBER_ACCOUNT_STATUS_LABELS[action.previousAccountStatus]} → {MEMBER_ACCOUNT_STATUS_LABELS[action.newAccountStatus]}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-gray-500">프로필 상태</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {MEMBER_PROFILE_VISIBILITY_LABELS[action.previousProfileVisibility]} → {MEMBER_PROFILE_VISIBILITY_LABELS[action.newProfileVisibility]}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-gray-500">정지 종료</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {action.previousSuspendedUntil ? dateTimeFormatter.format(new Date(action.previousSuspendedUntil)) : '없음·무기한'}
+                      {' → '}
+                      {action.newSuspendedUntil ? dateTimeFormatter.format(new Date(action.newSuspendedUntil)) : '없음·무기한'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-gray-500">관련 신고</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {action.reportId === detail.reportId ? '현재 신고' : action.reportId ? '다른 신고' : '연결된 신고 없음'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-gray-500">처리 관리자</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {isAdminRole(action.adminRole) ? getAdminRoleLabel(action.adminRole) : '처리 관리자 정보 없음'}
+                    </dd>
+                  </div>
+                </dl>
+                {action.reason ? <p className="mt-4 whitespace-pre-wrap break-words text-sm text-gray-700"><strong className="text-gray-900">제재 사유:</strong> {action.reason}</p> : null}
+                {action.note ? <p className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700"><strong className="text-gray-900">관리자 메모:</strong> {action.note}</p> : null}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
       <section aria-labelledby="member-actions" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
-        <h2 id="member-actions" className="text-xl font-black text-gray-900">회원·콘텐츠 조치</h2>
-        <p className="mt-2 text-sm text-gray-500">관리자 신고 관리 1단계에서는 실제 제재를 실행하지 않습니다.</p>
+        <h2 id="member-actions" className="text-xl font-black text-gray-900">추가 회원·콘텐츠 조치</h2>
+        <p className="mt-2 text-sm text-gray-500">아래 기능은 아직 실제 조치와 연결되지 않았습니다.</p>
         <div className="mt-5 flex flex-wrap gap-3">
-          <DisabledAction icon={<Ban size={16} />} label="회원 이용 정지 — 준비 중" />
           <DisabledAction icon={<Trash2 size={16} />} label="회원 강제 탈퇴 — 준비 중" />
           {detail.targetType === 'message' ? (
-            <DisabledAction icon={<MessageSquareWarning size={16} />} label="채팅 메시지 삭제 — 준비 중" />
-          ) : (
-            <DisabledAction icon={<ShieldAlert size={16} />} label="프로필 숨김 — 준비 중" />
-          )}
+            <DisabledAction icon={<MessageSquareWarning size={16} />} label="채팅 메시지 비노출 — 준비 중" />
+          ) : null}
         </div>
       </section>
 

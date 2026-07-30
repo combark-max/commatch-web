@@ -7,7 +7,9 @@ export type AdminPermission =
   | 'admin_dashboard_view'
   | 'reports_view'
   | 'reports_manage'
-  | 'admin_accounts_manage';
+  | 'admin_accounts_manage'
+  | 'member_restrictions_view'
+  | 'member_restrictions_manage';
 
 export type AdminRole = 'super_admin' | 'admin' | 'moderator';
 
@@ -48,6 +50,8 @@ const ADMIN_PERMISSIONS = new Set<AdminPermission>([
   'reports_view',
   'reports_manage',
   'admin_accounts_manage',
+  'member_restrictions_view',
+  'member_restrictions_manage',
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (

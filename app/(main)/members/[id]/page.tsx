@@ -21,6 +21,7 @@ import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import Button from '@/components/ui/Button';
 import ImageModal from '@/components/common/ImageModal';
+import ReportDialog from '@/components/reports/ReportDialog';
 
 type MemberProfile = {
   id: string;
@@ -109,6 +110,8 @@ export default function MemberDetailPage() {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [isProfileReported, setIsProfileReported] = useState(false);
   const [hasProfileImageError, setHasProfileImageError] = useState(false);
   const [failedAdditionalImageUrls, setFailedAdditionalImageUrls] = useState<Set<string>>(() => new Set());
 
@@ -136,6 +139,8 @@ export default function MemberDetailPage() {
       setNotice(null);
       setIsFavorite(false);
       setSelectedImageUrl(null);
+      setIsReportDialogOpen(false);
+      setIsProfileReported(false);
       setHasProfileImageError(false);
       setFailedAdditionalImageUrls(new Set());
 
@@ -379,13 +384,21 @@ export default function MemberDetailPage() {
             <ArrowLeft size={19} /> 뒤로가기
           </button>
           <h1 className="text-lg font-bold text-gray-900 sm:text-xl">회원 프로필</h1>
-          <button
-            type="button"
-            onClick={() => showComingSoonNotice('report')}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-500 transition hover:bg-gray-100"
-          >
-            <Flag size={15} /> 신고 · 준비 중
-          </button>
+          {!isOwnProfile ? (
+            <button
+              type="button"
+              disabled={isProfileReported}
+              onClick={() => {
+                setNotice(null);
+                setIsReportDialogOpen(true);
+              }}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:border-green-100 disabled:bg-green-50 disabled:text-green-700"
+            >
+              <Flag size={15} /> {isProfileReported ? '신고 접수됨' : '신고'}
+            </button>
+          ) : (
+            <span className="min-h-11 w-16" aria-hidden="true" />
+          )}
         </div>
 
         <article className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
@@ -582,6 +595,19 @@ export default function MemberDetailPage() {
           onClose={() => setSelectedImageUrl(null)}
         />
       ) : null}
+      <ReportDialog
+        open={isReportDialogOpen}
+        target={!isOwnProfile ? {
+          type: 'profile',
+          targetUserId: member.id,
+          targetLabel: member.nickname ?? undefined,
+        } : null}
+        onClose={() => setIsReportDialogOpen(false)}
+        onSuccess={() => {
+          setIsProfileReported(true);
+          setNotice({ message: '신고가 접수되었습니다.', type: 'success' });
+        }}
+      />
     </div>
   );
 }

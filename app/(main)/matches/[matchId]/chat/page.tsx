@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   AlertCircle,
   CalendarDays,
+  Flag,
   Loader2,
   MessageCircle,
   RefreshCw,
@@ -17,6 +18,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import Button from '@/components/ui/Button';
+import ReportDialog from '@/components/reports/ReportDialog';
 
 type MatchRpcRow = {
   match_id: string | null;
@@ -104,6 +106,10 @@ export default function ChatPage() {
   const [endError, setEndError] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const [selectedReportMessage, setSelectedReportMessage] = useState<MessageRow | null>(null);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [reportedMessageIds, setReportedMessageIds] = useState<Set<string>>(() => new Set());
+  const [reportNotice, setReportNotice] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -114,6 +120,10 @@ export default function ChatPage() {
       setDeniedMessage('');
       setEndError('');
       setIsEndConfirmOpen(false);
+      setIsReportDialogOpen(false);
+      setSelectedReportMessage(null);
+      setReportedMessageIds(new Set());
+      setReportNotice('');
 
       if (!matchId || !UUID_PATTERN.test(matchId)) {
         if (isMounted) {
@@ -393,7 +403,7 @@ export default function ChatPage() {
             {match.status === 'active' ? (
               <button
                 type="button"
-                disabled={isEndingMatch || isSending}
+                disabled={isEndingMatch || isSending || isReportDialogOpen}
                 onClick={() => {
                   setEndError('');
                   setIsEndConfirmOpen(true);
@@ -443,8 +453,10 @@ export default function ChatPage() {
                       </div>
                     ) : null}
 
-                    <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`flex max-w-[85%] items-end gap-2 sm:max-w-[70%] ${isMine ? 'flex-row-reverse' : ''}`}>
+                    <div className={`flex items-end gap-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`flex items-end gap-2 ${
+                        isMine ? 'max-w-[85%] flex-row-reverse sm:max-w-[70%]' : 'max-w-[calc(100%_-_3rem)] sm:max-w-[70%]'
+                      }`}>
                         <div
                           className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
                             isMine
@@ -459,6 +471,23 @@ export default function ChatPage() {
                           <time dateTime={message.created_at}>{formatTime(message.created_at)}</time>
                         </div>
                       </div>
+                      {!isMine ? (
+                        <button
+                          type="button"
+                          aria-label={reportedMessageIds.has(message.id) ? '신고 접수됨' : '이 메시지 신고'}
+                          title={reportedMessageIds.has(message.id) ? '신고 접수됨' : '이 메시지 신고'}
+                          disabled={reportedMessageIds.has(message.id)}
+                          onClick={() => {
+                            if (isEndConfirmOpen || isEndingMatch) return;
+                            setReportNotice('');
+                            setSelectedReportMessage(message);
+                            setIsReportDialogOpen(true);
+                          }}
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:border-green-100 disabled:bg-green-50 disabled:text-green-700"
+                        >
+                          <Flag size={16} fill={reportedMessageIds.has(message.id) ? 'currentColor' : 'none'} />
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -467,6 +496,12 @@ export default function ChatPage() {
             </div>
           )}
         </main>
+
+        {reportNotice ? (
+          <div className="shrink-0 border-t border-green-100 bg-green-50 px-5 py-3 text-sm font-bold text-green-700" role="status">
+            {reportNotice}
+          </div>
+        ) : null}
 
         <footer className="shrink-0 border-t border-gray-100 bg-white px-4 py-4 sm:px-6">
           {sendError ? (
@@ -556,6 +591,28 @@ export default function ChatPage() {
           </section>
         </div>
       ) : null}
+      <ReportDialog
+        open={isReportDialogOpen}
+        target={selectedReportMessage ? {
+          type: 'message',
+          targetMessageId: selectedReportMessage.id,
+          targetLabel: '선택한 메시지',
+        } : null}
+        onClose={() => {
+          setIsReportDialogOpen(false);
+          setSelectedReportMessage(null);
+        }}
+        onSuccess={() => {
+          if (selectedReportMessage) {
+            setReportedMessageIds((currentIds) => {
+              const nextIds = new Set(currentIds);
+              nextIds.add(selectedReportMessage.id);
+              return nextIds;
+            });
+          }
+          setReportNotice('신고가 접수되었습니다.');
+        }}
+      />
     </div>
   );
 }

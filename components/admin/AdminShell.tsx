@@ -1,4 +1,5 @@
-import { ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
+import { LayoutDashboard, ShieldCheck } from 'lucide-react';
 import AdminLogoutButton from '@/components/admin/AdminLogoutButton';
 import AdminNavigation from '@/components/admin/AdminNavigation';
 
@@ -20,6 +21,15 @@ export default function AdminShell({
       <header className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
+            <Link
+              href="/admin"
+              aria-label="관리자 대시보드로 이동"
+              title="관리자 대시보드"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 transition hover:border-green-200 hover:bg-green-50 hover:text-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+            >
+              <LayoutDashboard size={22} aria-hidden="true" />
+              <span className="sr-only">관리자 대시보드로 이동</span>
+            </Link>
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-green-100 text-green-700">
               <ShieldCheck size={24} aria-hidden="true" />
             </span>

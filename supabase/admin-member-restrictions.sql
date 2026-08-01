@@ -79,6 +79,7 @@ begin
     where namespace_info.nspname = 'public'
       and function_info.proname in (
         'set_member_restrictions_updated_at',
+        'lock_member_service_write',
         'get_my_member_access',
         'is_member_service_allowed',
         'get_admin_member_restriction',
@@ -473,6 +474,27 @@ begin
 end
 $updated_at_trigger$;
 
+create or replace function public.lock_member_service_write(p_user_id uuid)
+returns void
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $function$
+begin
+  if p_user_id is null then
+    return;
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(p_user_id::text, 731947)
+  );
+end
+$function$;
+
+comment on function public.lock_member_service_write(uuid)
+  is 'commatch_admin_member_restrictions_v1';
+
 -- Preserve the original return type and permission ordering while extending the
 -- role matrix with the two member restriction permissions.
 create or replace function public.get_my_admin_access()
@@ -602,15 +624,29 @@ comment on function public.get_my_member_access()
 
 create or replace function public.is_member_service_allowed()
 returns boolean
-language sql
-stable
+language plpgsql
+volatile
 security definer
 set search_path = ''
 as $function$
-  select coalesce(
-    (select member_access.is_allowed from public.get_my_member_access() as member_access),
-    false
-  )
+declare
+  v_user_id uuid := auth.uid();
+  v_is_allowed boolean;
+begin
+  if v_user_id is null then
+    return false;
+  end if;
+
+  perform public.lock_member_service_write(v_user_id);
+
+  -- Keep this as a separate statement after the blocking lock call so a
+  -- READ COMMITTED execution observes a restriction committed while waiting.
+  select member_access.is_allowed
+  into v_is_allowed
+  from public.get_my_member_access() as member_access;
+
+  return coalesce(v_is_allowed, false);
+end
 $function$;
 
 comment on function public.is_member_service_allowed()
@@ -840,9 +876,7 @@ begin
 
   -- A transaction-scoped advisory lock also serializes the first write when no
   -- current-state row exists yet. Existing rows are additionally locked below.
-  perform pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended(p_target_user_id::text, 731947)
-  );
+  perform public.lock_member_service_write(p_target_user_id);
 
   select
     restriction.account_status,
@@ -1023,6 +1057,8 @@ grant select, insert, update, delete on table public.member_restriction_actions 
 
 revoke all on function public.set_member_restrictions_updated_at()
   from public, anon, authenticated, service_role;
+revoke all on function public.lock_member_service_write(uuid)
+  from public, anon, authenticated, service_role;
 revoke all on function public.get_my_admin_access()
   from public, anon, authenticated, service_role;
 revoke all on function public.has_admin_permission(text)
@@ -1104,7 +1140,9 @@ begin
       function_info.proname,
       function_info.prosecdef,
       function_info.provolatile,
-      function_info.proconfig
+      function_info.proconfig,
+      function_info.proacl,
+      function_info.proowner
     from pg_catalog.pg_proc as function_info
     join pg_catalog.pg_namespace as namespace_info
       on namespace_info.oid = function_info.pronamespace
@@ -1112,6 +1150,7 @@ begin
       and function_info.proname in (
         'get_my_admin_access',
         'has_admin_permission',
+        'lock_member_service_write',
         'get_my_member_access',
         'is_member_service_allowed',
         'get_admin_member_restriction',
@@ -1120,9 +1159,24 @@ begin
       )
   loop
     v_function_count := v_function_count + 1;
-    if not v_function.prosecdef
-       or (v_function.proname = 'update_admin_member_restriction' and v_function.provolatile <> 'v')
-       or (v_function.proname <> 'update_admin_member_restriction' and v_function.provolatile <> 's')
+    if (v_function.proname = 'lock_member_service_write' and v_function.prosecdef)
+       or (v_function.proname <> 'lock_member_service_write' and not v_function.prosecdef)
+       or (
+         v_function.proname in (
+           'lock_member_service_write',
+           'is_member_service_allowed',
+           'update_admin_member_restriction'
+         )
+         and v_function.provolatile <> 'v'
+       )
+       or (
+         v_function.proname not in (
+           'lock_member_service_write',
+           'is_member_service_allowed',
+           'update_admin_member_restriction'
+         )
+         and v_function.provolatile <> 's'
+       )
        or not exists (
          select 1
          from pg_catalog.unnest(v_function.proconfig) as function_config(setting)
@@ -1130,13 +1184,38 @@ begin
        )
        or pg_catalog.obj_description(v_function.oid, 'pg_proc') is distinct from v_marker
        or pg_catalog.has_function_privilege('anon', v_function.oid, 'EXECUTE')
-       or not pg_catalog.has_function_privilege('authenticated', v_function.oid, 'EXECUTE')
+       or (
+         v_function.proname = 'lock_member_service_write'
+         and (
+           exists (
+             select 1
+             from pg_catalog.aclexplode(
+               coalesce(
+                 v_function.proacl,
+                 pg_catalog.acldefault('f', v_function.proowner)
+               )
+             ) as function_acl
+             where function_acl.grantee = 0
+               and function_acl.privilege_type = 'EXECUTE'
+           )
+           or pg_catalog.has_function_privilege('authenticated', v_function.oid, 'EXECUTE')
+           or pg_catalog.has_function_privilege('service_role', v_function.oid, 'EXECUTE')
+         )
+       )
+       or (
+         v_function.proname <> 'lock_member_service_write'
+         and not pg_catalog.has_function_privilege('authenticated', v_function.oid, 'EXECUTE')
+       )
        or (
          v_function.proname in ('get_my_admin_access', 'has_admin_permission')
          and pg_catalog.has_function_privilege('service_role', v_function.oid, 'EXECUTE')
        )
        or (
-         v_function.proname not in ('get_my_admin_access', 'has_admin_permission')
+         v_function.proname not in (
+           'get_my_admin_access',
+           'has_admin_permission',
+           'lock_member_service_write'
+         )
          and not pg_catalog.has_function_privilege('service_role', v_function.oid, 'EXECUTE')
        ) then
       raise exception 'public.% security or privileges differ from the approved definition',
@@ -1144,11 +1223,26 @@ begin
     end if;
   end loop;
 
-  if v_function_count <> 7 then
+  if v_function_count <> 8 then
     raise exception 'Member restriction function count differs from the approved definition';
   end if;
 
+  if (
+    select pg_catalog.count(distinct function_info.proowner)
+    from pg_catalog.pg_proc as function_info
+    where function_info.oid in (
+      'public.lock_member_service_write(uuid)'::pg_catalog.regprocedure,
+      'public.is_member_service_allowed()'::pg_catalog.regprocedure,
+      'public.update_admin_member_restriction(uuid,text,text,timestamp with time zone,uuid,text,text)'::pg_catalog.regprocedure
+    )
+  ) <> 1 then
+    raise exception 'Member write lock callers and helper must have the same owner';
+  end if;
+
   if pg_catalog.pg_get_function_result(
+       'public.lock_member_service_write(uuid)'::pg_catalog.regprocedure
+     ) <> 'void'
+     or pg_catalog.pg_get_function_result(
        'public.get_my_member_access()'::pg_catalog.regprocedure
      ) <> 'TABLE(is_allowed boolean, account_status text, profile_visibility text, suspended_until timestamp with time zone, reason text)'
      or pg_catalog.pg_get_function_result(

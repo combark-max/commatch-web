@@ -19,8 +19,14 @@ begin
   from pg_catalog.pg_roles as role_info
   where role_info.rolname = 'authenticated';
 
-  if v_authenticated_oid is null then
-    raise exception 'Required authenticated role is missing';
+  if v_authenticated_oid is null
+     or not exists (
+       select 1 from pg_catalog.pg_roles as role_info where role_info.rolname = 'anon'
+     )
+     or not exists (
+       select 1 from pg_catalog.pg_roles as role_info where role_info.rolname = 'service_role'
+     ) then
+    raise exception 'Required anon, authenticated, or service_role role is missing';
   end if;
 
   foreach v_relation_name in array array[
@@ -262,6 +268,31 @@ begin
     raise exception 'FOR ALL policies cannot be narrowed without affecting reads';
   end if;
 
+  if exists (
+    select 1
+    from pg_catalog.pg_policy as policy_info
+    where policy_info.polrelid in (
+      'public.profiles'::pg_catalog.regclass,
+      'public.preferences'::pg_catalog.regclass
+    )
+      and policy_info.polcmd in ('d', '*')
+  ) then
+    raise exception 'profiles and preferences must not have DELETE or FOR ALL policies';
+  end if;
+
+  if not pg_catalog.has_table_privilege(
+       'service_role',
+       'public.profiles',
+       'DELETE'
+     )
+     or not pg_catalog.has_table_privilege(
+       'service_role',
+       'public.preferences',
+       'DELETE'
+     ) then
+    raise exception 'service_role DELETE privileges must exist before installation';
+  end if;
+
   if (
     select pg_catalog.count(*)
     from pg_catalog.pg_policy as policy_info
@@ -375,6 +406,35 @@ begin
   end if;
 end
 $preflight$;
+
+-- Capture the exact SELECT policy metadata before changing write-only grants
+-- and predicates. The postflight comparison prevents accidental read-policy
+-- drift without assuming policy names or expressions that are not owned here.
+create temporary table _commatch_member_write_guard_select_policies
+on commit drop
+as
+select
+  policy_info.polrelid,
+  policy_info.polname,
+  policy_info.polpermissive,
+  policy_info.polroles,
+  pg_catalog.pg_get_expr(
+    policy_info.polqual,
+    policy_info.polrelid
+  ) as using_expression,
+  case
+    when policy_info.polwithcheck is null then null
+    else pg_catalog.pg_get_expr(
+      policy_info.polwithcheck,
+      policy_info.polrelid
+    )
+  end as check_expression
+from pg_catalog.pg_policy as policy_info
+where policy_info.polrelid in (
+    'public.profiles'::pg_catalog.regclass,
+    'public.preferences'::pg_catalog.regclass
+  )
+  and policy_info.polcmd = 'r';
 
 -- Preserve every existing policy name, role list, permissive/restrictive mode,
 -- and ownership expression. Only append the common member access predicate.
@@ -496,6 +556,11 @@ begin
   end loop;
 end
 $write_policies$;
+
+-- Direct profile/preference row deletion is not a browser feature. Account
+-- deletion remains available through the service-role server route.
+revoke delete on table public.profiles from anon, authenticated;
+revoke delete on table public.preferences from anon, authenticated;
 
 create or replace function public.send_match_message(p_match_id uuid, p_content text)
 returns uuid
@@ -729,6 +794,102 @@ begin
       end
   ) then
     raise exception 'A protected member write policy is missing the access guard';
+  end if;
+
+  if exists (
+    select 1
+    from pg_catalog.pg_class as relation_info
+    where relation_info.oid in (
+      'public.profiles'::pg_catalog.regclass,
+      'public.preferences'::pg_catalog.regclass
+    )
+      and not relation_info.relrowsecurity
+  ) then
+    raise exception 'profiles and preferences must keep RLS enabled';
+  end if;
+
+  if exists (
+    select 1
+    from pg_catalog.pg_policy as policy_info
+    where policy_info.polrelid in (
+      'public.profiles'::pg_catalog.regclass,
+      'public.preferences'::pg_catalog.regclass
+    )
+      and policy_info.polcmd in ('d', '*')
+  ) then
+    raise exception 'profiles or preferences gained a DELETE or FOR ALL policy';
+  end if;
+
+  if pg_catalog.has_table_privilege('anon', 'public.profiles', 'DELETE')
+     or pg_catalog.has_table_privilege('authenticated', 'public.profiles', 'DELETE')
+     or pg_catalog.has_table_privilege('anon', 'public.preferences', 'DELETE')
+     or pg_catalog.has_table_privilege('authenticated', 'public.preferences', 'DELETE') then
+    raise exception 'Browser DELETE privileges on profiles or preferences remain enabled';
+  end if;
+
+  if not pg_catalog.has_table_privilege('service_role', 'public.profiles', 'DELETE')
+     or not pg_catalog.has_table_privilege('service_role', 'public.preferences', 'DELETE') then
+    raise exception 'service_role DELETE privileges changed unexpectedly';
+  end if;
+
+  if exists (
+    (
+      select
+        policy_info.polrelid,
+        policy_info.polname,
+        policy_info.polpermissive,
+        policy_info.polroles,
+        pg_catalog.pg_get_expr(
+          policy_info.polqual,
+          policy_info.polrelid
+        ) as using_expression,
+        case
+          when policy_info.polwithcheck is null then null
+          else pg_catalog.pg_get_expr(
+            policy_info.polwithcheck,
+            policy_info.polrelid
+          )
+        end as check_expression
+      from pg_catalog.pg_policy as policy_info
+      where policy_info.polrelid in (
+          'public.profiles'::pg_catalog.regclass,
+          'public.preferences'::pg_catalog.regclass
+        )
+        and policy_info.polcmd = 'r'
+      except
+      select *
+      from pg_temp._commatch_member_write_guard_select_policies
+    )
+  ) or exists (
+    (
+      select *
+      from pg_temp._commatch_member_write_guard_select_policies
+      except
+      select
+        policy_info.polrelid,
+        policy_info.polname,
+        policy_info.polpermissive,
+        policy_info.polroles,
+        pg_catalog.pg_get_expr(
+          policy_info.polqual,
+          policy_info.polrelid
+        ) as using_expression,
+        case
+          when policy_info.polwithcheck is null then null
+          else pg_catalog.pg_get_expr(
+            policy_info.polwithcheck,
+            policy_info.polrelid
+          )
+        end as check_expression
+      from pg_catalog.pg_policy as policy_info
+      where policy_info.polrelid in (
+          'public.profiles'::pg_catalog.regclass,
+          'public.preferences'::pg_catalog.regclass
+        )
+        and policy_info.polcmd = 'r'
+    )
+  ) then
+    raise exception 'profiles or preferences SELECT policies changed unexpectedly';
   end if;
 
   for v_function in

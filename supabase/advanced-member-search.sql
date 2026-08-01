@@ -75,7 +75,7 @@ returns table (
 )
 language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $function$
 declare
@@ -136,6 +136,12 @@ begin
     member_profile.profile_image
   from public.profiles as member_profile
   where member_profile.id <> v_user_id
+    and not exists (
+      select 1
+      from public.member_restrictions as restriction
+      where restriction.user_id = member_profile.id
+        and restriction.profile_visibility = 'hidden'
+    )
     and member_profile.gender = case
       when v_gender = '남성' then '여성'
       else '남성'
@@ -176,7 +182,7 @@ begin
          and function_info.pronargdefaults = 6
          and function_info.proretset
          and function_info.prorettype = 'pg_catalog.record'::pg_catalog.regtype
-         and not function_info.prosecdef
+         and function_info.prosecdef
          and function_info.provolatile = 's'
          and function_info.proargnames[1:6] = array[
            'p_height_min',
@@ -206,6 +212,6 @@ $function_validation$;
 revoke all on function public.search_members_advanced(integer, integer, text, text, text, text)
   from public, anon, authenticated, service_role;
 grant execute on function public.search_members_advanced(integer, integer, text, text, text, text)
-  to authenticated;
+  to authenticated, service_role;
 
 commit;

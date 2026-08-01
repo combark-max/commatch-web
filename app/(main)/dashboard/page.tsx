@@ -49,8 +49,8 @@ type Profile = {
   profile_images: string[] | null;
 };
 
-type MatchUnreadRow = {
-  unread_count: number | string | null;
+type MatchSummaryRow = {
+  total_unread_count: number | string | null;
 };
 
 const normalizeUnreadCount = (value: unknown) => {
@@ -138,7 +138,7 @@ export default function DashboardPage() {
             .from('favorites')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', user.id),
-          supabase.rpc('get_my_matches'),
+          supabase.rpc('get_my_match_summary'),
         ]);
 
         if (profileResult.error) {
@@ -161,15 +161,10 @@ export default function DashboardPage() {
           console.error('마이페이지 읽지 않은 메시지 수 조회 실패:', matchesResult.error.code, matchesResult.error.message);
           if (isMounted) setUnreadMessageCount(0);
         } else if (isMounted) {
-          const totalUnreadCount = Array.isArray(matchesResult.data)
-            ? (matchesResult.data as MatchUnreadRow[]).reduce(
-                (total, matchRow) => {
-                  if (!matchRow || typeof matchRow !== 'object') return total;
-                  return total + normalizeUnreadCount(matchRow.unread_count);
-                },
-                0,
-              )
-            : 0;
+          const summaryRow = Array.isArray(matchesResult.data)
+            ? (matchesResult.data as MatchSummaryRow[])[0]
+            : null;
+          const totalUnreadCount = normalizeUnreadCount(summaryRow?.total_unread_count);
           setUnreadMessageCount(totalUnreadCount);
         }
       } catch (error: unknown) {

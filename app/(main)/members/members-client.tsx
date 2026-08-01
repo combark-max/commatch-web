@@ -91,11 +91,7 @@ export default function MembersClient({
 
         const expectedGender = currentProfile?.gender === '남성' ? '여성' : '남성';
 
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, nickname, birth_date, gender, region, job, introduction, profile_image')
-          .eq('gender', expectedGender)
-          .neq('id', user.id);
+        const { data, error } = await supabase.rpc('get_visible_member_summaries');
 
         if (error) {
           throw error;
@@ -118,10 +114,12 @@ export default function MembersClient({
 
         if (isMounted) {
           setMembers(
-            ((data as Member[]) ?? []).map((member) => ({
-              ...member,
-              profile_image: resolveProfileImageUrl(member.profile_image ?? null),
-            })),
+            ((data as Member[]) ?? [])
+              .filter((member) => member.gender === expectedGender && member.id !== user.id)
+              .map((member) => ({
+                ...member,
+                profile_image: resolveProfileImageUrl(member.profile_image ?? null),
+              })),
           );
           setFavoriteIds(new Set((favoritesError ? [] : favoriteRows ?? []).map((row) => row.favorite_user_id)));
         }
@@ -698,4 +696,3 @@ export default function MembersClient({
     </div>
   );
 }
-

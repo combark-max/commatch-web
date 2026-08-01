@@ -207,9 +207,15 @@ begin
             or pg_catalog.md5(
               pg_catalog.regexp_replace(existing_function.prosrc, '[[:space:]]+', ' ', 'g')
             ) is distinct from case v_function_name
-              when 'submit_profile_report' then '15e12ed4a21cd1506666e26a19199e7a'
+              when 'submit_profile_report' then 'baa2909674c0e1a59761aee96aca1d01'
               when 'submit_message_report' then '5526e28ef0de267f8186caacc2cd66ea'
             end
+            and not (
+              v_function_name = 'submit_profile_report'
+              and pg_catalog.md5(
+                pg_catalog.regexp_replace(existing_function.prosrc, '[[:space:]]+', ' ', 'g')
+              ) = '15e12ed4a21cd1506666e26a19199e7a'
+            )
           )
       )
     ) then
@@ -596,7 +602,13 @@ begin
   )
   into v_target_snapshot
   from public.profiles as target_profile
-  where target_profile.id = p_target_user_id;
+  where target_profile.id = p_target_user_id
+    and not exists (
+      select 1
+      from public.member_restrictions as restriction
+      where restriction.user_id = target_profile.id
+        and restriction.profile_visibility = 'hidden'
+    );
 
   if not found then
     raise exception using errcode = 'P0002', message = 'Profile not found';

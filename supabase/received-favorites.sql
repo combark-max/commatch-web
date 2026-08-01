@@ -107,6 +107,12 @@ begin
     limit 1
   ) as existing_match on true
   where received_favorite.favorite_user_id = v_user_id
+    and not exists (
+      select 1
+      from public.member_restrictions as restriction
+      where restriction.user_id = received_favorite.user_id
+        and restriction.profile_visibility = 'hidden'
+    )
   order by received_favorite.created_at desc, received_favorite.id;
 end
 $function$;
@@ -114,7 +120,7 @@ $function$;
 comment on function public.get_received_favorites() is
   'Returns received favorites for auth.uid() with Premium feature access';
 
-revoke all on function public.get_received_favorites() from public, anon, authenticated;
-grant execute on function public.get_received_favorites() to authenticated;
+revoke all on function public.get_received_favorites() from public, anon, authenticated, service_role;
+grant execute on function public.get_received_favorites() to authenticated, service_role;
 
 commit;

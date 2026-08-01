@@ -291,56 +291,8 @@ $updated_at_trigger$;
 
 do $candidate_function$
 begin
-  if pg_catalog.to_regprocedure('public.get_priority_recommendation_candidate_ids()') is null then
-    execute $create_function$
-      create function public.get_priority_recommendation_candidate_ids()
-      returns table (user_id uuid)
-      language plpgsql
-      security definer
-      set search_path = ''
-      as $body$
-      declare
-        v_user_id uuid;
-        v_gender text;
-      begin
-        select auth.uid() into v_user_id;
-
-        if v_user_id is null then
-          raise exception using
-            errcode = '42501',
-            message = 'Authentication required';
-        end if;
-
-        select viewer_profile.gender
-        into v_gender
-        from public.profiles as viewer_profile
-        where viewer_profile.id = v_user_id;
-
-        if v_gender is null or v_gender not in ('남성', '여성') then
-          return;
-        end if;
-
-        return query
-        select access_row.user_id
-        from public.premium_feature_access as access_row
-        join public.profiles as candidate_profile
-          on candidate_profile.id = access_row.user_id
-        where access_row.feature_key = 'priority_recommendation'
-          and access_row.is_active
-          and access_row.starts_at <= pg_catalog.now()
-          and access_row.ends_at > pg_catalog.now()
-          and access_row.user_id <> v_user_id
-          and candidate_profile.gender = case v_gender
-            when '남성' then '여성'
-            when '여성' then '남성'
-          end
-        order by access_row.user_id;
-      end
-      $body$
-    $create_function$;
-    comment on function public.get_priority_recommendation_candidate_ids()
-      is 'commatch_priority_recommendation_pilot_v1';
-  elsif not exists (
+  if pg_catalog.to_regprocedure('public.get_priority_recommendation_candidate_ids()') is not null
+     and not exists (
     select 1
     from pg_catalog.pg_proc as function_info
     join pg_catalog.pg_namespace as namespace_info
@@ -353,11 +305,14 @@ begin
       and namespace_info.nspname = 'public'
       and function_info.proname = 'get_priority_recommendation_candidate_ids'
       and function_info.pronargs = 0
+      and pg_catalog.pg_get_userbyid(function_info.proowner) = 'postgres'
       and function_info.proretset
-      and function_info.prorettype = 'pg_catalog.record'::pg_catalog.regtype
+      and function_info.prorettype = 'pg_catalog.uuid'::pg_catalog.regtype
+      and pg_catalog.pg_get_function_result(function_info.oid) = 'TABLE(user_id uuid)'
       and language_info.lanname = 'plpgsql'
       and function_info.prosecdef
       and function_info.provolatile = 'v'
+      and function_info.proparallel = 'u'
       and exists (
         select 1
         from pg_catalog.unnest(function_info.proconfig) as function_config(setting)
@@ -368,11 +323,100 @@ begin
             ''
           ) = ''
       )
+      and pg_catalog.md5(
+        pg_catalog.regexp_replace(function_info.prosrc, '[[:space:]]+', ' ', 'g')
+      ) in (
+        '35c3b34beb9bfd9c73fd8d4c62b544ef',
+        'd19f0300862036591803ee85ac2632dc'
+      )
+      and not exists (
+        select 1
+        from pg_catalog.aclexplode(
+          coalesce(
+            function_info.proacl,
+            pg_catalog.acldefault('f', function_info.proowner)
+          )
+        ) as acl_info
+        where acl_info.privilege_type = 'EXECUTE'
+          and acl_info.grantee in (
+            0::oid,
+            (select role_info.oid from pg_catalog.pg_roles as role_info where role_info.rolname = 'anon')
+          )
+      )
+      and pg_catalog.has_function_privilege(
+        'authenticated',
+        function_info.oid,
+        'EXECUTE'
+      )
+      and pg_catalog.has_function_privilege(
+        'service_role',
+        function_info.oid,
+        'EXECUTE'
+      )
   ) then
-    raise exception 'public.get_priority_recommendation_candidate_ids() exists with incompatible catalog attributes';
+    raise exception using
+      errcode = 'P0001',
+      message = 'public.get_priority_recommendation_candidate_ids() exists with incompatible catalog attributes or definition drift';
   end if;
 end
 $candidate_function$;
+
+create or replace function public.get_priority_recommendation_candidate_ids()
+returns table (user_id uuid)
+language plpgsql
+volatile
+parallel unsafe
+security definer
+set search_path = ''
+as $body$
+declare
+  v_user_id uuid;
+  v_gender text;
+begin
+  select auth.uid() into v_user_id;
+
+  if v_user_id is null then
+    raise exception using
+      errcode = '42501',
+      message = 'Authentication required';
+  end if;
+
+  select viewer_profile.gender
+  into v_gender
+  from public.profiles as viewer_profile
+  where viewer_profile.id = v_user_id;
+
+  if v_gender is null or v_gender not in ('남성', '여성') then
+    return;
+  end if;
+
+  return query
+  select access_row.user_id
+  from public.premium_feature_access as access_row
+  join public.profiles as candidate_profile
+    on candidate_profile.id = access_row.user_id
+  where access_row.feature_key = 'priority_recommendation'
+    and access_row.is_active
+    and access_row.starts_at <= pg_catalog.now()
+    and access_row.ends_at > pg_catalog.now()
+    and access_row.user_id <> v_user_id
+    and not exists (
+      select 1
+      from public.member_restrictions as restriction
+      where restriction.user_id = access_row.user_id
+        and restriction.profile_visibility = 'hidden'
+    )
+    and candidate_profile.gender = case v_gender
+      when '남성' then '여성'
+      when '여성' then '남성'
+    end
+  order by access_row.user_id;
+end
+$body$;
+
+alter function public.get_priority_recommendation_candidate_ids() owner to postgres;
+comment on function public.get_priority_recommendation_candidate_ids()
+  is 'commatch_priority_recommendation_pilot_v1';
 
 alter table public.premium_feature_access enable row level security;
 
@@ -402,8 +446,8 @@ revoke all on table public.premium_feature_access from public, anon, authenticat
 grant select, insert, update, delete on table public.premium_feature_access to service_role;
 
 revoke all on function public.set_premium_feature_access_updated_at() from public, anon, authenticated;
-revoke all on function public.get_priority_recommendation_candidate_ids() from public, anon, authenticated;
-grant execute on function public.get_priority_recommendation_candidate_ids() to authenticated;
+revoke all on function public.get_priority_recommendation_candidate_ids() from public, anon, authenticated, service_role;
+grant execute on function public.get_priority_recommendation_candidate_ids() to authenticated, service_role;
 
 commit;
 

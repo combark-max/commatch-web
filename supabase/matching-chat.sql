@@ -193,8 +193,11 @@ begin
         and p.proname = v_function_name
         and (
           pg_catalog.obj_description(p.oid, 'pg_proc') is distinct from v_install_marker
+          or pg_catalog.pg_get_userbyid(p.proowner) <> 'postgres'
           or p.prolang <> (select l.oid from pg_catalog.pg_language as l where l.lanname = 'plpgsql')
           or p.prosecdef <> (v_function_name <> 'set_matching_chat_updated_at')
+          or p.provolatile <> 'v'
+          or p.proparallel <> 'u'
           or p.proretset <> (v_function_name = 'get_my_matches')
           or p.prorettype <> case v_function_name
             when 'set_matching_chat_updated_at' then 'pg_catalog.trigger'::pg_catalog.regtype
@@ -219,17 +222,54 @@ begin
               pg_catalog.regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')
             ) is distinct from case v_function_name
               when 'set_matching_chat_updated_at' then 'b25753681841752f1957406894e6fb56'
-              when 'handle_mutual_favorite_match' then '66480c23c1656a656d5f035c4b157785'
-              when 'send_match_message' then 'b5aae1246f5c93c776d7f4e21bc8b38b'
-              when 'mark_match_read' then '1b63ddc3e76fc74811c951b2d3f92fb7'
-              when 'end_match' then '081cb634975a573b117dae4ec84dcba2'
+              when 'handle_mutual_favorite_match' then '707e263dd64179ef3f73d89ca9541faa'
+              when 'send_match_message' then 'e93aba205a73137b073181e420480c86'
+              when 'mark_match_read' then 'e0442710e7d529638732e9a65d3d2d78'
+              when 'end_match' then '4bf8d7262fbbacd8620ee2b5359de490'
               when 'get_my_matches' then 'efd3e318d960957a79dab0be1855835e'
             end
+            and not (
+              v_function_name = 'handle_mutual_favorite_match'
+              and pg_catalog.md5(
+                pg_catalog.regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')
+              ) = '66480c23c1656a656d5f035c4b157785'
+            )
+            and not (
+              v_function_name = 'send_match_message'
+              and pg_catalog.md5(
+                pg_catalog.regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')
+              ) = 'b5aae1246f5c93c776d7f4e21bc8b38b'
+            )
+            and not (
+              v_function_name = 'mark_match_read'
+              and pg_catalog.md5(
+                pg_catalog.regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')
+              ) = '1b63ddc3e76fc74811c951b2d3f92fb7'
+            )
+            and not (
+              v_function_name = 'end_match'
+              and pg_catalog.md5(
+                pg_catalog.regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')
+              ) = '081cb634975a573b117dae4ec84dcba2'
+            )
             and not (
               v_function_name = 'get_my_matches'
               and pg_catalog.md5(
                 pg_catalog.regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')
               ) = 'cc8078e24d925acb9e7b28fc34f34a38'
+            )
+          )
+          or (
+            v_function_name in (
+              'send_match_message',
+              'mark_match_read',
+              'end_match',
+              'get_my_matches'
+            )
+            and (
+              pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')
+              or not pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
+              or not pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE')
             )
           )
         )
@@ -772,6 +812,13 @@ begin
   v_user_1_id := least(new.user_id, new.favorite_user_id);
   v_user_2_id := greatest(new.user_id, new.favorite_user_id);
 
+  perform public.lock_member_service_write_pair(v_user_1_id, v_user_2_id);
+
+  if not public.is_member_profile_visible(v_user_1_id)
+     or not public.is_member_profile_visible(v_user_2_id) then
+    return new;
+  end if;
+
   -- Serialize the same normalized pair. The subsequent SPI query receives a
   -- current READ COMMITTED snapshot after a concurrent favorite transaction.
   perform pg_catalog.pg_advisory_xact_lock(
@@ -826,6 +873,8 @@ $trigger$;
 create or replace function public.send_match_message(p_match_id uuid, p_content text)
 returns uuid
 language plpgsql
+volatile
+parallel unsafe
 security definer
 set search_path = ''
 as $function$
@@ -837,9 +886,16 @@ declare
   v_created_at timestamptz := pg_catalog.now();
 begin
   -- commatch_matching_chat_v1
+  -- commatch_member_service_write_guards_v1
   select auth.uid() into v_user_id;
   if v_user_id is null then
     raise exception using errcode = '42501', message = 'Authentication required';
+  end if;
+
+  if not coalesce(public.is_member_service_allowed(), false) then
+    raise exception using
+      errcode = '42501',
+      message = '회원 이용이 제한되어 현재 작업을 수행할 수 없습니다.';
   end if;
 
   v_content := pg_catalog.btrim(p_content);
@@ -896,6 +952,8 @@ comment on function public.send_match_message(uuid, text) is 'commatch_matching_
 create or replace function public.mark_match_read(p_match_id uuid)
 returns bigint
 language plpgsql
+volatile
+parallel unsafe
 security definer
 set search_path = ''
 as $function$
@@ -905,9 +963,16 @@ declare
   v_updated_count bigint;
 begin
   -- commatch_matching_chat_v1
+  -- commatch_member_service_write_guards_v1
   select auth.uid() into v_user_id;
   if v_user_id is null then
     raise exception using errcode = '42501', message = 'Authentication required';
+  end if;
+
+  if not coalesce(public.is_member_service_allowed(), false) then
+    raise exception using
+      errcode = '42501',
+      message = '회원 이용이 제한되어 현재 작업을 수행할 수 없습니다.';
   end if;
 
   select exists (
@@ -937,6 +1002,8 @@ comment on function public.mark_match_read(uuid) is 'commatch_matching_chat_v1';
 create or replace function public.end_match(p_match_id uuid)
 returns text
 language plpgsql
+volatile
+parallel unsafe
 security definer
 set search_path = ''
 as $function$
@@ -946,9 +1013,16 @@ declare
   v_ended_at timestamptz := pg_catalog.now();
 begin
   -- commatch_matching_chat_v1
+  -- commatch_member_service_write_guards_v1
   select auth.uid() into v_user_id;
   if v_user_id is null then
     raise exception using errcode = '42501', message = 'Authentication required';
+  end if;
+
+  if not coalesce(public.is_member_service_allowed(), false) then
+    raise exception using
+      errcode = '42501',
+      message = '회원 이용이 제한되어 현재 작업을 수행할 수 없습니다.';
   end if;
 
   select match_row.*
@@ -982,9 +1056,7 @@ $function$;
 
 comment on function public.end_match(uuid) is 'commatch_matching_chat_v1';
 
-drop function if exists public.get_my_matches();
-
-create function public.get_my_matches()
+create or replace function public.get_my_matches()
 returns table (
   match_id uuid,
   match_status text,
@@ -1003,6 +1075,8 @@ returns table (
   unread_count bigint
 )
 language plpgsql
+volatile
+parallel unsafe
 security definer
 set search_path = ''
 as $function$
@@ -1241,16 +1315,22 @@ grant select on table public.matches to authenticated;
 grant select on table public.messages to authenticated;
 
 revoke all on function public.set_matching_chat_updated_at() from public, anon, authenticated;
-revoke all on function public.handle_mutual_favorite_match() from public, anon, authenticated;
-revoke all on function public.send_match_message(uuid, text) from public, anon, authenticated;
-revoke all on function public.mark_match_read(uuid) from public, anon, authenticated;
-revoke all on function public.end_match(uuid) from public, anon, authenticated;
-revoke all on function public.get_my_matches() from public, anon, authenticated;
+alter function public.handle_mutual_favorite_match() owner to postgres;
+alter function public.send_match_message(uuid, text) owner to postgres;
+alter function public.mark_match_read(uuid) owner to postgres;
+alter function public.end_match(uuid) owner to postgres;
+alter function public.get_my_matches() owner to postgres;
 
-grant execute on function public.send_match_message(uuid, text) to authenticated;
-grant execute on function public.mark_match_read(uuid) to authenticated;
-grant execute on function public.end_match(uuid) to authenticated;
-grant execute on function public.get_my_matches() to authenticated;
+revoke all on function public.handle_mutual_favorite_match() from public, anon, authenticated, service_role;
+revoke all on function public.send_match_message(uuid, text) from public, anon, authenticated, service_role;
+revoke all on function public.mark_match_read(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.end_match(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.get_my_matches() from public, anon, authenticated, service_role;
+
+grant execute on function public.send_match_message(uuid, text) to authenticated, service_role;
+grant execute on function public.mark_match_read(uuid) to authenticated, service_role;
+grant execute on function public.end_match(uuid) to authenticated, service_role;
+grant execute on function public.get_my_matches() to authenticated, service_role;
 
 -- Backfill one match per existing reciprocal favorite pair. The later favorite
 -- timestamp is the moment at which the mutual relationship became complete.

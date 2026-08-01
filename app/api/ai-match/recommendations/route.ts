@@ -22,6 +22,7 @@ type Profile = {
   marriage_values: string | null;
   profile_image: string | null;
   profile_images: string[] | null;
+  is_priority_recommendation?: boolean;
 };
 
 type Preference = {
@@ -63,10 +64,6 @@ type RecommendedMember = {
   considerations: string[];
   dataNote?: string;
   completeness: number;
-};
-
-type PriorityRecommendationRpcRow = {
-  user_id?: unknown;
 };
 
 type SetupTarget = 'profile' | 'profile-incomplete' | 'preference';
@@ -413,35 +410,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const oppositeGender = currentProfile.gender === '남성' ? '여성' : '남성';
-    const { data, error: membersError } = await supabase
-      .from('profiles')
-      .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, smoking, marriage_history, introduction, marriage_values, profile_image, profile_images')
-      .eq('gender', oppositeGender)
-      .neq('id', user.id);
+    const { data, error: membersError } = await supabase.rpc('get_ai_match_candidates');
 
     if (membersError) throw membersError;
-
-    const priorityRecommendationIds = new Set<string>();
-
-    try {
-      const { data: priorityRows, error: priorityError } = await supabase
-        .rpc('get_priority_recommendation_candidate_ids');
-
-      if (priorityError) {
-        console.error('우선 추천 내부 테스트 대상 조회 실패:', priorityError.code);
-      } else if (Array.isArray(priorityRows)) {
-        (priorityRows as PriorityRecommendationRpcRow[]).forEach((row) => {
-          if (!row || typeof row !== 'object') return;
-          const priorityUserId = typeof row.user_id === 'string' ? row.user_id.trim() : '';
-          if (priorityUserId) priorityRecommendationIds.add(priorityUserId);
-        });
-      } else {
-        console.error('우선 추천 내부 테스트 대상 응답 형식이 올바르지 않습니다.');
-      }
-    } catch {
-      console.error('우선 추천 내부 테스트 대상 조회 중 예기치 않은 오류가 발생했습니다.');
-    }
 
     const recommendationLimit = expandedRequested
       ? EXPANDED_RECOMMENDATION_LIMIT
@@ -483,7 +454,7 @@ export async function GET(request: NextRequest) {
           ...member,
           age,
           score,
-          isPriorityRecommendation: priorityRecommendationIds.has(member.id),
+          isPriorityRecommendation: member.is_priority_recommendation === true,
           reasons,
           ...analysis,
           completeness: calculateProfileCompleteness(member),

@@ -159,9 +159,7 @@ export default function MemberDetailPage() {
         setCurrentUserId(user.id);
 
         const { data, error } = await supabase
-          .from('profiles')
-          .select('id, nickname, birth_date, gender, height, job, region, introduction, education, religion, hobby, drinking, smoking, marriage_values, profile_image, profile_images')
-          .eq('id', memberId)
+          .rpc('get_visible_member_detail', { p_target_user_id: memberId })
           .maybeSingle();
 
         if (error) throw error;

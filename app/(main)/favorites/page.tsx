@@ -12,42 +12,33 @@ type FavoriteMember = {
   id: string;
   favoritedAt: string | null;
   nickname: string | null;
-  birth_date: string | null;
-  gender: string | null;
-  height: number | null;
+  age: number | null;
   region: string | null;
   job: string | null;
-  education: string | null;
-  religion: string | null;
-  hobby: string | null;
-  introduction: string | null;
   profile_image: string | null;
-  isMutual: boolean | null;
+  isMutual: boolean;
   matchId: string | null;
   matchStatus: MatchStatus | null;
   matchedAt: string | null;
 };
 
-type FavoriteProfile = Omit<FavoriteMember, 'favoritedAt' | 'isMutual' | 'matchId' | 'matchStatus' | 'matchedAt'>;
 type FavoriteSort = 'default' | 'recent' | 'oldest' | 'younger' | 'older' | 'nickname' | 'mutual-first' | 'matched-first';
 type RelationshipFilter = 'all' | 'mutual' | 'matched' | 'not-mutual';
 type MatchStatus = 'active' | 'ended';
 
-type ReceivedFavoriteRpcRow = {
-  sender_user_id?: unknown;
-};
-
-type MatchRpcRow = {
+type FavoriteMemberRpcRow = {
+  favorite_id?: unknown;
+  favorited_at?: unknown;
+  member_id?: unknown;
+  nickname?: unknown;
+  age?: unknown;
+  profile_image_url?: unknown;
+  region?: unknown;
+  job?: unknown;
+  is_mutual?: unknown;
   match_id?: unknown;
   match_status?: unknown;
   matched_at?: unknown;
-  other_user_id?: unknown;
-};
-
-type FavoriteMatch = {
-  matchId: string;
-  matchStatus: MatchStatus;
-  matchedAt: string | null;
 };
 
 const favoriteDateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -68,39 +59,10 @@ function normalizeDateText(value: unknown): string | null {
   return Number.isNaN(new Date(normalized).getTime()) ? null : normalized;
 }
 
-function calculateAge(birthDate: string | null | undefined): number | null {
-  const normalized = normalizeNullableText(birthDate);
-  if (!normalized) return null;
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
-  if (!match) return null;
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const birth = new Date(0);
-  birth.setHours(0, 0, 0, 0);
-  birth.setFullYear(year, month - 1, day);
-
-  if (
-    birth.getFullYear() !== year
-    || birth.getMonth() !== month - 1
-    || birth.getDate() !== day
-  ) {
-    return null;
-  }
-
-  const today = new Date();
-  if (birth.getTime() > today.getTime()) return null;
-
-  let age = today.getFullYear() - year;
-  const monthDifference = today.getMonth() - (month - 1);
-
-  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < day)) {
-    age -= 1;
-  }
-
-  return Number.isInteger(age) && age >= 0 ? age : null;
+function normalizeAge(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const normalized = typeof value === 'number' ? value : Number(value);
+  return Number.isInteger(normalized) && normalized >= 0 ? normalized : null;
 }
 
 export default function FavoritesPage() {
@@ -149,123 +111,41 @@ export default function FavoritesPage() {
           return;
         }
 
-        let receivedFavoriteIds: Set<string> | null = null;
-        let matchesByMemberId: Map<string, FavoriteMatch> | null = null;
+        const { data, error: favoritesError } = await supabase.rpc('get_my_favorite_members');
+        if (favoritesError) throw favoritesError;
+        if (!Array.isArray(data)) throw new Error('관심회원 응답 형식이 올바르지 않습니다.');
 
-        if (advancedMode) {
-          const [receivedFavoritesOutcome, matchesOutcome] = await Promise.allSettled([
-            supabase.rpc('get_received_favorites'),
-            supabase.rpc('get_my_matches'),
-          ]);
+        const normalizedFavorites = (data as FavoriteMemberRpcRow[]).flatMap((row) => {
+          if (!row || typeof row !== 'object') return [];
 
-          if (receivedFavoritesOutcome.status === 'rejected') {
-            console.error('상호 관심 정보 조회 중 예기치 않은 오류가 발생했습니다.');
-          } else if (receivedFavoritesOutcome.value.error) {
-            const receivedFavoritesResult = receivedFavoritesOutcome.value;
-            if (receivedFavoritesResult.error.code !== '42501') {
-              console.error('상호 관심 정보 조회 실패:', receivedFavoritesResult.error.code, receivedFavoritesResult.error.message);
-            }
-          } else if (!Array.isArray(receivedFavoritesOutcome.value.data)) {
-            console.error('상호 관심 정보 응답 형식이 올바르지 않습니다.');
-          } else {
-            receivedFavoriteIds = new Set(
-              (receivedFavoritesOutcome.value.data as ReceivedFavoriteRpcRow[]).flatMap((row) => {
-                if (!row || typeof row !== 'object') return [];
-                const senderUserId = normalizeNullableText(row.sender_user_id);
-                return senderUserId ? [senderUserId] : [];
-              }),
-            );
-          }
+          const favoriteId = normalizeNullableText(row.favorite_id);
+          const memberId = normalizeNullableText(row.member_id);
+          if (!favoriteId || !memberId) return [];
 
-          if (matchesOutcome.status === 'rejected') {
-            console.error('관심회원 매칭 정보 조회 중 예기치 않은 오류가 발생했습니다.');
-          } else if (matchesOutcome.value.error) {
-            const matchesResult = matchesOutcome.value;
-            console.error('관심회원 매칭 정보 조회 실패:', matchesResult.error.code, matchesResult.error.message);
-          } else if (!Array.isArray(matchesOutcome.value.data)) {
-            console.error('관심회원 매칭 정보 응답 형식이 올바르지 않습니다.');
-          } else {
-            matchesByMemberId = new Map(
-              (matchesOutcome.value.data as MatchRpcRow[]).flatMap((row) => {
-                if (!row || typeof row !== 'object') return [];
-                const otherUserId = normalizeNullableText(row.other_user_id);
-                const matchId = normalizeNullableText(row.match_id);
-                const normalizedStatus = normalizeNullableText(row.match_status);
-                const matchStatus: MatchStatus | null = normalizedStatus === 'active' || normalizedStatus === 'ended'
-                  ? normalizedStatus
-                  : null;
-
-                if (!otherUserId || !matchId || !matchStatus) return [];
-
-                return [[otherUserId, {
-                  matchId,
-                  matchStatus,
-                  matchedAt: normalizeDateText(row.matched_at),
-                }] as const];
-              }),
-            );
-          }
-        }
-
-        const { data: favoriteRows, error: favoriteError } = await supabase
-          .from('favorites')
-          .select('favorite_user_id, created_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (favoriteError) throw favoriteError;
-
-        const normalizedFavoriteRows = (favoriteRows ?? []).flatMap((row) => {
-          const favoriteUserId = normalizeNullableText(row.favorite_user_id);
-          if (!favoriteUserId) return [];
+          const normalizedStatus = normalizeNullableText(row.match_status);
+          const matchStatus: MatchStatus | null = normalizedStatus === 'active' || normalizedStatus === 'ended'
+            ? normalizedStatus
+            : null;
 
           return [{
-            favoriteUserId,
-            favoritedAt: normalizeDateText(row.created_at),
+            id: memberId,
+            favoritedAt: normalizeDateText(row.favorited_at),
+            nickname: normalizeNullableText(row.nickname),
+            age: normalizeAge(row.age),
+            region: normalizeNullableText(row.region),
+            job: normalizeNullableText(row.job),
+            profile_image: resolveProfileImageUrl(normalizeNullableText(row.profile_image_url)),
+            isMutual: row.is_mutual === true,
+            matchId: normalizeNullableText(row.match_id),
+            matchStatus,
+            matchedAt: normalizeDateText(row.matched_at),
           }];
         });
-        const favoriteIds = normalizedFavoriteRows.map((row) => row.favoriteUserId);
-
-        if (favoriteIds.length === 0) {
-          if (isMounted) {
-            setFavorites([]);
-            setIsMutualInfoAvailable(receivedFavoriteIds !== null);
-            setIsMatchInfoAvailable(matchesByMemberId !== null);
-          }
-          return;
-        }
-
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, nickname, gender, birth_date, height, region, job, education, religion, hobby, introduction, profile_image')
-          .in('id', favoriteIds);
-
-        if (profilesError) throw profilesError;
-
-        const profilesById = new Map(
-          ((profiles as FavoriteProfile[]) ?? []).map((profile) => [profile.id, {
-            ...profile,
-            profile_image: resolveProfileImageUrl(profile.profile_image),
-          }]),
-        );
 
         if (isMounted) {
-          setFavorites(normalizedFavoriteRows.flatMap(({ favoriteUserId, favoritedAt }) => {
-            const profile = profilesById.get(favoriteUserId);
-            if (!profile) return [];
-
-            const match = matchesByMemberId?.get(favoriteUserId) ?? null;
-            return [{
-              ...profile,
-              favoritedAt,
-              isMutual: receivedFavoriteIds ? receivedFavoriteIds.has(favoriteUserId) : null,
-              matchId: match?.matchId ?? null,
-              matchStatus: match?.matchStatus ?? null,
-              matchedAt: match?.matchedAt ?? null,
-            }];
-          }));
-          setIsMutualInfoAvailable(receivedFavoriteIds !== null);
-          setIsMatchInfoAvailable(matchesByMemberId !== null);
+          setFavorites(normalizedFavorites);
+          setIsMutualInfoAvailable(true);
+          setIsMatchInfoAvailable(true);
         }
       } catch (err: unknown) {
         const supabaseError = err as { code?: string; message?: string; details?: string; hint?: string };
@@ -344,7 +224,7 @@ export default function FavoritesPage() {
         if (selectedJob && job !== selectedJob) return false;
 
         if (hasAgeCondition) {
-          const age = calculateAge(member.birth_date);
+          const age = member.age;
           if (age === null) return false;
           if (parsedMin !== null && age < parsedMin) return false;
           if (parsedMax !== null && age > parsedMax) return false;
@@ -426,8 +306,8 @@ export default function FavoritesPage() {
         return matchDifference || compareRecentFavorite();
       }
 
-      const leftAge = calculateAge(leftItem.member.birth_date);
-      const rightAge = calculateAge(rightItem.member.birth_date);
+      const leftAge = leftItem.member.age;
+      const rightAge = rightItem.member.age;
 
       if (leftAge === null && rightAge === null) return preserveOriginalOrder();
       if (leftAge === null) return 1;
@@ -746,7 +626,7 @@ export default function FavoritesPage() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {visibleFavorites.map((member) => {
-              const age = calculateAge(member.birth_date);
+              const age = member.age;
               const hasImage = Boolean(member.profile_image) && !failedImageIds.has(member.id);
 
               return (

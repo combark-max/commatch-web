@@ -215,7 +215,7 @@ export default function AdminLoginForm({ initialState }: AdminLoginFormProps) {
           </div>
           <h1 className="mt-6 text-3xl font-black text-gray-900">관리자 로그인</h1>
 
-          <form className="mt-8 space-y-6" onSubmit={handleSubmit} noValidate>
+          <form method="post" className="mt-8 space-y-6" onSubmit={handleSubmit} noValidate>
             <div>
               <label htmlFor="admin-email" className="mb-2 block text-sm font-semibold text-gray-800">이메일</label>
               <div className="relative">

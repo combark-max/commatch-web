@@ -137,7 +137,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <form method="post" className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)} noValidate>
               <div>
                 <label htmlFor="email" className="mb-2 block text-sm font-semibold text-gray-800">이메일</label>
                 <div className="relative">

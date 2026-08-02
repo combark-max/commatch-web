@@ -363,7 +363,7 @@ export default async function AdminReportDetailPage({
                   {MEMBER_ACCOUNT_STATUS_LABELS[restriction.accountStatus]}
                 </span>
               </div>
-              <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+              <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-5">
                 <div>
                   <dt className="font-semibold text-gray-500">저장된 이용 상태</dt>
                   <dd className="mt-1 text-gray-900">{MEMBER_ACCOUNT_STATUS_LABELS[restriction.accountStatus]}</dd>
@@ -381,6 +381,14 @@ export default async function AdminReportDetailPage({
                 <div>
                   <dt className="font-semibold text-gray-500">프로필 노출 상태</dt>
                   <dd className="mt-1 text-gray-900">{MEMBER_PROFILE_VISIBILITY_LABELS[restriction.profileVisibility]}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-gray-500">정지 시작</dt>
+                  <dd className="mt-1 text-gray-900">
+                    {restriction.suspendedAt
+                      ? dateTimeFormatter.format(new Date(restriction.suspendedAt))
+                      : '해당 없음'}
+                  </dd>
                 </div>
                 <div>
                   <dt className="font-semibold text-gray-500">정지 종료</dt>

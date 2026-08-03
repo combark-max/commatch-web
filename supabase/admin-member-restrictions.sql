@@ -496,7 +496,7 @@ comment on function public.lock_member_service_write(uuid)
   is 'commatch_admin_member_restrictions_v1';
 
 -- Preserve the original return type and permission ordering while extending the
--- role matrix with the two member restriction permissions.
+-- role matrix with member restriction and Premium membership permissions.
 create or replace function public.get_my_admin_access()
 returns table (
   is_admin boolean,
@@ -523,7 +523,9 @@ as $function$
           'reports_manage',
           'admin_accounts_manage',
           'member_restrictions_view',
-          'member_restrictions_manage'
+          'member_restrictions_manage',
+          'premium_memberships_view',
+          'premium_memberships_manage'
         ]::text[]
       when admin_account.role = 'admin'
         then array[
@@ -531,14 +533,17 @@ as $function$
           'reports_view',
           'reports_manage',
           'member_restrictions_view',
-          'member_restrictions_manage'
+          'member_restrictions_manage',
+          'premium_memberships_view',
+          'premium_memberships_manage'
         ]::text[]
       when admin_account.role = 'moderator'
         then array[
           'admin_dashboard_view',
           'reports_view',
           'reports_manage',
-          'member_restrictions_view'
+          'member_restrictions_view',
+          'premium_memberships_view'
         ]::text[]
       else array[]::text[]
     end as permissions
@@ -566,7 +571,9 @@ as $function$
         'reports_manage',
         'admin_accounts_manage',
         'member_restrictions_view',
-        'member_restrictions_manage'
+        'member_restrictions_manage',
+        'premium_memberships_view',
+        'premium_memberships_manage'
       )
     then false
     else coalesce(

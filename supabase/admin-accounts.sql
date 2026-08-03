@@ -69,10 +69,30 @@ begin
         where namespace_info.nspname = 'public'
           and function_info.proname = v_function_name
       ) <> 1
-      or pg_catalog.obj_description(
-        pg_catalog.to_regprocedure(v_expected_signature),
-        'pg_proc'
-      ) is distinct from v_install_marker
+      or (
+        v_function_name in ('get_my_admin_access', 'has_admin_permission')
+        and (
+          pg_catalog.obj_description(
+            pg_catalog.to_regprocedure(v_expected_signature),
+            'pg_proc'
+          ) is null
+          or pg_catalog.obj_description(
+            pg_catalog.to_regprocedure(v_expected_signature),
+            'pg_proc'
+          ) not in (
+            v_install_marker,
+            'commatch_admin_member_restrictions_v1',
+            'commatch_admin_premium_memberships_v1'
+          )
+        )
+      )
+      or (
+        v_function_name not in ('get_my_admin_access', 'has_admin_permission')
+        and pg_catalog.obj_description(
+          pg_catalog.to_regprocedure(v_expected_signature),
+          'pg_proc'
+        ) is distinct from v_install_marker
+      )
     ) then
       raise exception 'public.% exists with an unapproved definition or signature', v_function_name;
     end if;
@@ -468,13 +488,29 @@ begin
                 'admin_dashboard_view',
                 'reports_view',
                 'reports_manage',
-                'admin_accounts_manage'
+                'admin_accounts_manage',
+                'member_restrictions_view',
+                'member_restrictions_manage',
+                'premium_memberships_view',
+                'premium_memberships_manage'
               ]::text[]
-            when admin_account.role in ('admin', 'moderator')
+            when admin_account.role = 'admin'
               then array[
                 'admin_dashboard_view',
                 'reports_view',
-                'reports_manage'
+                'reports_manage',
+                'member_restrictions_view',
+                'member_restrictions_manage',
+                'premium_memberships_view',
+                'premium_memberships_manage'
+              ]::text[]
+            when admin_account.role = 'moderator'
+              then array[
+                'admin_dashboard_view',
+                'reports_view',
+                'reports_manage',
+                'member_restrictions_view',
+                'premium_memberships_view'
               ]::text[]
             else array[]::text[]
           end as permissions
@@ -535,7 +571,11 @@ begin
               'admin_dashboard_view',
               'reports_view',
               'reports_manage',
-              'admin_accounts_manage'
+              'admin_accounts_manage',
+              'member_restrictions_view',
+              'member_restrictions_manage',
+              'premium_memberships_view',
+              'premium_memberships_manage'
             )
           then false
           else coalesce(
@@ -603,7 +643,11 @@ begin
       and function_info.provolatile = 's'
       and pg_catalog.pg_get_function_result(function_info.oid)
         = 'TABLE(is_admin boolean, role text, status text, permissions text[])'
-      and pg_catalog.obj_description(function_info.oid, 'pg_proc') = v_install_marker
+      and pg_catalog.obj_description(function_info.oid, 'pg_proc') in (
+        v_install_marker,
+        'commatch_admin_member_restrictions_v1',
+        'commatch_admin_premium_memberships_v1'
+      )
       and exists (
         select 1
         from pg_catalog.unnest(function_info.proconfig) as function_config(setting)
@@ -649,7 +693,11 @@ begin
       and function_info.prorettype = 'pg_catalog.bool'::pg_catalog.regtype
       and function_info.prosecdef
       and function_info.provolatile = 's'
-      and pg_catalog.obj_description(function_info.oid, 'pg_proc') = v_install_marker
+      and pg_catalog.obj_description(function_info.oid, 'pg_proc') in (
+        v_install_marker,
+        'commatch_admin_member_restrictions_v1',
+        'commatch_admin_premium_memberships_v1'
+      )
       and exists (
         select 1
         from pg_catalog.unnest(function_info.proconfig) as function_config(setting)

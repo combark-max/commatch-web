@@ -1,0 +1,289 @@
+export const PREMIUM_MEMBERSHIP_FILTERS = [
+  'all',
+  'none',
+  'active',
+  'suspended',
+  'revoked',
+] as const;
+
+export const PREMIUM_MEMBERSHIP_STATUSES = [
+  'active',
+  'suspended',
+  'revoked',
+] as const;
+
+export const PREMIUM_MEMBERSHIP_SORT_KEYS = [
+  'updated_at',
+  'nickname',
+  'started_at',
+  'expires_at',
+] as const;
+
+export const PREMIUM_MEMBERSHIP_SORT_DIRECTIONS = ['asc', 'desc'] as const;
+
+export const PREMIUM_FEATURE_KEYS = [
+  'likes_received',
+  'advanced_member_search',
+  'expanded_recommendations',
+] as const;
+
+export const MEMBER_ACCOUNT_STATUSES = ['active', 'suspended'] as const;
+export const MEMBER_PROFILE_VISIBILITIES = ['visible', 'hidden'] as const;
+
+export type PremiumMembershipFilter = (typeof PREMIUM_MEMBERSHIP_FILTERS)[number];
+export type PremiumMembershipStatus = (typeof PREMIUM_MEMBERSHIP_STATUSES)[number];
+export type PremiumMembershipSortKey = (typeof PREMIUM_MEMBERSHIP_SORT_KEYS)[number];
+export type PremiumMembershipSortDirection = (typeof PREMIUM_MEMBERSHIP_SORT_DIRECTIONS)[number];
+export type PremiumFeatureKey = (typeof PREMIUM_FEATURE_KEYS)[number];
+export type MemberAccountStatus = (typeof MEMBER_ACCOUNT_STATUSES)[number];
+export type MemberProfileVisibility = (typeof MEMBER_PROFILE_VISIBILITIES)[number];
+
+export type AdminPremiumMembershipListItem = {
+  memberUserId: string;
+  profileExists: boolean;
+  nickname: string | null;
+  membershipExists: boolean;
+  membershipId: string | null;
+  storedStatus: PremiumMembershipStatus | null;
+  isAvailable: boolean;
+  isNotStarted: boolean;
+  isExpired: boolean;
+  startedAt: string | null;
+  expiresAt: string | null;
+  featureKeys: PremiumFeatureKey[];
+  membershipUpdatedAt: string | null;
+  accountStatus: MemberAccountStatus;
+  profileVisibility: MemberProfileVisibility;
+  totalCount: number;
+};
+
+export type PremiumPeriodState =
+  | 'none'
+  | 'not_started'
+  | 'expired'
+  | 'suspended'
+  | 'revoked'
+  | 'available'
+  | 'unavailable';
+
+export const PREMIUM_FEATURE_LABELS: Record<PremiumFeatureKey, string> = {
+  likes_received: '받은 관심 회원',
+  advanced_member_search: '고급 회원 검색',
+  expanded_recommendations: '추천 인원 확대',
+};
+
+export const PREMIUM_STATUS_LABELS: Record<PremiumMembershipStatus | 'none', string> = {
+  active: '활성',
+  suspended: '정지',
+  revoked: '회수',
+  none: '미보유',
+};
+
+export const PREMIUM_PERIOD_STATE_LABELS: Record<PremiumPeriodState, string> = {
+  none: 'Premium 미보유',
+  not_started: '시작 전',
+  expired: '만료',
+  suspended: '저장 상태 정지',
+  revoked: '저장 상태 회수',
+  available: '이용 가능',
+  unavailable: '이용 불가',
+};
+
+export const MEMBER_ACCOUNT_STATUS_LABELS: Record<MemberAccountStatus, string> = {
+  active: '정상',
+  suspended: '정지',
+};
+
+export const MEMBER_PROFILE_VISIBILITY_LABELS: Record<MemberProfileVisibility, string> = {
+  visible: '노출',
+  hidden: '숨김',
+};
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  typeof value === 'object' && value !== null
+);
+
+const isUuid = (value: unknown): value is string => (
+  typeof value === 'string' && UUID_PATTERN.test(value)
+);
+
+const isNullableUuid = (value: unknown): value is string | null => (
+  value === null || isUuid(value)
+);
+
+const isNullableString = (value: unknown): value is string | null => (
+  value === null || typeof value === 'string'
+);
+
+const isDateString = (value: unknown): value is string => (
+  typeof value === 'string' && !Number.isNaN(Date.parse(value))
+);
+
+const isNullableDateString = (value: unknown): value is string | null => (
+  value === null || isDateString(value)
+);
+
+const parseCount = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return value;
+  if (typeof value === 'string' && /^(0|[1-9]\d*)$/.test(value)) {
+    const count = Number(value);
+    return Number.isSafeInteger(count) ? count : null;
+  }
+  return null;
+};
+
+export const isPremiumMembershipFilter = (
+  value: unknown,
+): value is PremiumMembershipFilter => (
+  typeof value === 'string'
+  && PREMIUM_MEMBERSHIP_FILTERS.includes(value as PremiumMembershipFilter)
+);
+
+export const isPremiumMembershipStatus = (
+  value: unknown,
+): value is PremiumMembershipStatus => (
+  typeof value === 'string'
+  && PREMIUM_MEMBERSHIP_STATUSES.includes(value as PremiumMembershipStatus)
+);
+
+export const isPremiumMembershipSortKey = (
+  value: unknown,
+): value is PremiumMembershipSortKey => (
+  typeof value === 'string'
+  && PREMIUM_MEMBERSHIP_SORT_KEYS.includes(value as PremiumMembershipSortKey)
+);
+
+export const isPremiumMembershipSortDirection = (
+  value: unknown,
+): value is PremiumMembershipSortDirection => (
+  typeof value === 'string'
+  && PREMIUM_MEMBERSHIP_SORT_DIRECTIONS.includes(value as PremiumMembershipSortDirection)
+);
+
+const isPremiumFeatureKey = (value: unknown): value is PremiumFeatureKey => (
+  typeof value === 'string'
+  && PREMIUM_FEATURE_KEYS.includes(value as PremiumFeatureKey)
+);
+
+const isMemberAccountStatus = (value: unknown): value is MemberAccountStatus => (
+  typeof value === 'string'
+  && MEMBER_ACCOUNT_STATUSES.includes(value as MemberAccountStatus)
+);
+
+const isMemberProfileVisibility = (
+  value: unknown,
+): value is MemberProfileVisibility => (
+  typeof value === 'string'
+  && MEMBER_PROFILE_VISIBILITIES.includes(value as MemberProfileVisibility)
+);
+
+const parseFeatureKeys = (value: unknown): PremiumFeatureKey[] | null => {
+  if (!Array.isArray(value)) return null;
+  const featureKeys: PremiumFeatureKey[] = [];
+  for (const featureKey of value) {
+    if (!isPremiumFeatureKey(featureKey)) return null;
+    featureKeys.push(featureKey);
+  }
+  return new Set(featureKeys).size === featureKeys.length ? featureKeys : null;
+};
+
+export const parseAdminPremiumMembershipList = (
+  value: unknown,
+): AdminPremiumMembershipListItem[] | null => {
+  if (!Array.isArray(value)) return null;
+  const memberships: AdminPremiumMembershipListItem[] = [];
+
+  for (const entry of value) {
+    if (!isRecord(entry)) return null;
+    const totalCount = parseCount(entry.total_count);
+    const featureKeys = parseFeatureKeys(entry.feature_keys);
+    if (
+      !isUuid(entry.member_user_id)
+      || typeof entry.profile_exists !== 'boolean'
+      || !isNullableString(entry.nickname)
+      || typeof entry.membership_exists !== 'boolean'
+      || !isNullableUuid(entry.membership_id)
+      || !(entry.stored_status === null || isPremiumMembershipStatus(entry.stored_status))
+      || typeof entry.is_available !== 'boolean'
+      || typeof entry.is_not_started !== 'boolean'
+      || typeof entry.is_expired !== 'boolean'
+      || !isNullableDateString(entry.started_at)
+      || !isNullableDateString(entry.expires_at)
+      || featureKeys === null
+      || !isNullableDateString(entry.membership_updated_at)
+      || !isMemberAccountStatus(entry.account_status)
+      || !isMemberProfileVisibility(entry.profile_visibility)
+      || totalCount === null
+    ) return null;
+
+    if (
+      entry.membership_exists
+        ? !isUuid(entry.membership_id)
+          || !isPremiumMembershipStatus(entry.stored_status)
+          || !isDateString(entry.started_at)
+          || featureKeys.length < 1
+          || featureKeys.length > 3
+          || !isDateString(entry.membership_updated_at)
+        : entry.membership_id !== null
+          || entry.stored_status !== null
+          || entry.started_at !== null
+          || entry.expires_at !== null
+          || featureKeys.length !== 0
+          || entry.membership_updated_at !== null
+          || entry.is_available
+          || entry.is_not_started
+          || entry.is_expired
+    ) return null;
+
+    memberships.push({
+      memberUserId: entry.member_user_id,
+      profileExists: entry.profile_exists,
+      nickname: entry.nickname,
+      membershipExists: entry.membership_exists,
+      membershipId: entry.membership_id,
+      storedStatus: entry.stored_status,
+      isAvailable: entry.is_available,
+      isNotStarted: entry.is_not_started,
+      isExpired: entry.is_expired,
+      startedAt: entry.started_at,
+      expiresAt: entry.expires_at,
+      featureKeys,
+      membershipUpdatedAt: entry.membership_updated_at,
+      accountStatus: entry.account_status,
+      profileVisibility: entry.profile_visibility,
+      totalCount,
+    });
+  }
+
+  return memberships;
+};
+
+export const getPremiumPeriodState = (
+  membership: AdminPremiumMembershipListItem,
+): PremiumPeriodState => {
+  if (!membership.membershipExists) return 'none';
+  if (membership.isNotStarted) return 'not_started';
+  if (membership.isExpired) return 'expired';
+  if (membership.storedStatus === 'suspended') return 'suspended';
+  if (membership.storedStatus === 'revoked') return 'revoked';
+  return membership.isAvailable ? 'available' : 'unavailable';
+};
+
+export const getPremiumStatusClassName = (
+  status: PremiumMembershipStatus | 'none',
+): string => {
+  if (status === 'active') return 'bg-green-100 text-green-800';
+  if (status === 'suspended') return 'bg-amber-100 text-amber-800';
+  if (status === 'revoked') return 'bg-red-100 text-red-700';
+  return 'bg-gray-100 text-gray-600';
+};
+
+export const getPremiumPeriodStateClassName = (state: PremiumPeriodState): string => {
+  if (state === 'available') return 'bg-green-100 text-green-800';
+  if (state === 'not_started') return 'bg-blue-100 text-blue-800';
+  if (state === 'expired' || state === 'revoked') return 'bg-gray-200 text-gray-700';
+  if (state === 'suspended') return 'bg-amber-100 text-amber-800';
+  return 'bg-gray-100 text-gray-600';
+};

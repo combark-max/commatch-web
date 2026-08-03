@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3,
+  Crown,
   FileWarning,
   LayoutDashboard,
   UserCog,
@@ -12,6 +13,7 @@ import {
 
 type AdminNavigationProps = {
   canViewReports: boolean;
+  canViewPremium: boolean;
   canManageAdmins: boolean;
 };
 
@@ -20,6 +22,7 @@ const defaultClassName = 'text-gray-600 hover:bg-gray-100 hover:text-gray-900';
 
 export default function AdminNavigation({
   canViewReports,
+  canViewPremium,
   canManageAdmins,
 }: AdminNavigationProps) {
   const pathname = usePathname();
@@ -42,6 +45,16 @@ export default function AdminNavigation({
           >
             <FileWarning size={17} aria-hidden="true" />
             신고 관리
+          </Link>
+        ) : null}
+
+        {canViewPremium ? (
+          <Link
+            href="/admin/premium"
+            className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/premium') ? activeClassName : defaultClassName}`}
+          >
+            <Crown size={17} aria-hidden="true" />
+            Premium 관리
           </Link>
         ) : null}
 

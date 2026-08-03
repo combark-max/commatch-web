@@ -13,6 +13,7 @@ export default async function ProtectedAdminLayout({
     <AdminShell
       roleLabel={getAdminRoleLabel(adminAccess.role)}
       canViewReports={adminAccess.permissions.includes('reports_view')}
+      canViewPremium={adminAccess.permissions.includes('premium_memberships_view')}
       canManageAdmins={adminAccess.permissions.includes('admin_accounts_manage')}
     >
       {children}

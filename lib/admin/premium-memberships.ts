@@ -104,6 +104,30 @@ export type AdminPremiumMembershipDetail = {
   recentActions: AdminPremiumMembershipAction[];
 };
 
+export type PremiumMembershipUpdateResult = {
+  isSuccess: true;
+  isNoop: boolean;
+  isDuplicateRequest: boolean;
+  membershipId: string;
+  subjectUserId: string;
+  storedStatus: PremiumMembershipStatus;
+  isAvailable: boolean;
+  startedAt: string;
+  expiresAt: string | null;
+  featureKeys: PremiumFeatureKey[];
+  membershipUpdatedAt: string;
+  actionId: string | null;
+  actionType: PremiumMembershipActionType | null;
+};
+
+export type PremiumMembershipUpdateActionState = {
+  kind: 'idle' | 'success' | 'error';
+  message: string;
+  requestId?: string;
+  resultType?: 'changed' | 'noop' | 'duplicate';
+  requestIdConflict?: boolean;
+};
+
 export type PremiumPeriodState =
   | 'none'
   | 'not_started'
@@ -156,6 +180,7 @@ export const MEMBER_PROFILE_VISIBILITY_LABELS: Record<MemberProfileVisibility, s
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const TIMESTAMPTZ_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null
@@ -175,6 +200,12 @@ const isNullableString = (value: unknown): value is string | null => (
 
 const isDateString = (value: unknown): value is string => (
   typeof value === 'string' && !Number.isNaN(Date.parse(value))
+);
+
+export const isTimestamptzString = (value: unknown): value is string => (
+  typeof value === 'string'
+  && TIMESTAMPTZ_PATTERN.test(value)
+  && !Number.isNaN(Date.parse(value))
 );
 
 const isNullableDateString = (value: unknown): value is string | null => (
@@ -218,7 +249,7 @@ export const isPremiumMembershipSortDirection = (
   && PREMIUM_MEMBERSHIP_SORT_DIRECTIONS.includes(value as PremiumMembershipSortDirection)
 );
 
-const isPremiumFeatureKey = (value: unknown): value is PremiumFeatureKey => (
+export const isPremiumFeatureKey = (value: unknown): value is PremiumFeatureKey => (
   typeof value === 'string'
   && PREMIUM_FEATURE_KEYS.includes(value as PremiumFeatureKey)
 );
@@ -250,6 +281,67 @@ const parseFeatureKeys = (value: unknown): PremiumFeatureKey[] | null => {
     featureKeys.push(featureKey);
   }
   return new Set(featureKeys).size === featureKeys.length ? featureKeys : null;
+};
+
+export const parsePremiumMembershipUpdateResult = (
+  value: unknown,
+  expectedSubjectUserId: string,
+): PremiumMembershipUpdateResult | null => {
+  if (
+    !isUuid(expectedSubjectUserId)
+    || !Array.isArray(value)
+    || value.length !== 1
+    || !isRecord(value[0])
+  ) return null;
+
+  const entry = value[0];
+  const featureKeys = parseFeatureKeys(entry.feature_keys);
+  const actionId = entry.action_id === null
+    ? null
+    : isUuid(entry.action_id) ? entry.action_id : undefined;
+  const actionType = entry.action_type === null
+    ? null
+    : isPremiumMembershipActionType(entry.action_type) ? entry.action_type : undefined;
+  if (
+    entry.is_success !== true
+    || typeof entry.is_noop !== 'boolean'
+    || typeof entry.is_duplicate_request !== 'boolean'
+    || !isUuid(entry.membership_id)
+    || !isUuid(entry.subject_user_id)
+    || entry.subject_user_id.toLowerCase() !== expectedSubjectUserId.toLowerCase()
+    || !isPremiumMembershipStatus(entry.stored_status)
+    || typeof entry.is_available !== 'boolean'
+    || !isTimestamptzString(entry.started_at)
+    || !(entry.expires_at === null || isTimestamptzString(entry.expires_at))
+    || featureKeys === null
+    || featureKeys.length < 1
+    || featureKeys.length > 3
+    || !isTimestamptzString(entry.membership_updated_at)
+    || actionId === undefined
+    || actionType === undefined
+  ) return null;
+
+  if (
+    entry.is_noop
+      ? actionId !== null || actionType !== null
+      : actionId === null || actionType === null
+  ) return null;
+
+  return {
+    isSuccess: true,
+    isNoop: entry.is_noop,
+    isDuplicateRequest: entry.is_duplicate_request,
+    membershipId: entry.membership_id,
+    subjectUserId: entry.subject_user_id,
+    storedStatus: entry.stored_status,
+    isAvailable: entry.is_available,
+    startedAt: entry.started_at,
+    expiresAt: entry.expires_at,
+    featureKeys,
+    membershipUpdatedAt: entry.membership_updated_at,
+    actionId,
+    actionType,
+  };
 };
 
 const parsePremiumMembershipActions = (
@@ -456,6 +548,52 @@ export const parseAdminPremiumMembershipList = (
   }
 
   return memberships;
+};
+
+const SEOUL_OFFSET_MILLISECONDS = 9 * 60 * 60 * 1000;
+const DATE_TIME_LOCAL_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+
+const formatDateTimeLocalFromUtcParts = (date: Date): string => {
+  const year = String(date.getUTCFullYear()).padStart(4, '0');
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const hour = String(date.getUTCHours()).padStart(2, '0');
+  const minute = String(date.getUTCMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+};
+
+export const parseSeoulDateTimeLocal = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const match = DATE_TIME_LOCAL_PATTERN.exec(value);
+  if (!match) return null;
+
+  const [, yearValue, monthValue, dayValue, hourValue, minuteValue] = match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+  if (
+    year < 1000
+    || month < 1
+    || month > 12
+    || day < 1
+    || day > 31
+    || hour > 23
+    || minute > 59
+  ) return null;
+
+  const timestamp = Date.UTC(year, month - 1, day, hour, minute)
+    - SEOUL_OFFSET_MILLISECONDS;
+  const seoulDate = new Date(timestamp + SEOUL_OFFSET_MILLISECONDS);
+  if (formatDateTimeLocalFromUtcParts(seoulDate) !== value) return null;
+  return new Date(timestamp).toISOString();
+};
+
+export const toSeoulDateTimeLocal = (value: string | null): string => {
+  if (!isDateString(value)) return '';
+  const timestamp = Date.parse(value);
+  return formatDateTimeLocalFromUtcParts(new Date(timestamp + SEOUL_OFFSET_MILLISECONDS));
 };
 
 export const getPremiumPeriodState = (

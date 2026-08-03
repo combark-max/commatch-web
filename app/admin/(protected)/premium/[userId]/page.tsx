@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, Crown, History, UserRound } from 'lucide-react';
+import AdminPremiumMembershipForm from '@/components/admin/AdminPremiumMembershipForm';
 import { requireAdminAccess } from '@/lib/admin/access';
 import {
   getPremiumPeriodState,
@@ -147,7 +148,7 @@ export default async function AdminPremiumMembershipDetailPage({
 }: {
   params: Promise<{ userId: string }>;
 }) {
-  await requireAdminAccess('premium_memberships_view');
+  const adminAccess = await requireAdminAccess('premium_memberships_view');
   const { userId } = await params;
 
   if (!isUuid(userId)) return <ErrorPanel error="invalid_uuid" />;
@@ -177,6 +178,7 @@ export default async function AdminPremiumMembershipDetailPage({
 
   const storedStatus = membership.storedStatus ?? 'none';
   const periodState = getPremiumPeriodState(membership);
+  const canManage = adminAccess.permissions.includes('premium_memberships_manage');
 
   return (
     <div className="space-y-6">
@@ -191,9 +193,6 @@ export default async function AdminPremiumMembershipDetailPage({
             <h1 className="text-3xl font-black text-gray-900">Premium 상세</h1>
             <p className="mt-2 max-w-3xl text-gray-600">
               회원의 Premium 저장 상태, 기간, 기능 권한과 변경 이력을 조회하는 화면입니다.
-            </p>
-            <p className="mt-2 text-sm font-semibold text-gray-500">
-              Premium 수동 부여와 변경 기능은 다음 단계에서 제공됩니다.
             </p>
           </div>
         </div>
@@ -248,8 +247,26 @@ export default async function AdminPremiumMembershipDetailPage({
         <ActionHistory actions={membership.recentActions} />
       </section>
 
-      <section className="rounded-3xl border border-dashed border-gray-200 bg-white px-6 py-5 text-sm font-semibold text-gray-500">
-        Premium 수동 부여와 변경 기능은 다음 단계에서 제공됩니다.
+      <section aria-labelledby="premium-membership-management" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+        <h2 id="premium-membership-management" className="text-xl font-black text-gray-900">Premium 수동 관리</h2>
+        <p className="mt-2 text-sm text-gray-500">변경 내용은 관리자 사유와 함께 Premium 변경 이력에 기록됩니다.</p>
+        <div className="mt-5">
+          {canManage ? (
+            <AdminPremiumMembershipForm
+              subjectUserId={membership.subjectUserId}
+              membershipExists={membership.membershipExists}
+              storedStatus={membership.storedStatus}
+              startedAt={membership.startedAt}
+              expiresAt={membership.expiresAt}
+              featureKeys={membership.featureKeys}
+              membershipUpdatedAt={membership.membershipUpdatedAt}
+            />
+          ) : (
+            <p className="rounded-2xl bg-amber-50 px-5 py-4 text-sm font-semibold text-amber-800">
+              Premium 정보를 조회할 수 있지만 변경 권한은 없습니다.
+            </p>
+          )}
+        </div>
       </section>
     </div>
   );

@@ -335,7 +335,7 @@ export default async function AdminReportDetailPage({
           <h2 id="member-restriction-management" className="text-xl font-black text-gray-900">회원 제재 관리</h2>
         </div>
         <p className="mt-2 text-sm text-gray-500">
-          회원 이용 정지와 프로필 숨김의 일반 서비스 적용은 다음 단계에서 연결됩니다.
+          회원 정지는 일반 회원용 주요 서비스 접근과 DB·프로필 이미지 쓰기를 제한하며, 정지 해제 시 다시 이용할 수 있습니다. 프로필 숨김은 계정을 삭제하지 않고 검색·추천 등 다른 회원에게 노출되는 영역에서 해당 프로필을 제외합니다.
         </p>
 
         {!canViewRestrictions ? (

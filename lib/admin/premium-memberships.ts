@@ -27,6 +27,15 @@ export const PREMIUM_FEATURE_KEYS = [
   'expanded_recommendations',
 ] as const;
 
+export const PREMIUM_MEMBERSHIP_ACTION_TYPES = [
+  'granted',
+  'updated',
+  'suspended',
+  'reactivated',
+  'revoked',
+  'regranted',
+] as const;
+
 export const MEMBER_ACCOUNT_STATUSES = ['active', 'suspended'] as const;
 export const MEMBER_PROFILE_VISIBILITIES = ['visible', 'hidden'] as const;
 
@@ -35,6 +44,7 @@ export type PremiumMembershipStatus = (typeof PREMIUM_MEMBERSHIP_STATUSES)[numbe
 export type PremiumMembershipSortKey = (typeof PREMIUM_MEMBERSHIP_SORT_KEYS)[number];
 export type PremiumMembershipSortDirection = (typeof PREMIUM_MEMBERSHIP_SORT_DIRECTIONS)[number];
 export type PremiumFeatureKey = (typeof PREMIUM_FEATURE_KEYS)[number];
+export type PremiumMembershipActionType = (typeof PREMIUM_MEMBERSHIP_ACTION_TYPES)[number];
 export type MemberAccountStatus = (typeof MEMBER_ACCOUNT_STATUSES)[number];
 export type MemberProfileVisibility = (typeof MEMBER_PROFILE_VISIBILITIES)[number];
 
@@ -57,6 +67,43 @@ export type AdminPremiumMembershipListItem = {
   totalCount: number;
 };
 
+export type AdminPremiumMembershipAction = {
+  actionId: string;
+  requestId: string;
+  actionType: PremiumMembershipActionType;
+  previousStatus: PremiumMembershipStatus | null;
+  newStatus: PremiumMembershipStatus;
+  previousStartedAt: string | null;
+  newStartedAt: string;
+  previousExpiresAt: string | null;
+  newExpiresAt: string | null;
+  previousFeatureKeys: PremiumFeatureKey[] | null;
+  newFeatureKeys: PremiumFeatureKey[];
+  reason: string;
+  performedBy: string;
+  membershipUpdatedAt: string;
+  createdAt: string;
+};
+
+export type AdminPremiumMembershipDetail = {
+  subjectUserId: string;
+  profileExists: boolean;
+  nickname: string | null;
+  membershipExists: boolean;
+  membershipId: string | null;
+  storedStatus: PremiumMembershipStatus | null;
+  isAvailable: boolean;
+  isNotStarted: boolean;
+  isExpired: boolean;
+  startedAt: string | null;
+  expiresAt: string | null;
+  featureKeys: PremiumFeatureKey[];
+  membershipUpdatedAt: string | null;
+  accountStatus: MemberAccountStatus;
+  profileVisibility: MemberProfileVisibility;
+  recentActions: AdminPremiumMembershipAction[];
+};
+
 export type PremiumPeriodState =
   | 'none'
   | 'not_started'
@@ -70,6 +117,15 @@ export const PREMIUM_FEATURE_LABELS: Record<PremiumFeatureKey, string> = {
   likes_received: '받은 관심 회원',
   advanced_member_search: '고급 회원 검색',
   expanded_recommendations: '추천 인원 확대',
+};
+
+export const PREMIUM_MEMBERSHIP_ACTION_LABELS: Record<PremiumMembershipActionType, string> = {
+  granted: '신규 부여',
+  updated: '정보 변경',
+  suspended: 'Premium 정지',
+  reactivated: '재활성화',
+  revoked: '회수',
+  regranted: '재부여',
 };
 
 export const PREMIUM_STATUS_LABELS: Record<PremiumMembershipStatus | 'none', string> = {
@@ -105,7 +161,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null
 );
 
-const isUuid = (value: unknown): value is string => (
+export const isUuid = (value: unknown): value is string => (
   typeof value === 'string' && UUID_PATTERN.test(value)
 );
 
@@ -167,6 +223,13 @@ const isPremiumFeatureKey = (value: unknown): value is PremiumFeatureKey => (
   && PREMIUM_FEATURE_KEYS.includes(value as PremiumFeatureKey)
 );
 
+const isPremiumMembershipActionType = (
+  value: unknown,
+): value is PremiumMembershipActionType => (
+  typeof value === 'string'
+  && PREMIUM_MEMBERSHIP_ACTION_TYPES.includes(value as PremiumMembershipActionType)
+);
+
 const isMemberAccountStatus = (value: unknown): value is MemberAccountStatus => (
   typeof value === 'string'
   && MEMBER_ACCOUNT_STATUSES.includes(value as MemberAccountStatus)
@@ -187,6 +250,141 @@ const parseFeatureKeys = (value: unknown): PremiumFeatureKey[] | null => {
     featureKeys.push(featureKey);
   }
   return new Set(featureKeys).size === featureKeys.length ? featureKeys : null;
+};
+
+const parsePremiumMembershipActions = (
+  value: unknown,
+): AdminPremiumMembershipAction[] | null => {
+  if (!Array.isArray(value)) return null;
+  const actions: AdminPremiumMembershipAction[] = [];
+
+  for (const entry of value) {
+    if (!isRecord(entry)) return null;
+    const previousFeatureKeys = entry.previous_feature_keys === null
+      ? null
+      : parseFeatureKeys(entry.previous_feature_keys);
+    const newFeatureKeys = parseFeatureKeys(entry.new_feature_keys);
+    if (
+      !isUuid(entry.id)
+      || !isUuid(entry.request_id)
+      || !isPremiumMembershipActionType(entry.action_type)
+      || !(entry.previous_status === null || isPremiumMembershipStatus(entry.previous_status))
+      || !isPremiumMembershipStatus(entry.new_status)
+      || !isNullableDateString(entry.previous_started_at)
+      || !isDateString(entry.new_started_at)
+      || !isNullableDateString(entry.previous_expires_at)
+      || !isNullableDateString(entry.new_expires_at)
+      || previousFeatureKeys === null && entry.previous_feature_keys !== null
+      || newFeatureKeys === null
+      || newFeatureKeys.length < 1
+      || newFeatureKeys.length > 3
+      || typeof entry.reason !== 'string'
+      || entry.reason.trim() !== entry.reason
+      || entry.reason.length < 1
+      || entry.reason.length > 500
+      || !isUuid(entry.performed_by)
+      || !isDateString(entry.membership_updated_at)
+      || !isDateString(entry.created_at)
+    ) return null;
+
+    if (
+      entry.action_type === 'granted'
+        ? entry.previous_status !== null
+          || entry.previous_started_at !== null
+          || entry.previous_expires_at !== null
+          || previousFeatureKeys !== null
+        : !isPremiumMembershipStatus(entry.previous_status)
+          || !isDateString(entry.previous_started_at)
+          || previousFeatureKeys === null
+          || previousFeatureKeys.length < 1
+          || previousFeatureKeys.length > 3
+    ) return null;
+
+    actions.push({
+      actionId: entry.id,
+      requestId: entry.request_id,
+      actionType: entry.action_type,
+      previousStatus: entry.previous_status,
+      newStatus: entry.new_status,
+      previousStartedAt: entry.previous_started_at,
+      newStartedAt: entry.new_started_at,
+      previousExpiresAt: entry.previous_expires_at,
+      newExpiresAt: entry.new_expires_at,
+      previousFeatureKeys,
+      newFeatureKeys,
+      reason: entry.reason,
+      performedBy: entry.performed_by,
+      membershipUpdatedAt: entry.membership_updated_at,
+      createdAt: entry.created_at,
+    });
+  }
+
+  return actions;
+};
+
+export const parseAdminPremiumMembershipDetail = (
+  value: unknown,
+): AdminPremiumMembershipDetail | null => {
+  if (!Array.isArray(value) || value.length !== 1 || !isRecord(value[0])) return null;
+  const entry = value[0];
+  const featureKeys = parseFeatureKeys(entry.feature_keys);
+  const recentActions = parsePremiumMembershipActions(entry.recent_actions);
+  if (
+    !isUuid(entry.subject_user_id)
+    || typeof entry.profile_exists !== 'boolean'
+    || !isNullableString(entry.nickname)
+    || typeof entry.membership_exists !== 'boolean'
+    || !isNullableUuid(entry.membership_id)
+    || !(entry.stored_status === null || isPremiumMembershipStatus(entry.stored_status))
+    || typeof entry.is_available !== 'boolean'
+    || typeof entry.is_not_started !== 'boolean'
+    || typeof entry.is_expired !== 'boolean'
+    || !isNullableDateString(entry.started_at)
+    || !isNullableDateString(entry.expires_at)
+    || featureKeys === null
+    || !isNullableDateString(entry.membership_updated_at)
+    || !isMemberAccountStatus(entry.account_status)
+    || !isMemberProfileVisibility(entry.profile_visibility)
+    || recentActions === null
+  ) return null;
+
+  if (
+    entry.membership_exists
+      ? !isUuid(entry.membership_id)
+        || !isPremiumMembershipStatus(entry.stored_status)
+        || !isDateString(entry.started_at)
+        || featureKeys.length < 1
+        || featureKeys.length > 3
+        || !isDateString(entry.membership_updated_at)
+      : entry.membership_id !== null
+        || entry.stored_status !== null
+        || entry.started_at !== null
+        || entry.expires_at !== null
+        || featureKeys.length !== 0
+        || entry.membership_updated_at !== null
+        || entry.is_available
+        || entry.is_not_started
+        || entry.is_expired
+  ) return null;
+
+  return {
+    subjectUserId: entry.subject_user_id,
+    profileExists: entry.profile_exists,
+    nickname: entry.nickname,
+    membershipExists: entry.membership_exists,
+    membershipId: entry.membership_id,
+    storedStatus: entry.stored_status,
+    isAvailable: entry.is_available,
+    isNotStarted: entry.is_not_started,
+    isExpired: entry.is_expired,
+    startedAt: entry.started_at,
+    expiresAt: entry.expires_at,
+    featureKeys,
+    membershipUpdatedAt: entry.membership_updated_at,
+    accountStatus: entry.account_status,
+    profileVisibility: entry.profile_visibility,
+    recentActions,
+  };
 };
 
 export const parseAdminPremiumMembershipList = (
@@ -261,7 +459,10 @@ export const parseAdminPremiumMembershipList = (
 };
 
 export const getPremiumPeriodState = (
-  membership: AdminPremiumMembershipListItem,
+  membership: Pick<
+    AdminPremiumMembershipListItem,
+    'membershipExists' | 'isNotStarted' | 'isExpired' | 'storedStatus' | 'isAvailable'
+  >,
 ): PremiumPeriodState => {
   if (!membership.membershipExists) return 'none';
   if (membership.isNotStarted) return 'not_started';

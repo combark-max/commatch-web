@@ -230,7 +230,12 @@ export default async function AdminPremiumMembershipsPage({
                   return (
                     <tr key={membership.memberUserId} className="hover:bg-gray-50/70">
                       <td className="px-5 py-4">
-                        <p className="font-bold text-gray-900">{membership.nickname ?? '닉네임 정보 없음'}</p>
+                        <Link
+                          href={`/admin/premium/${membership.memberUserId}`}
+                          className="font-bold text-gray-900 underline-offset-4 hover:text-green-700 hover:underline"
+                        >
+                          {membership.nickname ?? '닉네임 정보 없음'}
+                        </Link>
                         <p className="mt-1 break-all text-xs text-gray-500">{membership.memberUserId}</p>
                         {!membership.profileExists ? <p className="mt-1 text-xs font-semibold text-amber-700">프로필 없음</p> : null}
                       </td>
@@ -291,7 +296,7 @@ export default async function AdminPremiumMembershipsPage({
       ) : null}
 
       <section className="rounded-3xl border border-dashed border-gray-200 bg-white px-6 py-5 text-sm font-semibold text-gray-500">
-        Premium 상세 조회와 수동 변경 기능은 준비 중이며 다음 단계에서 제공됩니다.
+        Premium 수동 부여와 변경 기능은 다음 단계에서 제공됩니다.
       </section>
     </div>
   );

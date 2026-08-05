@@ -62,7 +62,10 @@ begin
       and v_function.identity_arguments <> 'p_report_id uuid'
     ) or (
       v_function.proname = 'update_admin_report_status'
-      and v_function.identity_arguments <> 'p_report_id uuid, p_new_status text, p_note text'
+      and v_function.identity_arguments not in (
+        'p_report_id uuid, p_new_status text, p_note text',
+        'p_report_id uuid, p_expected_status text, p_new_status text, p_note text'
+      )
     ) then
       raise exception 'public.% already exists with an incompatible signature', v_function.proname;
     end if;
@@ -476,8 +479,11 @@ $function$;
 comment on function public.get_admin_report_actions(uuid)
   is 'commatch_admin_report_management_v1';
 
+drop function if exists public.update_admin_report_status(uuid, text, text);
+
 create or replace function public.update_admin_report_status(
   p_report_id uuid,
+  p_expected_status text,
   p_new_status text,
   p_note text default null
 )
@@ -496,6 +502,7 @@ as $function$
 declare
   v_admin_user_id uuid := auth.uid();
   v_previous_status text;
+  v_expected_status text := nullif(pg_catalog.btrim(p_expected_status), '');
   v_new_status text := nullif(pg_catalog.btrim(p_new_status), '');
   v_note text := nullif(pg_catalog.btrim(p_note), '');
   v_changed_at timestamptz := pg_catalog.now();
@@ -509,6 +516,10 @@ begin
   if p_report_id is null then
     raise exception using errcode = '22023', message = 'Report ID is required';
   end if;
+  if v_expected_status is null
+     or v_expected_status not in ('pending', 'reviewing', 'resolved', 'dismissed') then
+    raise exception using errcode = '22023', message = 'Invalid expected report status';
+  end if;
   if v_note is not null and pg_catalog.char_length(v_note) > 2000 then
     raise exception using errcode = '22023', message = 'Admin note must be 2000 characters or fewer';
   end if;
@@ -521,6 +532,9 @@ begin
 
   if not found then
     raise exception using errcode = 'P0002', message = 'Report not found';
+  end if;
+  if v_previous_status is distinct from v_expected_status then
+    raise exception using errcode = 'P0001', message = 'REPORT_STALE_STATUS';
   end if;
   if v_new_status is null or v_new_status not in ('pending', 'reviewing', 'resolved', 'dismissed') then
     raise exception using errcode = '22023', message = 'Invalid report status';
@@ -561,8 +575,10 @@ begin
 end
 $function$;
 
-comment on function public.update_admin_report_status(uuid, text, text)
+comment on function public.update_admin_report_status(uuid, text, text, text)
   is 'commatch_admin_report_management_v1';
+
+alter function public.update_admin_report_status(uuid, text, text, text) owner to postgres;
 
 alter table public.report_admin_actions enable row level security;
 
@@ -595,7 +611,7 @@ revoke all on function public.get_admin_report_detail(uuid)
   from public, anon, authenticated, service_role;
 revoke all on function public.get_admin_report_actions(uuid)
   from public, anon, authenticated, service_role;
-revoke all on function public.update_admin_report_status(uuid, text, text)
+revoke all on function public.update_admin_report_status(uuid, text, text, text)
   from public, anon, authenticated, service_role;
 
 grant execute on function public.get_admin_reports(text, text, integer, integer)
@@ -604,7 +620,7 @@ grant execute on function public.get_admin_report_detail(uuid)
   to authenticated, service_role;
 grant execute on function public.get_admin_report_actions(uuid)
   to authenticated, service_role;
-grant execute on function public.update_admin_report_status(uuid, text, text)
+grant execute on function public.update_admin_report_status(uuid, text, text, text)
   to authenticated, service_role;
 
 do $table_privilege_validation$

@@ -39,10 +39,14 @@ export async function updateAdminReportStatusAction(
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.rpc('update_admin_report_status', {
     p_report_id: reportId,
+    p_expected_status: currentStatusValue,
     p_new_status: statusValue,
-    p_note: noteValue,
+    p_note: noteValue || null,
   });
 
+  if (error?.code === 'P0001' && error.message.includes('REPORT_STALE_STATUS')) {
+    return { kind: 'error', message: '다른 관리자가 먼저 신고 처리 상태를 변경했습니다. 페이지를 새로고침한 뒤 다시 시도하세요.' };
+  }
   if (error || !parseStatusUpdateResult(data)) {
     return { kind: 'error', message: '신고 처리 상태를 변경하지 못했습니다.' };
   }

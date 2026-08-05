@@ -259,7 +259,11 @@ export default async function AdminDashboardPage() {
                 <tbody className="divide-y divide-gray-100">
                   {recentReportsResult.data.map((report) => (
                     <tr key={report.reportId}>
-                      <td className="px-6 py-4 font-semibold text-gray-900">{getTargetLabel(report.targetType)}</td>
+                      <td className="px-6 py-4 font-semibold text-gray-900">
+                        <Link href={`/admin/reports/${report.reportId}`} className="hover:text-green-700 hover:underline">
+                          {getTargetLabel(report.targetType)}
+                        </Link>
+                      </td>
                       <td className="px-6 py-4 text-gray-700">{getReasonLabel(report.reason)}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getStatusClassName(report.status)}`}>

@@ -81,7 +81,7 @@ export default async function AdminReportsPage({
         <p className="mt-3 text-gray-600">조건에 맞는 신고 {totalCount.toLocaleString('ko-KR')}건</p>
       </section>
 
-      <form method="get" action="/admin/reports" className="grid gap-4 rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end sm:p-6">
+      <form key={`${status ?? 'all'}:${targetType ?? 'all'}`} method="get" action="/admin/reports" className="grid gap-4 rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end sm:p-6">
         <div>
           <label htmlFor="report-status-filter" className="mb-2 block text-sm font-semibold text-gray-700">상태</label>
           <select id="report-status-filter" name="status" defaultValue={status ?? ''} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
@@ -130,6 +130,7 @@ export default async function AdminReportsPage({
             <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
+                  <th scope="col" className="w-24 whitespace-nowrap px-5 py-3 font-semibold">신고 ID</th>
                   {['접수일', '대상', '신고 사유', '신고자', '신고 대상', '상태', '상세'].map((label) => (
                     <th key={label} scope="col" className="px-5 py-3 font-semibold">{label}</th>
                   ))}
@@ -141,6 +142,9 @@ export default async function AdminReportsPage({
                   const detailHref = `/admin/reports/${report.reportId}${suffix ? `?${suffix}` : ''}`;
                   return (
                     <tr key={report.reportId} className="hover:bg-gray-50/70">
+                      <td className="w-24 whitespace-nowrap px-5 py-4 font-mono text-xs">
+                        <Link href={detailHref} className="font-bold text-green-700 hover:text-green-800">{report.reportId.slice(0, 8)}</Link>
+                      </td>
                       <td className="whitespace-nowrap px-5 py-4 text-gray-600">{listDateFormatter.format(new Date(report.createdAt))}</td>
                       <td className="px-5 py-4 font-semibold text-gray-900">{REPORT_TARGET_LABELS[report.targetType]}</td>
                       <td className="px-5 py-4 text-gray-700">{REPORT_REASON_LABELS[report.reason]}</td>

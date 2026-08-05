@@ -179,12 +179,12 @@ export default async function AdminPremiumMembershipsPage({
             <option value="asc">오름차순</option>
           </select>
         </div>
-        <div className="flex flex-wrap gap-3 lg:flex-nowrap">
-          <button type="submit" className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-green-600 px-5 text-sm font-semibold text-white shadow-lg shadow-green-200 transition hover:bg-green-700">
-            <Search size={16} aria-hidden="true" /> 조회
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+          <button type="submit" className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-green-600 px-5 text-sm font-semibold text-white shadow-lg shadow-green-200 transition hover:bg-green-700">
+            <Search className="shrink-0" size={16} aria-hidden="true" /> 조회
           </button>
-          <Link href="/admin/premium" className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full border-2 border-gray-300 px-5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50">
-            <RotateCcw size={16} aria-hidden="true" /> 초기화
+          <Link href="/admin/premium" className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-full border-2 border-gray-300 px-5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50">
+            <RotateCcw className="shrink-0" size={16} aria-hidden="true" /> 초기화
           </Link>
         </div>
       </form>

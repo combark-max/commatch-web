@@ -210,6 +210,14 @@ export default async function AdminPremiumMembershipDetailPage({
           <div><dt className="font-semibold text-gray-500">저장된 회원 상태</dt><dd className="mt-1 text-gray-900">{MEMBER_ACCOUNT_STATUS_LABELS[membership.accountStatus]}</dd></div>
           <div><dt className="font-semibold text-gray-500">프로필 노출 상태</dt><dd className="mt-1 text-gray-900">{MEMBER_PROFILE_VISIBILITY_LABELS[membership.profileVisibility]}</dd></div>
         </dl>
+        {membership.profileExists && membership.profileVisibility === 'visible' ? (
+          <Link
+            href={`/members/${membership.subjectUserId}`}
+            className="mt-5 inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+          >
+            <UserRound size={16} aria-hidden="true" /> 회원 프로필 보기
+          </Link>
+        ) : null}
       </section>
 
       <section aria-labelledby="premium-current-status" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">

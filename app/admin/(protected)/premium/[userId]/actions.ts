@@ -40,7 +40,7 @@ const mapPremiumUpdateError = (
 ): { message: string; requestIdConflict?: boolean } => {
   if (code === '42501') return { message: 'Premium 정보를 변경할 권한이 없습니다.' };
   if (code === 'P0002') return { message: '대상 회원을 찾을 수 없습니다.' };
-  if (code === '40001' && message?.includes('PREMIUM_STALE_VERSION')) {
+  if (code === 'P0001' && message?.includes('PREMIUM_STALE_VERSION')) {
     return { message: '다른 관리자가 먼저 Premium 정보를 변경했습니다. 페이지를 새로고침한 뒤 다시 시도하세요.' };
   }
   if (code === '22023') {

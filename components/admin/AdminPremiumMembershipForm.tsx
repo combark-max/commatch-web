@@ -73,6 +73,7 @@ export default function AdminPremiumMembershipForm({
   ): Promise<PremiumMembershipUpdateActionState> => {
     const result = await action(previousState, formData);
     setDismissedStateRequestId(null);
+    if (result.kind === 'error') setConfirming(false);
     if (result.kind === 'success' || result.requestIdConflict) {
       setRequestId(crypto.randomUUID());
       setConfirming(false);

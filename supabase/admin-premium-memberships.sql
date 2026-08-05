@@ -926,7 +926,7 @@ begin
   if found then
     if p_expected_updated_at is null
        or v_existing.updated_at is distinct from p_expected_updated_at then
-      raise exception using errcode = '40001', message = 'PREMIUM_STALE_VERSION';
+      raise exception using errcode = 'P0001', message = 'PREMIUM_STALE_VERSION';
     end if;
     if v_existing.status = 'revoked' and v_status not in ('revoked', 'active') then
       raise exception using errcode = '22023', message = 'Revoked Premium can only remain revoked or be regranted as active';
@@ -1027,7 +1027,7 @@ begin
     returning membership.* into v_membership;
   else
     if p_expected_updated_at is not null then
-      raise exception using errcode = '40001', message = 'PREMIUM_STALE_VERSION';
+      raise exception using errcode = 'P0001', message = 'PREMIUM_STALE_VERSION';
     end if;
     if v_status <> 'active' then
       raise exception using errcode = '22023', message = 'A new Premium membership must be granted as active';

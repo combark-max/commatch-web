@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, FileWarning } from 'lucide-react';
+import { AlertCircle, ArrowRight, Crown, FileWarning, Users } from 'lucide-react';
 import { requireAdminAccess } from '@/lib/admin/access';
 import { getAdminRoleLabel } from '@/lib/admin/presentation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -21,6 +21,21 @@ type RecentReport = {
   reporterUserId: string;
   reportedUserId: string;
   messageId: string | null;
+};
+
+type OperationalSummary = {
+  totalMemberCount: number;
+  activeMemberCount: number;
+  suspendedMemberCount: number;
+  hiddenProfileCount: number;
+  missingProfileCount: number;
+  premiumAvailableCount: number;
+  premiumNotStartedCount: number;
+  premiumExpiredCount: number;
+  premiumSuspendedCount: number;
+  premiumRevokedCount: number;
+  premiumExpiringSoonCount: number;
+  expirationWindowDays: number;
 };
 
 type ReportDataResult<T> =
@@ -72,6 +87,66 @@ const parseReportSummary = (value: unknown): ReportSummary | null => {
   }
 
   return { totalCount, pendingCount, reviewingCount, resolvedCount, dismissedCount };
+};
+
+const parseOperationalCount = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return value;
+  if (typeof value === 'string' && /^(0|[1-9]\d*)$/.test(value)) {
+    const count = Number(value);
+    return Number.isSafeInteger(count) ? count : null;
+  }
+  return null;
+};
+
+const parseOperationalSummary = (value: unknown): OperationalSummary | null => {
+  if (!Array.isArray(value) || value.length !== 1 || !isRecord(value[0])) return null;
+
+  const row = value[0];
+  const totalMemberCount = parseOperationalCount(row.total_member_count);
+  const activeMemberCount = parseOperationalCount(row.active_member_count);
+  const suspendedMemberCount = parseOperationalCount(row.suspended_member_count);
+  const hiddenProfileCount = parseOperationalCount(row.hidden_profile_count);
+  const missingProfileCount = parseOperationalCount(row.missing_profile_count);
+  const premiumAvailableCount = parseOperationalCount(row.premium_available_count);
+  const premiumNotStartedCount = parseOperationalCount(row.premium_not_started_count);
+  const premiumExpiredCount = parseOperationalCount(row.premium_expired_count);
+  const premiumSuspendedCount = parseOperationalCount(row.premium_suspended_count);
+  const premiumRevokedCount = parseOperationalCount(row.premium_revoked_count);
+  const premiumExpiringSoonCount = parseOperationalCount(row.premium_expiring_soon_count);
+  const expirationWindowDays = row.expiration_window_days;
+
+  if (
+    totalMemberCount === null
+    || activeMemberCount === null
+    || suspendedMemberCount === null
+    || hiddenProfileCount === null
+    || missingProfileCount === null
+    || premiumAvailableCount === null
+    || premiumNotStartedCount === null
+    || premiumExpiredCount === null
+    || premiumSuspendedCount === null
+    || premiumRevokedCount === null
+    || premiumExpiringSoonCount === null
+    || typeof expirationWindowDays !== 'number'
+    || !Number.isInteger(expirationWindowDays)
+    || expirationWindowDays < 1
+    || expirationWindowDays > 90
+  ) return null;
+
+  return {
+    totalMemberCount,
+    activeMemberCount,
+    suspendedMemberCount,
+    hiddenProfileCount,
+    missingProfileCount,
+    premiumAvailableCount,
+    premiumNotStartedCount,
+    premiumExpiredCount,
+    premiumSuspendedCount,
+    premiumRevokedCount,
+    premiumExpiringSoonCount,
+    expirationWindowDays,
+  };
 };
 
 const parseRecentReports = (value: unknown): RecentReport[] | null => {
@@ -169,6 +244,17 @@ async function loadRecentReports(): Promise<ReportDataResult<RecentReport[]>> {
   return reports ? { kind: 'success', data: reports } : { kind: 'error' };
 }
 
+async function loadOperationalSummary(): Promise<ReportDataResult<OperationalSummary>> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc('get_admin_dashboard_operational_summary', {
+    p_expiring_days: 30,
+  });
+  if (error) return { kind: getErrorKind(error) };
+
+  const summary = parseOperationalSummary(data);
+  return summary ? { kind: 'success', data: summary } : { kind: 'error' };
+}
+
 const ReportError = ({ forbidden }: { forbidden: boolean }) => (
   <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-red-800">
     <div className="flex items-start gap-3">
@@ -185,10 +271,27 @@ const ReportError = ({ forbidden }: { forbidden: boolean }) => (
   </div>
 );
 
+const OperationalStatsError = ({ forbidden }: { forbidden: boolean }) => (
+  <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-red-800">
+    <div className="flex items-start gap-3">
+      <AlertCircle className="mt-0.5 shrink-0" size={20} aria-hidden="true" />
+      <div>
+        <p className="font-semibold">
+          {forbidden ? '운영 통계 조회 권한이 없습니다.' : '운영 통계를 불러오지 못했습니다.'}
+        </p>
+        <a href="/admin" className="mt-2 inline-block text-sm font-semibold underline underline-offset-4">
+          다시 시도
+        </a>
+      </div>
+    </div>
+  </div>
+);
+
 export default async function AdminDashboardPage() {
   const adminAccess = await requireAdminAccess('admin_dashboard_view');
-  const [summaryResult, recentReportsResult] = await Promise.all([
+  const [summaryResult, operationalSummaryResult, recentReportsResult] = await Promise.all([
     loadReportSummary(),
+    loadOperationalSummary(),
     loadRecentReports(),
   ]);
 
@@ -199,6 +302,25 @@ export default async function AdminDashboardPage() {
         ['검토 중', summaryResult.data.reviewingCount],
         ['처리 완료', summaryResult.data.resolvedCount],
         ['기각', summaryResult.data.dismissedCount],
+      ]
+    : [];
+  const memberSummaryCards = operationalSummaryResult.kind === 'success'
+    ? [
+        ['전체 회원', operationalSummaryResult.data.totalMemberCount],
+        ['활성 회원', operationalSummaryResult.data.activeMemberCount],
+        ['정지 회원', operationalSummaryResult.data.suspendedMemberCount],
+        ['숨김 프로필', operationalSummaryResult.data.hiddenProfileCount],
+        ['프로필 미작성', operationalSummaryResult.data.missingProfileCount],
+      ]
+    : [];
+  const premiumSummaryCards = operationalSummaryResult.kind === 'success'
+    ? [
+        ['Premium 이용 가능', operationalSummaryResult.data.premiumAvailableCount],
+        ['시작 전', operationalSummaryResult.data.premiumNotStartedCount],
+        ['만료', operationalSummaryResult.data.premiumExpiredCount],
+        ['Premium 정지', operationalSummaryResult.data.premiumSuspendedCount],
+        ['Premium 회수', operationalSummaryResult.data.premiumRevokedCount],
+        [`${operationalSummaryResult.data.expirationWindowDays}일 내 만료 예정`, operationalSummaryResult.data.premiumExpiringSoonCount],
       ]
     : [];
 
@@ -228,6 +350,45 @@ export default async function AdminDashboardPage() {
           <ReportError forbidden={summaryResult.kind === 'forbidden'} />
         )}
       </section>
+
+      {operationalSummaryResult.kind === 'success' ? (
+        <>
+          <section aria-labelledby="member-summary-heading">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 id="member-summary-heading" className="text-xl font-black text-gray-900">회원 현황</h2>
+              <Users className="text-gray-400" size={22} aria-hidden="true" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {memberSummaryCards.map(([label, count]) => (
+                <article key={label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <p className="text-sm font-semibold text-gray-500">{label}</p>
+                  <p className="mt-3 text-3xl font-black text-gray-900">{count}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section aria-labelledby="premium-summary-heading">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 id="premium-summary-heading" className="text-xl font-black text-gray-900">Premium 현황</h2>
+              <Crown className="text-gray-400" size={22} aria-hidden="true" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              {premiumSummaryCards.map(([label, count]) => (
+                <article key={label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <p className="text-sm font-semibold text-gray-500">{label}</p>
+                  <p className="mt-3 text-3xl font-black text-gray-900">{count}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        </>
+      ) : (
+        <section aria-labelledby="operational-summary-heading">
+          <h2 id="operational-summary-heading" className="mb-4 text-xl font-black text-gray-900">운영 현황</h2>
+          <OperationalStatsError forbidden={operationalSummaryResult.kind === 'forbidden'} />
+        </section>
+      )}
 
       <section aria-labelledby="recent-reports-heading" className="rounded-3xl border border-gray-100 bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">

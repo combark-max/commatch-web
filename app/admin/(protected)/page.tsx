@@ -53,6 +53,7 @@ type OperationalSummary = {
   suspendedMemberCount: number;
   hiddenProfileCount: number;
   missingProfileCount: number;
+  completedProfileCount: number;
   premiumAvailableCount: number;
   premiumNotStartedCount: number;
   premiumExpiredCount: number;
@@ -217,6 +218,7 @@ const parseOperationalSummary = (value: unknown): OperationalSummary | null => {
   const suspendedMemberCount = parseOperationalCount(row.suspended_member_count);
   const hiddenProfileCount = parseOperationalCount(row.hidden_profile_count);
   const missingProfileCount = parseOperationalCount(row.missing_profile_count);
+  const completedProfileCount = parseOperationalCount(row.completed_profile_count);
   const premiumAvailableCount = parseOperationalCount(row.premium_available_count);
   const premiumNotStartedCount = parseOperationalCount(row.premium_not_started_count);
   const premiumExpiredCount = parseOperationalCount(row.premium_expired_count);
@@ -231,6 +233,7 @@ const parseOperationalSummary = (value: unknown): OperationalSummary | null => {
     || suspendedMemberCount === null
     || hiddenProfileCount === null
     || missingProfileCount === null
+    || completedProfileCount === null
     || premiumAvailableCount === null
     || premiumNotStartedCount === null
     || premiumExpiredCount === null
@@ -249,6 +252,7 @@ const parseOperationalSummary = (value: unknown): OperationalSummary | null => {
     suspendedMemberCount,
     hiddenProfileCount,
     missingProfileCount,
+    completedProfileCount,
     premiumAvailableCount,
     premiumNotStartedCount,
     premiumExpiredCount,
@@ -648,13 +652,18 @@ export default async function AdminDashboardPage() {
         ['기각', summaryResult.data.dismissedCount],
       ]
     : [];
-  const memberSummaryCards = operationalSummaryResult.kind === 'success'
+  const memberSummaryCards: [string, number, string | null][] = operationalSummaryResult.kind === 'success'
     ? [
-        ['전체 회원', operationalSummaryResult.data.totalMemberCount],
-        ['활성 회원', operationalSummaryResult.data.activeMemberCount],
-        ['정지 회원', operationalSummaryResult.data.suspendedMemberCount],
-        ['숨김 프로필', operationalSummaryResult.data.hiddenProfileCount],
-        ['프로필 미작성', operationalSummaryResult.data.missingProfileCount],
+        ['전체 회원', operationalSummaryResult.data.totalMemberCount, null],
+        ['활성 회원', operationalSummaryResult.data.activeMemberCount, null],
+        ['정지 회원', operationalSummaryResult.data.suspendedMemberCount, null],
+        ['숨김 프로필', operationalSummaryResult.data.hiddenProfileCount, null],
+        ['프로필 미작성', operationalSummaryResult.data.missingProfileCount, null],
+        [
+          '프로필 작성 완료',
+          operationalSummaryResult.data.completedProfileCount,
+          '필수 프로필 정보를 모두 입력한 회원',
+        ],
       ]
     : [];
   const premiumSummaryCards = operationalSummaryResult.kind === 'success'
@@ -702,11 +711,14 @@ export default async function AdminDashboardPage() {
               <h2 id="member-summary-heading" className="text-xl font-black text-gray-900">회원 현황</h2>
               <Users className="text-gray-400" size={22} aria-hidden="true" />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {memberSummaryCards.map(([label, count]) => (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              {memberSummaryCards.map(([label, count, description]) => (
                 <article key={label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
                   <p className="text-sm font-semibold text-gray-500">{label}</p>
                   <p className="mt-3 text-3xl font-black text-gray-900">{count}</p>
+                  {description ? (
+                    <p className="mt-2 text-xs leading-5 text-gray-500">{description}</p>
+                  ) : null}
                 </article>
               ))}
             </div>

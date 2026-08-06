@@ -2,7 +2,12 @@ begin;
 
 do $preflight$
 declare
-  v_marker constant text := 'commatch_admin_dashboard_operational_v1';
+  v_marker constant text := 'commatch_admin_dashboard_operational_v2';
+  v_previous_marker constant text := 'commatch_admin_dashboard_operational_v1';
+  v_function_oid oid;
+  v_function_result text;
+  v_function_marker text;
+  v_dependent_objects text;
   v_function record;
 begin
   if pg_catalog.to_regclass('auth.users') is null
@@ -45,6 +50,40 @@ begin
     raise exception 'Required member or Premium columns differ from the approved definition';
   end if;
 
+  if exists (
+    select required.column_name
+    from (values
+      ('nickname', 'text', 'text', true),
+      ('gender', 'text', 'text', false),
+      ('birth_date', 'date', 'date', false),
+      ('height', 'integer', 'int4', false),
+      ('region', 'text', 'text', false),
+      ('job', 'text', 'text', false),
+      ('education', 'text', 'text', false),
+      ('religion', 'text', 'text', false),
+      ('hobby', 'text', 'text', false),
+      ('drinking', 'text', 'text', false),
+      ('smoking', 'text', 'text', false),
+      ('marriage_history', 'text', 'text', false),
+      ('introduction', 'text', 'text', false),
+      ('marriage_values', 'text', 'text', false),
+      ('profile_image', 'text', 'text', false),
+      ('profile_images', 'ARRAY', '_text', true)
+    ) as required(column_name, data_type, udt_name, is_not_null)
+    where not exists (
+      select 1
+      from information_schema.columns as column_info
+      where column_info.table_schema = 'public'
+        and column_info.table_name = 'profiles'
+        and column_info.column_name = required.column_name
+        and column_info.data_type = required.data_type
+        and column_info.udt_name = required.udt_name
+        and (column_info.is_nullable = 'NO') = required.is_not_null
+    )
+  ) then
+    raise exception 'Required profile completion columns differ from the approved definition';
+  end if;
+
   for v_function in
     select
       function_info.oid,
@@ -55,13 +94,67 @@ begin
     where namespace_info.nspname = 'public'
       and function_info.proname = 'get_admin_dashboard_operational_summary'
   loop
-    if v_function.identity_arguments <> 'p_expiring_days integer'
-       or pg_catalog.obj_description(v_function.oid, 'pg_proc') is distinct from v_marker then
+    if v_function.identity_arguments <> 'p_expiring_days integer' then
       raise exception 'public.get_admin_dashboard_operational_summary already exists with an incompatible definition';
     end if;
   end loop;
+
+  select
+    pg_catalog.to_regprocedure(
+      'public.get_admin_dashboard_operational_summary(integer)'
+    ),
+    pg_catalog.pg_get_function_result(
+      pg_catalog.to_regprocedure(
+        'public.get_admin_dashboard_operational_summary(integer)'
+      )
+    ),
+    pg_catalog.obj_description(
+      pg_catalog.to_regprocedure(
+        'public.get_admin_dashboard_operational_summary(integer)'
+      ),
+      'pg_proc'
+    )
+  into v_function_oid, v_function_result, v_function_marker;
+
+  if v_function_oid is null then
+    raise exception 'public.get_admin_dashboard_operational_summary(integer) must exist before replacement';
+  end if;
+
+  if not coalesce(
+    v_function_marker = v_previous_marker
+      and v_function_result =
+        'TABLE(total_member_count bigint, active_member_count bigint, suspended_member_count bigint, hidden_profile_count bigint, missing_profile_count bigint, premium_available_count bigint, premium_not_started_count bigint, premium_expired_count bigint, premium_suspended_count bigint, premium_revoked_count bigint, premium_expiring_soon_count bigint, expiration_window_days integer)',
+    false
+  ) and not coalesce(
+    v_function_marker = v_marker
+      and v_function_result =
+        'TABLE(total_member_count bigint, active_member_count bigint, suspended_member_count bigint, hidden_profile_count bigint, missing_profile_count bigint, completed_profile_count bigint, premium_available_count bigint, premium_not_started_count bigint, premium_expired_count bigint, premium_suspended_count bigint, premium_revoked_count bigint, premium_expiring_soon_count bigint, expiration_window_days integer)',
+    false
+  ) then
+    raise exception 'public.get_admin_dashboard_operational_summary(integer) differs from an approved replacement source';
+  end if;
+
+  select pg_catalog.string_agg(
+    pg_catalog.pg_describe_object(
+      dependency_info.classid,
+      dependency_info.objid,
+      dependency_info.objsubid
+    ),
+    ', '
+  )
+  into v_dependent_objects
+  from pg_catalog.pg_depend as dependency_info
+  where dependency_info.refclassid = 'pg_catalog.pg_proc'::pg_catalog.regclass
+    and dependency_info.refobjid = v_function_oid;
+
+  if v_dependent_objects is not null then
+    raise exception 'Cannot replace dashboard operational summary because dependent objects exist: %',
+      v_dependent_objects;
+  end if;
 end
 $preflight$;
+
+drop function public.get_admin_dashboard_operational_summary(integer);
 
 create or replace function public.get_admin_dashboard_operational_summary(
   p_expiring_days integer default 30
@@ -72,6 +165,7 @@ returns table (
   suspended_member_count bigint,
   hidden_profile_count bigint,
   missing_profile_count bigint,
+  completed_profile_count bigint,
   premium_available_count bigint,
   premium_not_started_count bigint,
   premium_expired_count bigint,
@@ -107,6 +201,22 @@ begin
     select
       auth_user.id,
       profile.id is not null as profile_exists,
+      profile.nickname,
+      profile.gender,
+      profile.birth_date,
+      profile.height,
+      profile.region,
+      profile.job,
+      profile.education,
+      profile.religion,
+      profile.hobby,
+      profile.drinking,
+      profile.smoking,
+      profile.marriage_history,
+      profile.introduction,
+      profile.marriage_values,
+      profile.profile_image,
+      profile.profile_images,
       restriction.account_status,
       restriction.profile_visibility,
       restriction.suspended_until
@@ -139,7 +249,33 @@ begin
         where member.profile_exists
           and member.profile_visibility = 'hidden'
       ) as hidden_profile_count,
-      pg_catalog.count(*) filter (where not member.profile_exists) as missing_profile_count
+      pg_catalog.count(*) filter (where not member.profile_exists) as missing_profile_count,
+      pg_catalog.count(*) filter (
+        where member.profile_exists
+          and (
+            nullif(pg_catalog.btrim(member.profile_image), '') is not null
+            or exists (
+              select 1
+              from pg_catalog.unnest(member.profile_images) as profile_image(image_path)
+              where nullif(pg_catalog.btrim(profile_image.image_path), '') is not null
+            )
+          )
+          and nullif(pg_catalog.btrim(member.nickname), '') is not null
+          and nullif(pg_catalog.btrim(member.gender), '') is not null
+          and member.birth_date is not null
+          and member.height is not null
+          and member.height > 0
+          and nullif(pg_catalog.btrim(member.region), '') is not null
+          and nullif(pg_catalog.btrim(member.job), '') is not null
+          and nullif(pg_catalog.btrim(member.education), '') is not null
+          and nullif(pg_catalog.btrim(member.religion), '') is not null
+          and nullif(pg_catalog.btrim(member.hobby), '') is not null
+          and nullif(pg_catalog.btrim(member.drinking), '') is not null
+          and nullif(pg_catalog.btrim(member.smoking), '') is not null
+          and nullif(pg_catalog.btrim(member.marriage_history), '') is not null
+          and pg_catalog.char_length(pg_catalog.btrim(member.introduction)) >= 10
+          and pg_catalog.char_length(pg_catalog.btrim(member.marriage_values)) >= 10
+      ) as completed_profile_count
     from member_population as member
   ),
   premium_population as (
@@ -190,6 +326,7 @@ begin
     member_summary.suspended_member_count,
     member_summary.hidden_profile_count,
     member_summary.missing_profile_count,
+    member_summary.completed_profile_count,
     premium_summary.premium_available_count,
     premium_summary.premium_not_started_count,
     premium_summary.premium_expired_count,
@@ -205,7 +342,7 @@ $function$;
 alter function public.get_admin_dashboard_operational_summary(integer) owner to postgres;
 
 comment on function public.get_admin_dashboard_operational_summary(integer)
-  is 'commatch_admin_dashboard_operational_v1';
+  is 'commatch_admin_dashboard_operational_v2';
 
 revoke all on function public.get_admin_dashboard_operational_summary(integer)
   from public, anon, authenticated, service_role;
@@ -214,7 +351,7 @@ grant execute on function public.get_admin_dashboard_operational_summary(integer
 
 do $validation$
 declare
-  v_marker constant text := 'commatch_admin_dashboard_operational_v1';
+  v_marker constant text := 'commatch_admin_dashboard_operational_v2';
   v_function_oid oid := pg_catalog.to_regprocedure(
     'public.get_admin_dashboard_operational_summary(integer)'
   );
@@ -235,7 +372,7 @@ begin
   end if;
 
   if pg_catalog.pg_get_function_result(v_function_oid) <>
-    'TABLE(total_member_count bigint, active_member_count bigint, suspended_member_count bigint, hidden_profile_count bigint, missing_profile_count bigint, premium_available_count bigint, premium_not_started_count bigint, premium_expired_count bigint, premium_suspended_count bigint, premium_revoked_count bigint, premium_expiring_soon_count bigint, expiration_window_days integer)' then
+    'TABLE(total_member_count bigint, active_member_count bigint, suspended_member_count bigint, hidden_profile_count bigint, missing_profile_count bigint, completed_profile_count bigint, premium_available_count bigint, premium_not_started_count bigint, premium_expired_count bigint, premium_suspended_count bigint, premium_revoked_count bigint, premium_expiring_soon_count bigint, expiration_window_days integer)' then
     raise exception 'Dashboard operational summary return type differs from the approved definition';
   end if;
 
@@ -249,7 +386,10 @@ begin
       and language_info.lanname = 'plpgsql'
       and function_info.prosecdef
       and function_info.provolatile = 's'
+      and function_info.pronargs = 1
       and function_info.pronargdefaults = 1
+      and pg_catalog.pg_get_function_identity_arguments(function_info.oid) =
+        'p_expiring_days integer'
       and pg_catalog.obj_description(function_info.oid, 'pg_proc') = v_marker
       and exists (
         select 1

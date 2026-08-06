@@ -916,11 +916,18 @@ export default async function AdminDashboardPage() {
             <p className="px-6 py-12 text-center text-sm font-medium text-gray-500">최근 회원 제재 내역이 없습니다.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1520px] text-left text-sm">
+              <table className="w-full min-w-[1020px] table-fixed text-left text-sm">
+                <colgroup>
+                  <col className="w-[18%]" />
+                  <col className="w-[25%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[23%]" />
+                  <col className="w-[16%]" />
+                </colgroup>
                 <thead className="bg-gray-50 text-gray-600">
                   <tr>
-                    {['대상 회원', '조치', '상태 변경', '정지 종료', '사유·메모', '관련 신고', '처리 관리자', '처리 시각'].map((label) => (
-                      <th key={label} scope="col" className="px-5 py-3 font-semibold">{label}</th>
+                    {['회원', '조치·상태 변경', '정지 기간', '사유·메모·관련 신고', '관리자·처리 시각'].map((label) => (
+                      <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>
                     ))}
                   </tr>
                 </thead>
@@ -935,7 +942,7 @@ export default async function AdminDashboardPage() {
                       !== action.newSuspendedUntil;
                     return (
                       <tr key={action.actionId} className="align-top">
-                        <td className="px-5 py-4">
+                        <td className="px-4 py-4">
                           {canViewProfile ? (
                             <Link
                               href={`/members/${action.subjectUserId}`}
@@ -959,59 +966,57 @@ export default async function AdminDashboardPage() {
                             </Link>
                           ) : null}
                         </td>
-                        <td className="whitespace-nowrap px-5 py-4 font-bold text-gray-900">
-                          {MEMBER_RESTRICTION_ACTION_LABELS[action.actionType]}
-                        </td>
-                        <td className="px-5 py-4 text-gray-700">
-                          <div className="flex items-center gap-2 whitespace-nowrap">
-                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getMemberStatusClassName(action.previousAccountStatus)}`}>
+                        <td className="px-4 py-4 text-gray-700">
+                          <p className="font-bold text-gray-900">{MEMBER_RESTRICTION_ACTION_LABELS[action.actionType]}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getMemberStatusClassName(action.previousAccountStatus)}`}>
                               {MEMBER_ACCOUNT_STATUS_LABELS[action.previousAccountStatus]}
                             </span>
                             <span aria-hidden="true">→</span>
-                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getMemberStatusClassName(action.newAccountStatus)}`}>
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getMemberStatusClassName(action.newAccountStatus)}`}>
                               {MEMBER_ACCOUNT_STATUS_LABELS[action.newAccountStatus]}
                             </span>
                           </div>
-                          <p className="mt-2 whitespace-nowrap text-xs text-gray-500">
-                            프로필: {MEMBER_PROFILE_VISIBILITY_LABELS[action.previousProfileVisibility]}
-                            {' → '}
-                            {MEMBER_PROFILE_VISIBILITY_LABELS[action.newProfileVisibility]}
-                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-gray-500">
+                            <span className="font-semibold">프로필</span>
+                            <span>{MEMBER_PROFILE_VISIBILITY_LABELS[action.previousProfileVisibility]}</span>
+                            <span aria-hidden="true">→</span>
+                            <span>{MEMBER_PROFILE_VISIBILITY_LABELS[action.newProfileVisibility]}</span>
+                          </div>
                         </td>
-                        <td className="whitespace-nowrap px-5 py-4 text-gray-700">
+                        <td className="px-4 py-4 text-gray-700">
                           {suspensionChanged ? (
-                            <>
-                              {formatNullableDate(action.previousSuspendedUntil, '없음·무기한')}
-                              <span className="mx-2" aria-hidden="true">→</span>
-                              {formatNullableDate(action.newSuspendedUntil, '없음·무기한')}
-                            </>
+                            <div className="space-y-1.5">
+                              <p><span className="font-semibold text-gray-500">이전 종료:</span> {formatNullableDate(action.previousSuspendedUntil, '없음·무기한')}</p>
+                              <p><span className="font-semibold text-gray-500">신규 종료:</span> {formatNullableDate(action.newSuspendedUntil, '없음·무기한')}</p>
+                            </div>
                           ) : '변경 없음'}
                         </td>
-                        <td className="max-w-[280px] px-5 py-4 text-gray-700">
-                          <p className="truncate" title={action.reason ?? undefined}>
+                        <td className="px-4 py-4 text-gray-700">
+                          <p className="line-clamp-2 break-words" title={action.reason ?? undefined}>
                             <span className="font-semibold text-gray-500">사유:</span> {action.reason ?? '해당 없음'}
                           </p>
-                          <p className="mt-2 truncate" title={action.note ?? undefined}>
+                          <p className="mt-1.5 line-clamp-2 break-words" title={action.note ?? undefined}>
                             <span className="font-semibold text-gray-500">메모:</span> {action.note ?? '해당 없음'}
                           </p>
+                          <div className="mt-2">
+                            {action.reportId && action.reportExists ? (
+                              <Link href={`/admin/reports/${action.reportId}`} className="font-bold text-green-700 hover:text-green-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2">
+                                신고 {action.reportId.slice(0, 8)}
+                              </Link>
+                            ) : (
+                              <span className="text-gray-500">연결된 신고 없음</span>
+                            )}
+                          </div>
                         </td>
-                        <td className="whitespace-nowrap px-5 py-4">
-                          {action.reportId && action.reportExists ? (
-                            <Link href={`/admin/reports/${action.reportId}`} className="font-bold text-green-700 hover:text-green-800 hover:underline">
-                              신고 {action.reportId.slice(0, 8)}
-                            </Link>
-                          ) : (
-                            <span className="text-gray-500">연결된 신고 없음</span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-5 py-4 text-gray-700">
+                        <td className="px-4 py-4 text-gray-700">
                           <p className="font-semibold text-gray-900">{getAdminLabel(action.adminRole, action.adminUserId)}</p>
                           {action.adminUserId ? (
                             <p className="mt-1 font-mono text-xs text-gray-500">{action.adminUserId.slice(0, 8)}</p>
                           ) : null}
-                        </td>
-                        <td className="whitespace-nowrap px-5 py-4 text-gray-600">
-                          <time dateTime={action.createdAt}>{formatReportDate(action.createdAt)}</time>
+                          <p className="mt-2 text-xs text-gray-600">
+                            <time dateTime={action.createdAt}>{formatReportDate(action.createdAt)}</time>
+                          </p>
                         </td>
                       </tr>
                     );
@@ -1041,11 +1046,18 @@ export default async function AdminDashboardPage() {
             <p className="px-6 py-12 text-center text-sm font-medium text-gray-500">최근 Premium 변경 내역이 없습니다.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1880px] text-left text-sm">
+              <table className="w-full min-w-[1100px] table-fixed text-left text-sm">
+                <colgroup>
+                  <col className="w-[18%]" />
+                  <col className="w-[19%]" />
+                  <col className="w-[23%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[20%]" />
+                </colgroup>
                 <thead className="bg-gray-50 text-gray-600">
                   <tr>
-                    {['대상 회원', '조치', '상태 변경', '이전 기간', '새 기간', '이전 기능', '새 기능', '사유', '처리 관리자', '처리 시각'].map((label) => (
-                      <th key={label} scope="col" className="px-5 py-3 font-semibold">{label}</th>
+                    {['회원', '조치·상태 변경', '기간 변경', '기능 변경', '사유·관리자·처리 시각'].map((label) => (
+                      <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1060,7 +1072,7 @@ export default async function AdminDashboardPage() {
                     const newFeatures = formatFeatureKeys(action.newFeatureKeys);
                     return (
                       <tr key={action.actionId} className="align-top">
-                        <td className="px-5 py-4">
+                        <td className="px-4 py-4">
                           {canViewProfile ? (
                             <Link
                               href={`/members/${action.subjectUserId}`}
@@ -1078,7 +1090,7 @@ export default async function AdminDashboardPage() {
                           {!action.profileExists ? (
                             <p className="mt-1 text-xs font-semibold text-amber-700">프로필 없음</p>
                           ) : null}
-                          <div className="mt-2 flex gap-3 whitespace-nowrap">
+                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
                             {canViewProfile ? (
                               <Link href={`/members/${action.subjectUserId}`} className="text-xs font-bold text-green-700 hover:text-green-800">
                                 프로필 보기
@@ -1091,45 +1103,39 @@ export default async function AdminDashboardPage() {
                             ) : null}
                           </div>
                         </td>
-                        <td className="whitespace-nowrap px-5 py-4 font-bold text-gray-900">
-                          {PREMIUM_MEMBERSHIP_ACTION_LABELS[action.actionType]}
-                        </td>
-                        <td className="px-5 py-4 text-gray-700">
-                          <div className="flex items-center gap-2 whitespace-nowrap">
+                        <td className="px-4 py-4 text-gray-700">
+                          <p className="font-bold text-gray-900">{PREMIUM_MEMBERSHIP_ACTION_LABELS[action.actionType]}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
                             {action.previousStatus ? (
-                              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getPremiumStatusClassName(action.previousStatus)}`}>
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getPremiumStatusClassName(action.previousStatus)}`}>
                                 {PREMIUM_STATUS_LABELS[action.previousStatus]}
                               </span>
                             ) : (
-                              <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-600">해당 없음</span>
+                              <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">해당 없음</span>
                             )}
                             <span aria-hidden="true">→</span>
-                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getPremiumStatusClassName(action.newStatus)}`}>
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getPremiumStatusClassName(action.newStatus)}`}>
                               {PREMIUM_STATUS_LABELS[action.newStatus]}
                             </span>
                           </div>
                         </td>
-                        <td className="whitespace-nowrap px-5 py-4 text-gray-700">
-                          {formatPremiumPeriod(action.previousStartedAt, action.previousExpiresAt)}
+                        <td className="px-4 py-4 text-gray-700">
+                          <p><span className="font-semibold text-gray-500">이전:</span> {formatPremiumPeriod(action.previousStartedAt, action.previousExpiresAt)}</p>
+                          <p className="mt-2"><span className="font-semibold text-gray-500">신규:</span> {formatPremiumPeriod(action.newStartedAt, action.newExpiresAt)}</p>
                         </td>
-                        <td className="whitespace-nowrap px-5 py-4 text-gray-700">
-                          {formatPremiumPeriod(action.newStartedAt, action.newExpiresAt)}
+                        <td className="px-4 py-4 text-gray-700">
+                          <p className="break-words" title={previousFeatures}><span className="font-semibold text-gray-500">이전:</span> {previousFeatures}</p>
+                          <p className="mt-2 break-words" title={newFeatures}><span className="font-semibold text-gray-500">신규:</span> {newFeatures}</p>
                         </td>
-                        <td className="max-w-[240px] px-5 py-4 text-gray-700">
-                          <p className="truncate" title={previousFeatures}>{previousFeatures}</p>
-                        </td>
-                        <td className="max-w-[240px] px-5 py-4 text-gray-700">
-                          <p className="truncate" title={newFeatures}>{newFeatures}</p>
-                        </td>
-                        <td className="max-w-[280px] px-5 py-4 text-gray-700">
-                          <p className="truncate" title={action.reason}>{action.reason}</p>
-                        </td>
-                        <td className="whitespace-nowrap px-5 py-4 text-gray-700">
-                          <p className="font-semibold text-gray-900">{getAdminLabel(action.adminRole, action.performedBy)}</p>
+                        <td className="px-4 py-4 text-gray-700">
+                          <p className="line-clamp-3 break-words" title={action.reason}>
+                            <span className="font-semibold text-gray-500">사유:</span> {action.reason}
+                          </p>
+                          <p className="mt-2 font-semibold text-gray-900">{getAdminLabel(action.adminRole, action.performedBy)}</p>
                           <p className="mt-1 font-mono text-xs text-gray-500">{action.performedBy.slice(0, 8)}</p>
-                        </td>
-                        <td className="whitespace-nowrap px-5 py-4 text-gray-600">
-                          <time dateTime={action.createdAt}>{formatReportDate(action.createdAt)}</time>
+                          <p className="mt-2 text-xs text-gray-600">
+                            <time dateTime={action.createdAt}>{formatReportDate(action.createdAt)}</time>
+                          </p>
                         </td>
                       </tr>
                     );

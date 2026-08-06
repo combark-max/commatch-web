@@ -104,10 +104,17 @@ function ActionHistory({ actions }: { actions: AdminPremiumMembershipAction[] })
 
   return (
     <div className="mt-5 overflow-x-auto">
-      <table className="w-full min-w-[1680px] text-left text-sm">
+      <table className="w-full min-w-[1080px] table-fixed text-left text-sm">
+        <colgroup>
+          <col className="w-[16%]" />
+          <col className="w-[17%]" />
+          <col className="w-[24%]" />
+          <col className="w-[21%]" />
+          <col className="w-[22%]" />
+        </colgroup>
         <thead className="bg-gray-50 text-gray-600">
           <tr>
-            {['변경 시각', '작업', '이전 상태', '새 상태', '이전 기간', '새 기간', '이전 기능', '새 기능', '변경 사유', '수행 관리자 UUID'].map((label) => (
+            {['처리 시각·작업', '상태 변경', '기간 변경', '기능 변경', '사유·수행 관리자'].map((label) => (
               <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>
             ))}
           </tr>
@@ -115,26 +122,35 @@ function ActionHistory({ actions }: { actions: AdminPremiumMembershipAction[] })
         <tbody className="divide-y divide-gray-100">
           {actions.map((action) => (
             <tr key={action.actionId} className="align-top">
-              <td className="whitespace-nowrap px-4 py-4 text-gray-600">
+              <td className="px-4 py-4 text-gray-600">
                 <time dateTime={action.createdAt}>{formatDateTime(action.createdAt)}</time>
+                <p className="mt-2 font-bold text-gray-900">{PREMIUM_MEMBERSHIP_ACTION_LABELS[action.actionType]}</p>
               </td>
-              <td className="whitespace-nowrap px-4 py-4 font-bold text-gray-900">
-                {PREMIUM_MEMBERSHIP_ACTION_LABELS[action.actionType]}
+              <td className="px-4 py-4 text-gray-700">
+                <p><span className="font-semibold text-gray-500">이전:</span> {action.previousStatus ? PREMIUM_STATUS_LABELS[action.previousStatus] : '해당 없음'}</p>
+                <p className="mt-2"><span className="font-semibold text-gray-500">신규:</span> {PREMIUM_STATUS_LABELS[action.newStatus]}</p>
               </td>
-              <td className="whitespace-nowrap px-4 py-4 text-gray-700">
-                {action.previousStatus ? PREMIUM_STATUS_LABELS[action.previousStatus] : '해당 없음'}
+              <td className="px-4 py-4 text-gray-700">
+                <p><span className="font-semibold text-gray-500">이전:</span> {formatPeriod(action.previousStartedAt, action.previousExpiresAt)}</p>
+                <p className="mt-2"><span className="font-semibold text-gray-500">신규:</span> {formatPeriod(action.newStartedAt, action.newExpiresAt)}</p>
               </td>
-              <td className="whitespace-nowrap px-4 py-4 text-gray-700">{PREMIUM_STATUS_LABELS[action.newStatus]}</td>
-              <td className="whitespace-nowrap px-4 py-4 text-gray-700">
-                {formatPeriod(action.previousStartedAt, action.previousExpiresAt)}
+              <td className="px-4 py-4">
+                <div>
+                  <p className="mb-1.5 font-semibold text-gray-500">이전</p>
+                  <FeatureBadges featureKeys={action.previousFeatureKeys} />
+                </div>
+                <div className="mt-3">
+                  <p className="mb-1.5 font-semibold text-gray-500">신규</p>
+                  <FeatureBadges featureKeys={action.newFeatureKeys} />
+                </div>
               </td>
-              <td className="whitespace-nowrap px-4 py-4 text-gray-700">
-                {formatPeriod(action.newStartedAt, action.newExpiresAt)}
+              <td className="px-4 py-4 text-gray-700">
+                <p className="whitespace-pre-wrap break-words">{action.reason}</p>
+                <div className="mt-3 border-t border-gray-100 pt-3">
+                  <p className="text-xs font-semibold text-gray-500">수행 관리자 UUID</p>
+                  <p className="mt-1 break-all font-mono text-xs text-gray-600">{action.performedBy}</p>
+                </div>
               </td>
-              <td className="px-4 py-4"><FeatureBadges featureKeys={action.previousFeatureKeys} /></td>
-              <td className="px-4 py-4"><FeatureBadges featureKeys={action.newFeatureKeys} /></td>
-              <td className="max-w-sm whitespace-pre-wrap break-words px-4 py-4 text-gray-700">{action.reason}</td>
-              <td className="break-all px-4 py-4 text-xs text-gray-600">{action.performedBy}</td>
             </tr>
           ))}
         </tbody>

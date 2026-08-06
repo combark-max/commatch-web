@@ -215,11 +215,19 @@ export default async function AdminPremiumMembershipsPage({
       ) : memberships ? (
         <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1480px] text-left text-sm">
+            <table className="w-full min-w-[1100px] table-fixed text-left text-sm">
+              <colgroup>
+                <col className="w-[18%]" />
+                <col className="w-[17%]" />
+                <col className="w-[21%]" />
+                <col className="w-[17%]" />
+                <col className="w-[14%]" />
+                <col className="w-[13%]" />
+              </colgroup>
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
-                  {['회원', 'Premium 상태', 'Premium 기간 상태', '기간', '기능 권한', '회원 저장 상태', '프로필 노출', '최근 변경'].map((label) => (
-                    <th key={label} scope="col" className="px-5 py-3 font-semibold">{label}</th>
+                  {['회원', 'Premium 상태', '이용 기간', '기능 권한', '회원 상태', '관리'].map((label) => (
+                    <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>
                   ))}
                 </tr>
               </thead>
@@ -229,34 +237,39 @@ export default async function AdminPremiumMembershipsPage({
                   const periodState = getPremiumPeriodState(membership);
                   return (
                     <tr key={membership.memberUserId} className="hover:bg-gray-50/70">
-                      <td className="px-5 py-4">
-                        <Link
-                          href={`/admin/premium/${membership.memberUserId}`}
-                          className="font-bold text-gray-900 underline-offset-4 hover:text-green-700 hover:underline"
-                        >
+                      <td className="px-4 py-4">
+                        <p className="truncate font-bold text-gray-900" title={membership.nickname ?? undefined}>
                           {membership.nickname ?? '닉네임 정보 없음'}
-                        </Link>
-                        <p className="mt-1 break-all text-xs text-gray-500">{membership.memberUserId}</p>
+                        </p>
+                        <p
+                          className="mt-1 font-mono text-xs text-gray-500"
+                          title={membership.memberUserId}
+                          aria-label={`회원 UUID ${membership.memberUserId}`}
+                        >
+                          {membership.memberUserId.slice(0, 8)}
+                        </p>
                         {!membership.profileExists ? <p className="mt-1 text-xs font-semibold text-amber-700">프로필 없음</p> : null}
                       </td>
-                      <td className="px-5 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getPremiumStatusClassName(storedStatus)}`}>
-                          {PREMIUM_STATUS_LABELS[storedStatus]}
-                        </span>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getPremiumStatusClassName(storedStatus)}`}>
+                            {PREMIUM_STATUS_LABELS[storedStatus]}
+                          </span>
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getPremiumPeriodStateClassName(periodState)}`}>
+                            {PREMIUM_PERIOD_STATE_LABELS[periodState]}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs font-semibold text-gray-500">
+                          현재 이용 {membership.isAvailable ? '가능' : '불가'}
+                        </p>
                       </td>
-                      <td className="px-5 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getPremiumPeriodStateClassName(periodState)}`}>
-                          {PREMIUM_PERIOD_STATE_LABELS[periodState]}
-                        </span>
-                        <p className="mt-2 text-xs text-gray-500">Premium 상태·기간 기준</p>
-                      </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-gray-700">
+                      <td className="px-4 py-4 text-gray-700">
                         <p><span className="font-semibold text-gray-500">시작:</span> {formatDateTime(membership.startedAt, '해당 없음')}</p>
-                        <p className="mt-2"><span className="font-semibold text-gray-500">만료:</span> {formatDateTime(membership.expiresAt, membership.membershipExists ? '무기한' : '해당 없음')}</p>
+                        <p className="mt-1.5"><span className="font-semibold text-gray-500">만료:</span> {formatDateTime(membership.expiresAt, membership.membershipExists ? '무기한' : '해당 없음')}</p>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-4">
                         {membership.featureKeys.length > 0 ? (
-                          <div className="flex max-w-sm flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-1.5">
                             {membership.featureKeys.map((featureKey) => (
                               <span key={featureKey} className="inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-800">
                                 {PREMIUM_FEATURE_LABELS[featureKey]}
@@ -265,9 +278,23 @@ export default async function AdminPremiumMembershipsPage({
                           </div>
                         ) : <span className="text-gray-500">해당 없음</span>}
                       </td>
-                      <td className="px-5 py-4 text-gray-700">저장 상태: {MEMBER_ACCOUNT_STATUS_LABELS[membership.accountStatus]}</td>
-                      <td className="px-5 py-4 text-gray-700">프로필 노출: {MEMBER_PROFILE_VISIBILITY_LABELS[membership.profileVisibility]}</td>
-                      <td className="whitespace-nowrap px-5 py-4 text-gray-600">{formatDateTime(membership.membershipUpdatedAt, '해당 없음')}</td>
+                      <td className="px-4 py-4 text-gray-700">
+                        <p><span className="font-semibold text-gray-500">계정 저장:</span> {MEMBER_ACCOUNT_STATUS_LABELS[membership.accountStatus]}</p>
+                        <p className="mt-1.5"><span className="font-semibold text-gray-500">프로필:</span> {membership.profileExists ? MEMBER_PROFILE_VISIBILITY_LABELS[membership.profileVisibility] : '없음'}</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <Link
+                          href={`/admin/premium/${membership.memberUserId}`}
+                          aria-label={`${membership.nickname ?? '닉네임 정보 없음'} Premium 상세 보기`}
+                          className="font-bold text-green-700 underline-offset-4 hover:text-green-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+                        >
+                          상세 보기
+                        </Link>
+                        <p className="mt-2 text-xs leading-5 text-gray-500">
+                          <span className="font-semibold">최근 변경</span><br />
+                          {formatDateTime(membership.membershipUpdatedAt, '해당 없음')}
+                        </p>
+                      </td>
                     </tr>
                   );
                 })}

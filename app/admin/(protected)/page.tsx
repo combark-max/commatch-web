@@ -66,6 +66,7 @@ type OperationalSummary = {
 type SummaryMetricCard = {
   label: string;
   count: string | number;
+  description?: string;
   href?: string;
   ariaLabel?: string;
 };
@@ -621,6 +622,7 @@ const ActivityError = ({ message }: { message: string }) => (
 const SummaryMetricCardView = ({
   label,
   count,
+  description,
   href,
   ariaLabel,
 }: SummaryMetricCard) => {
@@ -628,6 +630,9 @@ const SummaryMetricCardView = ({
     <>
       <p className="text-sm font-semibold text-gray-500">{label}</p>
       <p className="mt-3 text-3xl font-black text-gray-900">{count}</p>
+      {description ? (
+        <p className="mt-2 text-xs leading-5 text-gray-500">{description}</p>
+      ) : null}
     </>
   );
   const className = 'rounded-2xl border border-gray-100 bg-white p-5 shadow-sm';
@@ -711,18 +716,45 @@ export default async function AdminDashboardPage() {
         },
       ]
     : [];
-  const memberSummaryCards: [string, number, string | null][] = operationalSummaryResult.kind === 'success'
+  const memberSummaryCards: SummaryMetricCard[] = operationalSummaryResult.kind === 'success'
     ? [
-        ['전체 회원', operationalSummaryResult.data.totalMemberCount, null],
-        ['활성 회원', operationalSummaryResult.data.activeMemberCount, null],
-        ['정지 회원', operationalSummaryResult.data.suspendedMemberCount, null],
-        ['숨김 프로필', operationalSummaryResult.data.hiddenProfileCount, null],
-        ['프로필 미작성', operationalSummaryResult.data.missingProfileCount, null],
-        [
-          '프로필 작성 완료',
-          operationalSummaryResult.data.completedProfileCount,
-          '필수 프로필 정보를 모두 입력한 회원',
-        ],
+        {
+          label: '전체 회원',
+          count: operationalSummaryResult.data.totalMemberCount,
+          href: '/admin/members',
+          ariaLabel: '전체 회원 목록 보기',
+        },
+        {
+          label: '활성 회원',
+          count: operationalSummaryResult.data.activeMemberCount,
+          href: '/admin/members?account=active',
+          ariaLabel: '활성 회원 목록 보기',
+        },
+        {
+          label: '정지 회원',
+          count: operationalSummaryResult.data.suspendedMemberCount,
+          href: '/admin/members?account=suspended',
+          ariaLabel: '정지 회원 목록 보기',
+        },
+        {
+          label: '숨김 프로필',
+          count: operationalSummaryResult.data.hiddenProfileCount,
+          href: '/admin/members?visibility=hidden',
+          ariaLabel: '숨김 프로필 회원 목록 보기',
+        },
+        {
+          label: '프로필 미작성',
+          count: operationalSummaryResult.data.missingProfileCount,
+          href: '/admin/members?profile=missing',
+          ariaLabel: '프로필 미작성 회원 목록 보기',
+        },
+        {
+          label: '프로필 작성 완료',
+          count: operationalSummaryResult.data.completedProfileCount,
+          description: '필수 프로필 정보를 모두 입력한 회원',
+          href: '/admin/members?profile=completed',
+          ariaLabel: '프로필 작성 완료 회원 목록 보기',
+        },
       ]
     : [];
   const premiumSummaryCards: SummaryMetricCard[] = operationalSummaryResult.kind === 'success'
@@ -790,14 +822,8 @@ export default async function AdminDashboardPage() {
               <Users className="text-gray-400" size={22} aria-hidden="true" />
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              {memberSummaryCards.map(([label, count, description]) => (
-                <article key={label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                  <p className="text-sm font-semibold text-gray-500">{label}</p>
-                  <p className="mt-3 text-3xl font-black text-gray-900">{count}</p>
-                  {description ? (
-                    <p className="mt-2 text-xs leading-5 text-gray-500">{description}</p>
-                  ) : null}
-                </article>
+              {memberSummaryCards.map((card) => (
+                <SummaryMetricCardView key={card.label} {...card} />
               ))}
             </div>
           </section>

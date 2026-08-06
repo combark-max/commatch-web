@@ -14,6 +14,7 @@ import {
 type AdminNavigationProps = {
   canViewReports: boolean;
   canViewPremium: boolean;
+  canViewMembers: boolean;
   canManageAdmins: boolean;
 };
 
@@ -23,6 +24,7 @@ const defaultClassName = 'text-gray-600 hover:bg-gray-100 hover:text-gray-900';
 export default function AdminNavigation({
   canViewReports,
   canViewPremium,
+  canViewMembers,
   canManageAdmins,
 }: AdminNavigationProps) {
   const pathname = usePathname();
@@ -58,10 +60,15 @@ export default function AdminNavigation({
           </Link>
         ) : null}
 
-        <span aria-disabled="true" className="inline-flex shrink-0 cursor-not-allowed items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-gray-400">
-          <Users size={17} aria-hidden="true" />
-          회원 관리 <span className="text-xs">— 준비 중</span>
-        </span>
+        {canViewMembers ? (
+          <Link
+            href="/admin/members"
+            className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/members') ? activeClassName : defaultClassName}`}
+          >
+            <Users size={17} aria-hidden="true" />
+            회원 관리
+          </Link>
+        ) : null}
         <span aria-disabled="true" className="inline-flex shrink-0 cursor-not-allowed items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-gray-400">
           <UserCog size={17} aria-hidden="true" />
           {canManageAdmins ? '관리자 계정 관리' : '관리자 관리'} <span className="text-xs">— 준비 중</span>

@@ -131,6 +131,7 @@ export async function updateAdminMemberRestrictionAction(
     return errorState('회원 제재 상태를 변경하지 못했습니다.');
   }
 
+  revalidatePath('/admin');
   revalidatePath('/admin/reports');
   revalidatePath(`/admin/reports/${reportId}`);
   return { kind: 'success', message: '회원 제재 상태가 변경되었습니다.' };

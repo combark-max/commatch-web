@@ -150,6 +150,7 @@ export async function updateAdminPremiumMembershipAction(
     return errorState('Premium 변경 결과를 확인하지 못했습니다.', requestId);
   }
 
+  revalidatePath('/admin');
   revalidatePath('/admin/premium');
   revalidatePath(`/admin/premium/${subjectUserId}`);
 

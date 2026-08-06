@@ -63,6 +63,13 @@ type OperationalSummary = {
   expirationWindowDays: number;
 };
 
+type SummaryMetricCard = {
+  label: string;
+  count: string | number;
+  href?: string;
+  ariaLabel?: string;
+};
+
 type RecentMemberRestrictionAction = {
   actionId: string;
   actionType: MemberRestrictionActionType;
@@ -611,6 +618,33 @@ const ActivityError = ({ message }: { message: string }) => (
   </div>
 );
 
+const SummaryMetricCardView = ({
+  label,
+  count,
+  href,
+  ariaLabel,
+}: SummaryMetricCard) => {
+  const content = (
+    <>
+      <p className="text-sm font-semibold text-gray-500">{label}</p>
+      <p className="mt-3 text-3xl font-black text-gray-900">{count}</p>
+    </>
+  );
+  const className = 'rounded-2xl border border-gray-100 bg-white p-5 shadow-sm';
+
+  return href ? (
+    <Link
+      href={href}
+      aria-label={ariaLabel}
+      className={`${className} transition-colors hover:border-green-200 hover:bg-green-50/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2`}
+    >
+      {content}
+    </Link>
+  ) : (
+    <article className={className}>{content}</article>
+  );
+};
+
 const getRestrictionActivityErrorMessage = (
   result: Exclude<ActivityDataResult<RecentMemberRestrictionAction[]>, { kind: 'success' }>,
 ) => {
@@ -643,13 +677,38 @@ export default async function AdminDashboardPage() {
     loadRecentPremiumMembershipActions(),
   ]);
 
-  const summaryCards = summaryResult.kind === 'success'
+  const summaryCards: SummaryMetricCard[] = summaryResult.kind === 'success'
     ? [
-        ['전체 신고', summaryResult.data.totalCount],
-        ['접수 대기', summaryResult.data.pendingCount],
-        ['검토 중', summaryResult.data.reviewingCount],
-        ['처리 완료', summaryResult.data.resolvedCount],
-        ['기각', summaryResult.data.dismissedCount],
+        {
+          label: '전체 신고',
+          count: summaryResult.data.totalCount,
+          href: '/admin/reports',
+          ariaLabel: '전체 신고 목록 보기',
+        },
+        {
+          label: '접수 대기',
+          count: summaryResult.data.pendingCount,
+          href: '/admin/reports?status=pending',
+          ariaLabel: '접수 대기 신고 목록 보기',
+        },
+        {
+          label: '검토 중',
+          count: summaryResult.data.reviewingCount,
+          href: '/admin/reports?status=reviewing',
+          ariaLabel: '검토 중 신고 목록 보기',
+        },
+        {
+          label: '처리 완료',
+          count: summaryResult.data.resolvedCount,
+          href: '/admin/reports?status=resolved',
+          ariaLabel: '처리 완료 신고 목록 보기',
+        },
+        {
+          label: '기각',
+          count: summaryResult.data.dismissedCount,
+          href: '/admin/reports?status=dismissed',
+          ariaLabel: '기각 신고 목록 보기',
+        },
       ]
     : [];
   const memberSummaryCards: [string, number, string | null][] = operationalSummaryResult.kind === 'success'
@@ -666,14 +725,36 @@ export default async function AdminDashboardPage() {
         ],
       ]
     : [];
-  const premiumSummaryCards = operationalSummaryResult.kind === 'success'
+  const premiumSummaryCards: SummaryMetricCard[] = operationalSummaryResult.kind === 'success'
     ? [
-        ['Premium 이용 가능', operationalSummaryResult.data.premiumAvailableCount],
-        ['시작 전', operationalSummaryResult.data.premiumNotStartedCount],
-        ['만료', operationalSummaryResult.data.premiumExpiredCount],
-        ['Premium 정지', operationalSummaryResult.data.premiumSuspendedCount],
-        ['Premium 회수', operationalSummaryResult.data.premiumRevokedCount],
-        [`${operationalSummaryResult.data.expirationWindowDays}일 내 만료 예정`, operationalSummaryResult.data.premiumExpiringSoonCount],
+        {
+          label: 'Premium 이용 가능',
+          count: operationalSummaryResult.data.premiumAvailableCount,
+        },
+        {
+          label: '시작 전',
+          count: operationalSummaryResult.data.premiumNotStartedCount,
+        },
+        {
+          label: '만료',
+          count: operationalSummaryResult.data.premiumExpiredCount,
+        },
+        {
+          label: 'Premium 정지',
+          count: operationalSummaryResult.data.premiumSuspendedCount,
+          href: '/admin/premium?status=suspended',
+          ariaLabel: 'Premium 정지 회원 목록 보기',
+        },
+        {
+          label: 'Premium 회수',
+          count: operationalSummaryResult.data.premiumRevokedCount,
+          href: '/admin/premium?status=revoked',
+          ariaLabel: 'Premium 회수 회원 목록 보기',
+        },
+        {
+          label: `${operationalSummaryResult.data.expirationWindowDays}일 내 만료 예정`,
+          count: operationalSummaryResult.data.premiumExpiringSoonCount,
+        },
       ]
     : [];
 
@@ -692,11 +773,8 @@ export default async function AdminDashboardPage() {
         </div>
         {summaryResult.kind === 'success' ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {summaryCards.map(([label, count]) => (
-              <article key={label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                <p className="text-sm font-semibold text-gray-500">{label}</p>
-                <p className="mt-3 text-3xl font-black text-gray-900">{count}</p>
-              </article>
+            {summaryCards.map((card) => (
+              <SummaryMetricCardView key={card.label} {...card} />
             ))}
           </div>
         ) : (
@@ -730,11 +808,8 @@ export default async function AdminDashboardPage() {
               <Crown className="text-gray-400" size={22} aria-hidden="true" />
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              {premiumSummaryCards.map(([label, count]) => (
-                <article key={label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                  <p className="text-sm font-semibold text-gray-500">{label}</p>
-                  <p className="mt-3 text-3xl font-black text-gray-900">{count}</p>
-                </article>
+              {premiumSummaryCards.map((card) => (
+                <SummaryMetricCardView key={card.label} {...card} />
               ))}
             </div>
           </section>

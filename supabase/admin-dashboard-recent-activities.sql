@@ -25,7 +25,7 @@ begin
     from (values
       ('auth', 'users', 'id', 'uuid', true),
       ('public', 'profiles', 'id', 'uuid', true),
-      ('public', 'profiles', 'nickname', 'text', false),
+      ('public', 'profiles', 'nickname', 'text', true),
       ('public', 'admin_accounts', 'user_id', 'uuid', true),
       ('public', 'admin_accounts', 'role', 'text', true),
       ('public', 'reports', 'id', 'uuid', true),

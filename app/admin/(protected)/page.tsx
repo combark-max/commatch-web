@@ -23,6 +23,10 @@ import {
   REPORT_TARGET_LABELS,
   type AdminReportListItem,
 } from '@/lib/admin/reports';
+import {
+  parseAdminServiceStatistics,
+  type AdminServiceStatistics,
+} from '@/lib/admin/service-statistics';
 import { getAdminRoleLabel } from '@/lib/admin/presentation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -103,6 +107,16 @@ async function loadOperationalSummary(): Promise<DataResult<OperationalSummary>>
   const parsed = parseOperationalSummary(data);
   return parsed ? { kind: 'success', data: parsed } : { kind: 'error' };
 }
+async function loadServiceStatistics(): Promise<DataResult<AdminServiceStatistics>> {
+  try {
+    const client = await createServerSupabaseClient();
+    const { data, error } = await client.rpc('get_admin_service_statistics');
+    if (error) return { kind: errorKind(error) };
+    return { kind: 'success', data: parseAdminServiceStatistics(data) };
+  } catch {
+    return { kind: 'error' };
+  }
+}
 async function loadReportPage(requestedPage: number): Promise<PagedResult<AdminReportListItem>> {
   const client = await createServerSupabaseClient();
   const fetchPage = async (page: number) => {
@@ -166,8 +180,9 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
   const query = await searchParams;
   const reportPage = normalizePage(firstValue(query.reportPage));
   const premiumPage = normalizePage(firstValue(query.premiumPage));
-  const [summaryResult, operationalResult, reportResult, premiumResult] = await Promise.all([
+  const [summaryResult, operationalResult, reportResult, premiumResult, serviceStatisticsResult] = await Promise.all([
     loadReportSummary(), loadOperationalSummary(), loadReportPage(reportPage), loadPremiumPage(premiumPage),
+    loadServiceStatistics(),
   ]);
   const summaryCards: AdminMetric[] = summaryResult.kind === 'success' ? [
     { label: '전체 신고', count: summaryResult.data.totalCount, href: '/admin/reports', ariaLabel: '전체 신고 목록 보기' },
@@ -194,6 +209,14 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
     { label: 'Premium 회수', count: operationalResult.data.premiumRevokedCount, href: '/admin/premium?status=revoked', ariaLabel: '회수된 Premium 회원 목록 보기' },
     ] : []),
   ];
+  const serviceStatisticsCards: AdminMetric[] = serviceStatisticsResult.kind === 'success' ? [
+    { label: '전체 매칭', count: serviceStatisticsResult.data.totalMatchCount },
+    { label: '진행 중 매칭', count: serviceStatisticsResult.data.activeMatchCount },
+    { label: '종료 매칭', count: serviceStatisticsResult.data.endedMatchCount },
+    { label: '전체 메시지', count: serviceStatisticsResult.data.totalMessageCount },
+    { label: '최근 7일 신규 회원', count: serviceStatisticsResult.data.newMemberLast7DaysCount },
+    { label: '최근 7일 신고', count: serviceStatisticsResult.data.reportLast7DaysCount },
+  ] : [];
 
   return <div className="space-y-8">
     <section><p className="text-sm font-bold text-green-700">{getAdminRoleLabel(adminAccess.role as AdminRole)}</p><h1 className="mt-2 text-3xl font-black text-gray-900">관리자 대시보드</h1><p className="mt-3 text-gray-600">신고, Premium, 회원 및 서비스 운영 현황을 확인하는 화면입니다.</p></section>
@@ -217,7 +240,10 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
     </AdminDashboardSection>
 
     <AdminDashboardSection headingId="member-management-heading" title="회원 관리" description="회원 계정과 프로필 상태를 확인합니다." viewAllHref={adminAccess.permissions.includes('member_restrictions_view') ? '/admin/members' : undefined} viewAllLabel="회원 관리 전체 보기">{operationalResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{memberCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={operationalResult.kind === 'forbidden' ? '운영 통계 조회 권한이 없습니다.' : '운영 통계를 불러오지 못했습니다.'} />}</AdminDashboardSection>
-    <AdminDashboardSection headingId="service-statistics-heading" title="서비스 통계" description="매칭, 메시지, 신규 회원 등 서비스 이용 현황을 확인합니다."><div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-5 py-8 text-center"><span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-600">도입 예정</span><p className="mt-3 text-sm font-semibold text-gray-600">상세 통계 화면 준비 중</p></div></AdminDashboardSection>
+    <AdminDashboardSection headingId="service-statistics-heading" title="서비스 통계" description="현재 저장된 매칭·메시지와 최근 7일의 신규 회원·신고 현황을 확인합니다.">
+      {serviceStatisticsResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{serviceStatisticsCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={serviceStatisticsResult.kind === 'forbidden' ? '서비스 통계 조회 권한이 없습니다.' : '서비스 통계를 불러오지 못했습니다.'} />}
+      <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-5 py-8 text-center"><span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-600">도입 예정</span><p className="mt-3 text-sm font-semibold text-gray-600">상세 통계 화면 준비 중</p></div>
+    </AdminDashboardSection>
     <AdminDashboardSection headingId="admin-account-management-heading" title="관리자 계정 관리" description="관리자 역할과 계정 상태를 관리합니다."><div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-5 py-8 text-center"><span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-600">도입 예정</span><p className="mt-3 text-sm font-semibold text-gray-600">관리 기능 준비 중</p><p className="mt-1 text-xs text-gray-500">super_admin 전용으로 도입 예정입니다.</p></div></AdminDashboardSection>
   </div>;
 }

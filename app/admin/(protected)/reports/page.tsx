@@ -45,6 +45,26 @@ const buildListHref = (status: ReportStatus | null, type: ReportTargetType | nul
   return value ? `/admin/reports?${value}` : '/admin/reports';
 };
 
+const MemberLink = ({
+  userId,
+  nickname,
+  memberExists,
+  profileExists,
+}: {
+  userId: string;
+  nickname: string | null;
+  memberExists: boolean;
+  profileExists: boolean;
+}) => memberExists ? (
+  <Link
+    href={`/admin/members/${userId}`}
+    aria-label={`${nickname ?? '프로필 정보 없음'} 관리자 회원 상세 보기`}
+    className="font-semibold text-gray-900 underline-offset-4 hover:text-green-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+  >
+    {profileExists && nickname ? nickname : '프로필 정보 없음'}
+  </Link>
+) : <span className="font-semibold text-gray-600">탈퇴한 회원</span>;
+
 export default async function AdminReportsPage({
   searchParams,
 }: {
@@ -148,8 +168,22 @@ export default async function AdminReportsPage({
                       <td className="whitespace-nowrap px-5 py-4 text-gray-600">{listDateFormatter.format(new Date(report.createdAt))}</td>
                       <td className="px-5 py-4 font-semibold text-gray-900">{REPORT_TARGET_LABELS[report.targetType]}</td>
                       <td className="px-5 py-4 text-gray-700">{REPORT_REASON_LABELS[report.reason]}</td>
-                      <td className="px-5 py-4 text-gray-700">{report.reporterNickname ?? '프로필 정보 없음'}</td>
-                      <td className="px-5 py-4 text-gray-700">{report.reportedNickname ?? '프로필 정보 없음'}</td>
+                      <td className="px-5 py-4 text-gray-700">
+                        <MemberLink
+                          userId={report.reporterUserId}
+                          nickname={report.reporterNickname}
+                          memberExists={report.reporterMemberExists}
+                          profileExists={report.reporterProfileExists}
+                        />
+                      </td>
+                      <td className="px-5 py-4 text-gray-700">
+                        <MemberLink
+                          userId={report.reportedUserId}
+                          nickname={report.reportedNickname}
+                          memberExists={report.reportedMemberExists}
+                          profileExists={report.reportedProfileExists}
+                        />
+                      </td>
                       <td className="px-5 py-4">
                         <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getReportStatusClassName(report.status)}`}>{REPORT_STATUS_LABELS[report.status]}</span>
                       </td>

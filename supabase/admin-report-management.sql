@@ -259,7 +259,11 @@ begin
 end
 $table_validation$;
 
-create or replace function public.get_admin_reports(
+-- PostgreSQL cannot change a function's TABLE return shape with CREATE OR
+-- REPLACE. The preflight above has verified this exact signature and marker.
+drop function if exists public.get_admin_reports(text, text, integer, integer);
+
+create function public.get_admin_reports(
   status_filter text default null,
   target_type_filter text default null,
   page_number integer default 1,
@@ -276,6 +280,10 @@ returns table (
   message_id uuid,
   reporter_nickname text,
   reported_nickname text,
+  reporter_member_exists boolean,
+  reporter_profile_exists boolean,
+  reported_member_exists boolean,
+  reported_profile_exists boolean,
   total_count bigint
 )
 language plpgsql
@@ -311,9 +319,15 @@ begin
     report.target_message_id,
     reporter_profile.nickname,
     reported_profile.nickname,
+    reporter_member.id is not null,
+    reporter_profile.id is not null,
+    reported_member.id is not null,
+    reported_profile.id is not null,
     pg_catalog.count(*) over ()
   from public.reports as report
+  left join auth.users as reporter_member on reporter_member.id = report.reporter_id
   left join public.profiles as reporter_profile on reporter_profile.id = report.reporter_id
+  left join auth.users as reported_member on reported_member.id = report.target_user_id
   left join public.profiles as reported_profile on reported_profile.id = report.target_user_id
   where (v_status is null or report.status = v_status)
     and (v_target_type is null or report.target_type = v_target_type)
@@ -348,6 +362,7 @@ returns table (
   reporter_region text,
   reporter_job text,
   reporter_profile_image text,
+  reporter_member_exists boolean,
   reporter_profile_exists boolean,
   reported_nickname text,
   reported_gender text,
@@ -356,10 +371,13 @@ returns table (
   reported_job text,
   reported_profile_image text,
   reported_marriage_history text,
+  reported_member_exists boolean,
   reported_profile_exists boolean,
   message_content text,
   message_sender_id uuid,
   message_sender_nickname text,
+  message_sender_member_exists boolean,
+  message_sender_profile_exists boolean,
   message_created_at timestamptz,
   match_id uuid,
   match_user_1_id uuid,
@@ -398,6 +416,7 @@ begin
     reporter_profile.region,
     reporter_profile.job,
     reporter_profile.profile_image,
+    reporter_member.id is not null,
     reporter_profile.id is not null,
     reported_profile.nickname,
     reported_profile.gender,
@@ -406,10 +425,13 @@ begin
     reported_profile.job,
     reported_profile.profile_image,
     reported_profile.marriage_history,
+    reported_member.id is not null,
     reported_profile.id is not null,
     case when report.target_type = 'message' then reported_message.content else null end,
     case when report.target_type = 'message' then reported_message.sender_id else null end,
     case when report.target_type = 'message' then message_sender_profile.nickname else null end,
+    case when report.target_type = 'message' then message_sender_member.id is not null else false end,
+    case when report.target_type = 'message' then message_sender_profile.id is not null else false end,
     case when report.target_type = 'message' then reported_message.created_at else null end,
     case when report.target_type = 'message' then reported_message.match_id else null end,
     case when report.target_type = 'message' then reported_match.user_1_id else null end,
@@ -418,12 +440,16 @@ begin
     case when report.target_type = 'message' then match_user_2_profile.nickname else null end,
     case when report.target_type = 'message' then reported_message.id is not null else false end
   from public.reports as report
+  left join auth.users as reporter_member on reporter_member.id = report.reporter_id
   left join public.profiles as reporter_profile on reporter_profile.id = report.reporter_id
+  left join auth.users as reported_member on reported_member.id = report.target_user_id
   left join public.profiles as reported_profile on reported_profile.id = report.target_user_id
   left join public.messages as reported_message
     on report.target_type = 'message' and reported_message.id = report.target_message_id
   left join public.profiles as message_sender_profile
     on report.target_type = 'message' and message_sender_profile.id = reported_message.sender_id
+  left join auth.users as message_sender_member
+    on report.target_type = 'message' and message_sender_member.id = reported_message.sender_id
   left join public.matches as reported_match
     on report.target_type = 'message' and reported_match.id = reported_message.match_id
   left join public.profiles as match_user_1_profile
@@ -615,13 +641,13 @@ revoke all on function public.update_admin_report_status(uuid, text, text, text)
   from public, anon, authenticated, service_role;
 
 grant execute on function public.get_admin_reports(text, text, integer, integer)
-  to authenticated, service_role;
+  to authenticated;
 grant execute on function public.get_admin_report_detail(uuid)
-  to authenticated, service_role;
+  to authenticated;
 grant execute on function public.get_admin_report_actions(uuid)
-  to authenticated, service_role;
+  to authenticated;
 grant execute on function public.update_admin_report_status(uuid, text, text, text)
-  to authenticated, service_role;
+  to authenticated;
 
 do $table_privilege_validation$
 begin
@@ -651,7 +677,8 @@ declare
 begin
   for v_function in
     select function_info.oid, function_info.proname, function_info.prosecdef,
-      function_info.provolatile, function_info.proconfig
+      function_info.provolatile, function_info.proconfig,
+      pg_catalog.pg_get_userbyid(function_info.proowner) as owner_name
     from pg_catalog.pg_proc as function_info
     join pg_catalog.pg_namespace as namespace_info on namespace_info.oid = function_info.pronamespace
     where namespace_info.nspname = 'public'
@@ -663,7 +690,8 @@ begin
       )
   loop
     v_count := v_count + 1;
-    if not v_function.prosecdef
+    if v_function.owner_name <> 'postgres'
+       or not v_function.prosecdef
        or (v_function.proname = 'update_admin_report_status' and v_function.provolatile <> 'v')
        or (v_function.proname <> 'update_admin_report_status' and v_function.provolatile <> 's')
        or not exists (
@@ -673,12 +701,20 @@ begin
        )
        or pg_catalog.has_function_privilege('anon', v_function.oid, 'EXECUTE')
        or not pg_catalog.has_function_privilege('authenticated', v_function.oid, 'EXECUTE')
-       or not pg_catalog.has_function_privilege('service_role', v_function.oid, 'EXECUTE') then
+       or pg_catalog.has_function_privilege('service_role', v_function.oid, 'EXECUTE') then
       raise exception 'public.% security or privileges differ from the approved definition', v_function.proname;
     end if;
   end loop;
   if v_count <> 4 then
     raise exception 'Admin report management function count differs from the approved definition';
+  end if;
+  if pg_catalog.pg_get_function_result(
+       'public.get_admin_reports(text,text,integer,integer)'::pg_catalog.regprocedure
+     ) <> 'TABLE(report_id uuid, target_type text, reason text, status text, created_at timestamp with time zone, reporter_user_id uuid, reported_user_id uuid, message_id uuid, reporter_nickname text, reported_nickname text, reporter_member_exists boolean, reporter_profile_exists boolean, reported_member_exists boolean, reported_profile_exists boolean, total_count bigint)'
+     or pg_catalog.pg_get_function_result(
+       'public.get_admin_report_detail(uuid)'::pg_catalog.regprocedure
+     ) <> 'TABLE(report_id uuid, target_type text, reason text, details text, status text, created_at timestamp with time zone, reporter_user_id uuid, reported_user_id uuid, message_id uuid, reporter_nickname text, reporter_gender text, reporter_birth_date date, reporter_region text, reporter_job text, reporter_profile_image text, reporter_member_exists boolean, reporter_profile_exists boolean, reported_nickname text, reported_gender text, reported_birth_date date, reported_region text, reported_job text, reported_profile_image text, reported_marriage_history text, reported_member_exists boolean, reported_profile_exists boolean, message_content text, message_sender_id uuid, message_sender_nickname text, message_sender_member_exists boolean, message_sender_profile_exists boolean, message_created_at timestamp with time zone, match_id uuid, match_user_1_id uuid, match_user_1_nickname text, match_user_2_id uuid, match_user_2_nickname text, message_exists boolean)' then
+    raise exception 'An admin report RPC return contract differs from the approved definition';
   end if;
 end
 $function_validation$;

@@ -129,9 +129,17 @@ function ProfileCard({
           </div>
         )}
         <div className="min-w-0">
-          <p className="font-bold text-gray-900">
-            {profile.exists ? profile.nickname ?? '닉네임 정보 없음' : '탈퇴했거나 프로필 정보가 없는 회원입니다.'}
-          </p>
+          {profile.memberExists ? (
+            <Link
+              href={`/admin/members/${userId}`}
+              aria-label={`${profile.nickname ?? '프로필 정보 없음'} 관리자 회원 상세 보기`}
+              className="font-bold text-gray-900 underline-offset-4 hover:text-green-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+            >
+              {profile.profileExists && profile.nickname ? profile.nickname : '프로필 정보 없음'}
+            </Link>
+          ) : (
+            <p className="font-bold text-gray-900">탈퇴한 회원</p>
+          )}
           <p className="mt-1 break-all text-xs text-gray-500">{userId}</p>
         </div>
       </div>
@@ -298,7 +306,19 @@ export default async function AdminReportDetailPage({
                 <div>
                   <dt className="font-semibold">작성자 ID</dt>
                   <dd className="mt-1 break-all">{detail.message.senderId ?? '정보 없음'}</dd>
-                  <dd className="mt-1 font-semibold text-gray-700">닉네임: {detail.message.senderNickname ?? '닉네임 정보 없음'}</dd>
+                  <dd className="mt-1 font-semibold text-gray-700">
+                    닉네임:{' '}
+                    {detail.message.senderId && detail.message.senderMemberExists ? (
+                      <Link
+                        href={`/admin/members/${detail.message.senderId}`}
+                        className="underline-offset-4 hover:text-green-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+                      >
+                        {detail.message.senderProfileExists && detail.message.senderNickname
+                          ? detail.message.senderNickname
+                          : '프로필 정보 없음'}
+                      </Link>
+                    ) : '탈퇴한 회원'}
+                  </dd>
                 </div>
                 <div><dt className="font-semibold">작성일</dt><dd className="mt-1">{detail.message.createdAt ? dateTimeFormatter.format(new Date(detail.message.createdAt)) : '정보 없음'}</dd></div>
                 <div><dt className="font-semibold">매칭 ID</dt><dd className="mt-1 break-all">{detail.message.matchId ?? '정보 없음'}</dd></div>

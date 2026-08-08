@@ -24,6 +24,10 @@ export type AdminReportListItem = {
   messageId: string | null;
   reporterNickname: string | null;
   reportedNickname: string | null;
+  reporterMemberExists: boolean;
+  reporterProfileExists: boolean;
+  reportedMemberExists: boolean;
+  reportedProfileExists: boolean;
   totalCount: number;
 };
 
@@ -43,6 +47,8 @@ export type AdminReportDetail = {
     content: string | null;
     senderId: string | null;
     senderNickname: string | null;
+    senderMemberExists: boolean;
+    senderProfileExists: boolean;
     createdAt: string | null;
     matchId: string | null;
     matchUser1Id: string | null;
@@ -60,7 +66,8 @@ export type AdminReportProfile = {
   region: string | null;
   job: string | null;
   profileImage: string | null;
-  exists: boolean;
+  memberExists: boolean;
+  profileExists: boolean;
 };
 
 export type AdminReportAction = {
@@ -172,6 +179,10 @@ export const parseAdminReportList = (value: unknown): AdminReportListItem[] | nu
       || !isNullableUuid(entry.message_id)
       || !isNullableString(entry.reporter_nickname)
       || !isNullableString(entry.reported_nickname)
+      || typeof entry.reporter_member_exists !== 'boolean'
+      || typeof entry.reporter_profile_exists !== 'boolean'
+      || typeof entry.reported_member_exists !== 'boolean'
+      || typeof entry.reported_profile_exists !== 'boolean'
       || totalCount === null
     ) return null;
 
@@ -186,6 +197,10 @@ export const parseAdminReportList = (value: unknown): AdminReportListItem[] | nu
       messageId: entry.message_id,
       reporterNickname: entry.reporter_nickname,
       reportedNickname: entry.reported_nickname,
+      reporterMemberExists: entry.reporter_member_exists,
+      reporterProfileExists: entry.reporter_profile_exists,
+      reportedMemberExists: entry.reported_member_exists,
+      reportedProfileExists: entry.reported_profile_exists,
       totalCount,
     });
   }
@@ -224,6 +239,7 @@ export const parseAdminReportDetail = (value: unknown): AdminReportDetail | null
     || !isNullableString(row.reporter_job)
     || !isNullableString(row.reporter_profile_image)
     || typeof row.reporter_profile_exists !== 'boolean'
+    || typeof row.reporter_member_exists !== 'boolean'
     || !isNullableString(row.reported_nickname)
     || !isNullableString(row.reported_gender)
     || !isNullableDateOnly(row.reported_birth_date)
@@ -232,8 +248,11 @@ export const parseAdminReportDetail = (value: unknown): AdminReportDetail | null
     || !isNullableString(row.reported_profile_image)
     || !isNullableString(row.reported_marriage_history)
     || typeof row.reported_profile_exists !== 'boolean'
+    || typeof row.reported_member_exists !== 'boolean'
     || !isNullableString(row.message_content)
     || !isNullableUuid(row.message_sender_id)
+    || typeof row.message_sender_member_exists !== 'boolean'
+    || typeof row.message_sender_profile_exists !== 'boolean'
     || (row.message_created_at !== null && !isValidDate(row.message_created_at))
     || !isNullableUuid(row.match_id)
     || typeof row.message_exists !== 'boolean'
@@ -256,7 +275,8 @@ export const parseAdminReportDetail = (value: unknown): AdminReportDetail | null
       region: row.reporter_region,
       job: row.reporter_job,
       profileImage: row.reporter_profile_image,
-      exists: row.reporter_profile_exists,
+      memberExists: row.reporter_member_exists,
+      profileExists: row.reporter_profile_exists,
     },
     reported: {
       nickname: row.reported_nickname,
@@ -266,12 +286,15 @@ export const parseAdminReportDetail = (value: unknown): AdminReportDetail | null
       job: row.reported_job,
       profileImage: row.reported_profile_image,
       marriageHistory: row.reported_marriage_history,
-      exists: row.reported_profile_exists,
+      memberExists: row.reported_member_exists,
+      profileExists: row.reported_profile_exists,
     },
     message: {
       content: row.message_content,
       senderId: row.message_sender_id,
       senderNickname: messageSenderNickname,
+      senderMemberExists: row.message_sender_member_exists,
+      senderProfileExists: row.message_sender_profile_exists,
       createdAt: row.message_created_at,
       matchId: row.match_id,
       matchUser1Id,

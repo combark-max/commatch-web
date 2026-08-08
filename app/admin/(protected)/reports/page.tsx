@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AlertCircle, ChevronLeft, ChevronRight, RotateCcw, Search } from 'lucide-react';
+import AdminRecentRestrictions from '@/components/admin/reports/AdminRecentRestrictions';
 import { requireAdminAccess } from '@/lib/admin/access';
 import {
   getReportStatusClassName,
@@ -12,6 +13,11 @@ import {
   type ReportStatus,
   type ReportTargetType,
 } from '@/lib/admin/reports';
+import {
+  parseRecentMemberRestrictionActions,
+  type RecentActivityResult,
+  type RecentMemberRestrictionAction,
+} from '@/lib/admin/recent-admin-activities';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 type ReportsSearchParams = {
@@ -79,13 +85,22 @@ export default async function AdminReportsPage({
   const page = normalizePage(firstValue(query.page));
 
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('get_admin_reports', {
-    status_filter: status,
-    target_type_filter: targetType,
-    page_number: page,
-    page_size: PAGE_SIZE,
-  });
+  const [listResult, recentRestrictionsRpc] = await Promise.all([
+    supabase.rpc('get_admin_reports', {
+      status_filter: status,
+      target_type_filter: targetType,
+      page_number: page,
+      page_size: PAGE_SIZE,
+    }),
+    supabase.rpc('get_admin_recent_member_restriction_actions', { p_limit: 5 }),
+  ]);
+  const { data, error } = listResult;
   const reports = error ? null : parseAdminReportList(data);
+  const parsedRestrictions = recentRestrictionsRpc.error
+    ? null : parseRecentMemberRestrictionActions(recentRestrictionsRpc.data);
+  const recentRestrictions: RecentActivityResult<RecentMemberRestrictionAction[]> = recentRestrictionsRpc.error
+    ? { kind: recentRestrictionsRpc.error.code === '42501' ? 'forbidden' : 'rpc_error' }
+    : parsedRestrictions === null ? { kind: 'parse_error' } : { kind: 'success', data: parsedRestrictions };
   const totalCount = reports?.[0]?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const hasFilters = status !== null || targetType !== null;
@@ -214,6 +229,8 @@ export default async function AdminReportsPage({
           )}
         </nav>
       ) : null}
+
+      <AdminRecentRestrictions result={recentRestrictions} />
     </div>
   );
 }

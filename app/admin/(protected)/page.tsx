@@ -1,1166 +1,223 @@
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, Crown, FileWarning, ShieldCheck, Users } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import AdminPagination from '@/components/admin/AdminPagination';
+import AdminDashboardSection from '@/components/admin/dashboard/AdminDashboardSection';
+import AdminMetricCard, { type AdminMetric } from '@/components/admin/dashboard/AdminMetricCard';
 import { requireAdminAccess, type AdminRole } from '@/lib/admin/access';
+import { MEMBER_ACCOUNT_STATUS_LABELS, MEMBER_PROFILE_VISIBILITY_LABELS } from '@/lib/admin/member-restrictions';
 import {
-  isMemberAccountStatus,
-  isMemberProfileVisibility,
-  isMemberRestrictionActionType,
-  MEMBER_ACCOUNT_STATUS_LABELS,
-  MEMBER_PROFILE_VISIBILITY_LABELS,
-  MEMBER_RESTRICTION_ACTION_LABELS,
-  type MemberAccountStatus,
-  type MemberProfileVisibility,
-  type MemberRestrictionActionType,
-} from '@/lib/admin/member-restrictions';
-import { getAdminRoleLabel } from '@/lib/admin/presentation';
-import {
+  getPremiumPeriodState,
+  getPremiumPeriodStateClassName,
   getPremiumStatusClassName,
-  isPremiumFeatureKey,
-  isPremiumMembershipStatus,
+  parseAdminPremiumMembershipList,
   PREMIUM_FEATURE_LABELS,
-  PREMIUM_MEMBERSHIP_ACTION_TYPES,
-  PREMIUM_MEMBERSHIP_ACTION_LABELS,
+  PREMIUM_PERIOD_STATE_LABELS,
   PREMIUM_STATUS_LABELS,
-  type PremiumFeatureKey,
-  type PremiumMembershipActionType,
-  type PremiumMembershipStatus,
+  type AdminPremiumMembershipListItem,
 } from '@/lib/admin/premium-memberships';
-import { isUuid } from '@/lib/admin/reports';
+import {
+  getReportStatusClassName,
+  parseAdminReportList,
+  REPORT_REASON_LABELS,
+  REPORT_STATUS_LABELS,
+  REPORT_TARGET_LABELS,
+  type AdminReportListItem,
+} from '@/lib/admin/reports';
+import { getAdminRoleLabel } from '@/lib/admin/presentation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
-type ReportSummary = {
-  totalCount: string;
-  pendingCount: string;
-  reviewingCount: string;
-  resolvedCount: string;
-  dismissedCount: string;
+type DashboardSearchParams = {
+  reportPage?: string | string[];
+  premiumPage?: string | string[];
+  [key: string]: string | string[] | undefined;
 };
-
-type RecentReport = {
-  reportId: string;
-  targetType: string;
-  reason: string;
-  status: string;
-  createdAt: string;
-  reporterUserId: string;
-  reportedUserId: string;
-  messageId: string | null;
-};
-
+type ReportSummary = { totalCount: string; pendingCount: string; reviewingCount: string; resolvedCount: string; dismissedCount: string };
 type OperationalSummary = {
-  totalMemberCount: number;
-  activeMemberCount: number;
-  suspendedMemberCount: number;
-  hiddenProfileCount: number;
-  missingProfileCount: number;
-  completedProfileCount: number;
-  premiumAvailableCount: number;
-  premiumNotStartedCount: number;
-  premiumExpiredCount: number;
-  premiumSuspendedCount: number;
-  premiumRevokedCount: number;
-  premiumExpiringSoonCount: number;
+  totalMemberCount: number; activeMemberCount: number; suspendedMemberCount: number;
+  hiddenProfileCount: number; missingProfileCount: number; completedProfileCount: number;
+  premiumAvailableCount: number; premiumNotStartedCount: number; premiumExpiredCount: number;
+  premiumSuspendedCount: number; premiumRevokedCount: number; premiumExpiringSoonCount: number;
   expirationWindowDays: number;
 };
+type DataResult<T> = { kind: 'success'; data: T } | { kind: 'forbidden' | 'error' };
+type PagedResult<T> = DataResult<{ items: T[]; totalCount: number; currentPage: number; totalPages: number }>;
 
-type SummaryMetricCard = {
-  label: string;
-  count: string | number;
-  description?: string;
-  href?: string;
-  ariaLabel?: string;
-};
-
-type RecentMemberRestrictionAction = {
-  actionId: string;
-  actionType: MemberRestrictionActionType;
-  subjectUserId: string;
-  memberExists: boolean;
-  profileExists: boolean;
-  nickname: string | null;
-  currentProfileVisibility: MemberProfileVisibility;
-  previousAccountStatus: MemberAccountStatus;
-  newAccountStatus: MemberAccountStatus;
-  previousProfileVisibility: MemberProfileVisibility;
-  newProfileVisibility: MemberProfileVisibility;
-  previousSuspendedUntil: string | null;
-  newSuspendedUntil: string | null;
-  reason: string | null;
-  note: string | null;
-  reportId: string | null;
-  reportExists: boolean;
-  adminUserId: string | null;
-  adminRole: AdminRole | null;
-  createdAt: string;
-};
-
-type RecentPremiumMembershipAction = {
-  actionId: string;
-  requestId: string;
-  membershipId: string | null;
-  subjectUserId: string;
-  memberExists: boolean;
-  profileExists: boolean;
-  nickname: string | null;
-  currentProfileVisibility: MemberProfileVisibility;
-  actionType: PremiumMembershipActionType;
-  previousStatus: PremiumMembershipStatus | null;
-  newStatus: PremiumMembershipStatus;
-  previousStartedAt: string | null;
-  newStartedAt: string;
-  previousExpiresAt: string | null;
-  newExpiresAt: string | null;
-  previousFeatureKeys: PremiumFeatureKey[] | null;
-  newFeatureKeys: PremiumFeatureKey[];
-  reason: string;
-  performedBy: string;
-  adminRole: AdminRole | null;
-  membershipUpdatedAt: string;
-  createdAt: string;
-};
-
-type ReportDataResult<T> =
-  | { kind: 'success'; data: T }
-  | { kind: 'forbidden' }
-  | { kind: 'error' };
-
-type ActivityDataResult<T> =
-  | { kind: 'success'; data: T }
-  | { kind: 'forbidden' }
-  | { kind: 'rpc_error' }
-  | { kind: 'parse_error' };
-
-const reportDateFormatter = new Intl.DateTimeFormat('ko-KR', {
-  year: 'numeric',
-  month: 'numeric',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZone: 'Asia/Seoul',
+const PAGE_SIZE = 10;
+const MAX_PAGE = Math.floor(2_147_483_647 / PAGE_SIZE) + 1;
+const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
+  year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  hour12: false, timeZone: 'Asia/Seoul',
 });
-
-const isRecord = (value: unknown): value is Record<string, unknown> => (
-  typeof value === 'object' && value !== null
-);
-
-const isNullableString = (value: unknown): value is string | null => (
-  value === null || typeof value === 'string'
-);
-
-const isNullableUuid = (value: unknown): value is string | null => (
-  value === null || isUuid(value)
-);
-
-const isDateString = (value: unknown): value is string => (
-  typeof value === 'string' && !Number.isNaN(Date.parse(value))
-);
-
-const isNullableDateString = (value: unknown): value is string | null => (
-  value === null || isDateString(value)
-);
-
-const isAdminRole = (value: unknown): value is AdminRole => (
-  value === 'super_admin' || value === 'admin' || value === 'moderator'
-);
-
-const isPremiumMembershipActionType = (
-  value: unknown,
-): value is PremiumMembershipActionType => (
-  typeof value === 'string'
-  && PREMIUM_MEMBERSHIP_ACTION_TYPES.includes(value as PremiumMembershipActionType)
-);
-
-const parseFeatureKeys = (value: unknown): PremiumFeatureKey[] | null => {
-  if (!Array.isArray(value) || !value.every(isPremiumFeatureKey)) return null;
-  return new Set(value).size === value.length ? value : null;
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+const firstValue = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
+const normalizePage = (value: string | undefined) => {
+  if (!value || !/^[1-9]\d*$/.test(value)) return 1;
+  const page = Number(value);
+  return Number.isSafeInteger(page) && page <= MAX_PAGE ? page : 1;
 };
-
-const parseCount = (value: unknown): string | null => {
-  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) {
-    return String(value);
-  }
-  if (typeof value === 'bigint' && value >= BigInt(0)) return value.toString();
+const parseCountString = (value: unknown): string | null => {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return String(value);
   if (typeof value === 'string' && /^(0|[1-9]\d*)$/.test(value)) return value;
   return null;
 };
-
+const parseCountNumber = (value: unknown): number | null => {
+  const parsed = parseCountString(value);
+  if (parsed === null) return null;
+  const count = Number(parsed);
+  return Number.isSafeInteger(count) ? count : null;
+};
 const parseReportSummary = (value: unknown): ReportSummary | null => {
   if (!Array.isArray(value) || value.length !== 1 || !isRecord(value[0])) return null;
-
   const row = value[0];
-  const totalCount = parseCount(row.total_count);
-  const pendingCount = parseCount(row.pending_count);
-  const reviewingCount = parseCount(row.reviewing_count);
-  const resolvedCount = parseCount(row.resolved_count);
-  const dismissedCount = parseCount(row.dismissed_count);
-
-  if (
-    totalCount === null
-    || pendingCount === null
-    || reviewingCount === null
-    || resolvedCount === null
-    || dismissedCount === null
-  ) {
-    return null;
-  }
-
-  return { totalCount, pendingCount, reviewingCount, resolvedCount, dismissedCount };
+  const counts = [row.total_count, row.pending_count, row.reviewing_count, row.resolved_count, row.dismissed_count].map(parseCountString);
+  if (counts.some((count) => count === null)) return null;
+  return { totalCount: counts[0]!, pendingCount: counts[1]!, reviewingCount: counts[2]!, resolvedCount: counts[3]!, dismissedCount: counts[4]! };
 };
-
-const parseOperationalCount = (value: unknown): number | null => {
-  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return value;
-  if (typeof value === 'string' && /^(0|[1-9]\d*)$/.test(value)) {
-    const count = Number(value);
-    return Number.isSafeInteger(count) ? count : null;
-  }
-  return null;
-};
-
 const parseOperationalSummary = (value: unknown): OperationalSummary | null => {
   if (!Array.isArray(value) || value.length !== 1 || !isRecord(value[0])) return null;
-
   const row = value[0];
-  const totalMemberCount = parseOperationalCount(row.total_member_count);
-  const activeMemberCount = parseOperationalCount(row.active_member_count);
-  const suspendedMemberCount = parseOperationalCount(row.suspended_member_count);
-  const hiddenProfileCount = parseOperationalCount(row.hidden_profile_count);
-  const missingProfileCount = parseOperationalCount(row.missing_profile_count);
-  const completedProfileCount = parseOperationalCount(row.completed_profile_count);
-  const premiumAvailableCount = parseOperationalCount(row.premium_available_count);
-  const premiumNotStartedCount = parseOperationalCount(row.premium_not_started_count);
-  const premiumExpiredCount = parseOperationalCount(row.premium_expired_count);
-  const premiumSuspendedCount = parseOperationalCount(row.premium_suspended_count);
-  const premiumRevokedCount = parseOperationalCount(row.premium_revoked_count);
-  const premiumExpiringSoonCount = parseOperationalCount(row.premium_expiring_soon_count);
-  const expirationWindowDays = row.expiration_window_days;
-
-  if (
-    totalMemberCount === null
-    || activeMemberCount === null
-    || suspendedMemberCount === null
-    || hiddenProfileCount === null
-    || missingProfileCount === null
-    || completedProfileCount === null
-    || premiumAvailableCount === null
-    || premiumNotStartedCount === null
-    || premiumExpiredCount === null
-    || premiumSuspendedCount === null
-    || premiumRevokedCount === null
-    || premiumExpiringSoonCount === null
-    || typeof expirationWindowDays !== 'number'
-    || !Number.isInteger(expirationWindowDays)
-    || expirationWindowDays < 1
-    || expirationWindowDays > 90
-  ) return null;
-
+  const keys = ['total_member_count', 'active_member_count', 'suspended_member_count', 'hidden_profile_count', 'missing_profile_count', 'completed_profile_count', 'premium_available_count', 'premium_not_started_count', 'premium_expired_count', 'premium_suspended_count', 'premium_revoked_count', 'premium_expiring_soon_count'] as const;
+  const counts = keys.map((key) => parseCountNumber(row[key]));
+  if (counts.some((count) => count === null) || typeof row.expiration_window_days !== 'number' || !Number.isInteger(row.expiration_window_days)) return null;
   return {
-    totalMemberCount,
-    activeMemberCount,
-    suspendedMemberCount,
-    hiddenProfileCount,
-    missingProfileCount,
-    completedProfileCount,
-    premiumAvailableCount,
-    premiumNotStartedCount,
-    premiumExpiredCount,
-    premiumSuspendedCount,
-    premiumRevokedCount,
-    premiumExpiringSoonCount,
-    expirationWindowDays,
+    totalMemberCount: counts[0]!, activeMemberCount: counts[1]!, suspendedMemberCount: counts[2]!,
+    hiddenProfileCount: counts[3]!, missingProfileCount: counts[4]!, completedProfileCount: counts[5]!,
+    premiumAvailableCount: counts[6]!, premiumNotStartedCount: counts[7]!, premiumExpiredCount: counts[8]!,
+    premiumSuspendedCount: counts[9]!, premiumRevokedCount: counts[10]!, premiumExpiringSoonCount: counts[11]!,
+    expirationWindowDays: row.expiration_window_days,
   };
 };
+const errorKind = (error: { code?: string } | null): 'forbidden' | 'error' => error?.code === '42501' ? 'forbidden' : 'error';
 
-const parseRecentReports = (value: unknown): RecentReport[] | null => {
-  if (!Array.isArray(value)) return null;
-
-  const reports: RecentReport[] = [];
-  for (const entry of value) {
-    if (!isRecord(entry)) return null;
-    if (
-      typeof entry.report_id !== 'string'
-      || typeof entry.target_type !== 'string'
-      || typeof entry.reason !== 'string'
-      || typeof entry.status !== 'string'
-      || typeof entry.created_at !== 'string'
-      || Number.isNaN(Date.parse(entry.created_at))
-      || typeof entry.reporter_user_id !== 'string'
-      || typeof entry.reported_user_id !== 'string'
-      || (entry.message_id !== null && typeof entry.message_id !== 'string')
-    ) {
-      return null;
-    }
-
-    reports.push({
-      reportId: entry.report_id,
-      targetType: entry.target_type,
-      reason: entry.reason,
-      status: entry.status,
-      createdAt: entry.created_at,
-      reporterUserId: entry.reporter_user_id,
-      reportedUserId: entry.reported_user_id,
-      messageId: entry.message_id,
-    });
-  }
-
-  return reports.length <= 5 ? reports : null;
-};
-
-const parseRecentMemberRestrictionActions = (
-  value: unknown,
-): RecentMemberRestrictionAction[] | null => {
-  if (!Array.isArray(value)) return null;
-
-  const actions: RecentMemberRestrictionAction[] = [];
-  for (const entry of value) {
-    if (
-      !isRecord(entry)
-      || !isUuid(entry.action_id)
-      || !isMemberRestrictionActionType(entry.action_type)
-      || !isUuid(entry.subject_user_id)
-      || typeof entry.member_exists !== 'boolean'
-      || typeof entry.profile_exists !== 'boolean'
-      || !isNullableString(entry.nickname)
-      || !isMemberProfileVisibility(entry.current_profile_visibility)
-      || !isMemberAccountStatus(entry.previous_account_status)
-      || !isMemberAccountStatus(entry.new_account_status)
-      || !isMemberProfileVisibility(entry.previous_profile_visibility)
-      || !isMemberProfileVisibility(entry.new_profile_visibility)
-      || !isNullableDateString(entry.previous_suspended_until)
-      || !isNullableDateString(entry.new_suspended_until)
-      || !isNullableString(entry.reason)
-      || !isNullableString(entry.note)
-      || !isNullableUuid(entry.report_id)
-      || typeof entry.report_exists !== 'boolean'
-      || !isNullableUuid(entry.admin_user_id)
-      || !(entry.admin_role === null || isAdminRole(entry.admin_role))
-      || !isDateString(entry.created_at)
-      || (entry.report_exists && entry.report_id === null)
-    ) return null;
-
-    actions.push({
-      actionId: entry.action_id,
-      actionType: entry.action_type,
-      subjectUserId: entry.subject_user_id,
-      memberExists: entry.member_exists,
-      profileExists: entry.profile_exists,
-      nickname: entry.nickname,
-      currentProfileVisibility: entry.current_profile_visibility,
-      previousAccountStatus: entry.previous_account_status,
-      newAccountStatus: entry.new_account_status,
-      previousProfileVisibility: entry.previous_profile_visibility,
-      newProfileVisibility: entry.new_profile_visibility,
-      previousSuspendedUntil: entry.previous_suspended_until,
-      newSuspendedUntil: entry.new_suspended_until,
-      reason: entry.reason,
-      note: entry.note,
-      reportId: entry.report_id,
-      reportExists: entry.report_exists,
-      adminUserId: entry.admin_user_id,
-      adminRole: entry.admin_role,
-      createdAt: entry.created_at,
-    });
-  }
-
-  return actions.length <= 5 ? actions : null;
-};
-
-const parseRecentPremiumMembershipActions = (
-  value: unknown,
-): RecentPremiumMembershipAction[] | null => {
-  if (!Array.isArray(value)) return null;
-
-  const actions: RecentPremiumMembershipAction[] = [];
-  for (const entry of value) {
-    if (!isRecord(entry)) return null;
-    const previousFeatureKeys = entry.previous_feature_keys === null
-      ? null
-      : parseFeatureKeys(entry.previous_feature_keys);
-    const newFeatureKeys = parseFeatureKeys(entry.new_feature_keys);
-    if (
-      !isUuid(entry.action_id)
-      || !isUuid(entry.request_id)
-      || !isNullableUuid(entry.membership_id)
-      || !isUuid(entry.subject_user_id)
-      || typeof entry.member_exists !== 'boolean'
-      || typeof entry.profile_exists !== 'boolean'
-      || !isNullableString(entry.nickname)
-      || !isMemberProfileVisibility(entry.current_profile_visibility)
-      || !isPremiumMembershipActionType(entry.action_type)
-      || !(entry.previous_status === null || isPremiumMembershipStatus(entry.previous_status))
-      || !isPremiumMembershipStatus(entry.new_status)
-      || !isNullableDateString(entry.previous_started_at)
-      || !isDateString(entry.new_started_at)
-      || !isNullableDateString(entry.previous_expires_at)
-      || !isNullableDateString(entry.new_expires_at)
-      || (previousFeatureKeys === null && entry.previous_feature_keys !== null)
-      || newFeatureKeys === null
-      || newFeatureKeys.length < 1
-      || newFeatureKeys.length > 3
-      || typeof entry.reason !== 'string'
-      || entry.reason.trim() !== entry.reason
-      || entry.reason.length < 1
-      || entry.reason.length > 500
-      || !isUuid(entry.performed_by)
-      || !(entry.admin_role === null || isAdminRole(entry.admin_role))
-      || !isDateString(entry.membership_updated_at)
-      || !isDateString(entry.created_at)
-    ) return null;
-
-    if (
-      entry.action_type === 'granted'
-        ? entry.previous_status !== null
-          || entry.previous_started_at !== null
-          || entry.previous_expires_at !== null
-          || previousFeatureKeys !== null
-        : !isPremiumMembershipStatus(entry.previous_status)
-          || !isDateString(entry.previous_started_at)
-          || previousFeatureKeys === null
-          || previousFeatureKeys.length < 1
-          || previousFeatureKeys.length > 3
-    ) return null;
-
-    actions.push({
-      actionId: entry.action_id,
-      requestId: entry.request_id,
-      membershipId: entry.membership_id,
-      subjectUserId: entry.subject_user_id,
-      memberExists: entry.member_exists,
-      profileExists: entry.profile_exists,
-      nickname: entry.nickname,
-      currentProfileVisibility: entry.current_profile_visibility,
-      actionType: entry.action_type,
-      previousStatus: entry.previous_status,
-      newStatus: entry.new_status,
-      previousStartedAt: entry.previous_started_at,
-      newStartedAt: entry.new_started_at,
-      previousExpiresAt: entry.previous_expires_at,
-      newExpiresAt: entry.new_expires_at,
-      previousFeatureKeys,
-      newFeatureKeys,
-      reason: entry.reason,
-      performedBy: entry.performed_by,
-      adminRole: entry.admin_role,
-      membershipUpdatedAt: entry.membership_updated_at,
-      createdAt: entry.created_at,
-    });
-  }
-
-  return actions.length <= 5 ? actions : null;
-};
-
-const getTargetLabel = (targetType: string) => {
-  if (targetType === 'profile') return '회원 프로필';
-  if (targetType === 'message') return '채팅 메시지';
-  return '기타';
-};
-
-const getReasonLabel = (reason: string) => {
-  const labels: Record<string, string> = {
-    inappropriate_content: '부적절한 내용',
-    harassment: '괴롭힘',
-    fake_profile: '허위 프로필',
-    spam: '스팸 또는 광고',
-    privacy_violation: '개인정보 침해',
-    other: '기타',
+async function loadReportSummary(): Promise<DataResult<ReportSummary>> {
+  const client = await createServerSupabaseClient();
+  const { data, error } = await client.rpc('get_admin_report_summary');
+  if (error) return { kind: errorKind(error) };
+  const parsed = parseReportSummary(data);
+  return parsed ? { kind: 'success', data: parsed } : { kind: 'error' };
+}
+async function loadOperationalSummary(): Promise<DataResult<OperationalSummary>> {
+  const client = await createServerSupabaseClient();
+  const { data, error } = await client.rpc('get_admin_dashboard_operational_summary', { p_expiring_days: 30 });
+  if (error) return { kind: errorKind(error) };
+  const parsed = parseOperationalSummary(data);
+  return parsed ? { kind: 'success', data: parsed } : { kind: 'error' };
+}
+async function loadReportPage(requestedPage: number): Promise<PagedResult<AdminReportListItem>> {
+  const client = await createServerSupabaseClient();
+  const fetchPage = async (page: number) => {
+    const result = await client.rpc('get_admin_reports', { status_filter: null, target_type_filter: null, page_number: page, page_size: PAGE_SIZE });
+    return { error: result.error, items: result.error ? null : parseAdminReportList(result.data) };
   };
-  return labels[reason] ?? '기타';
-};
-
-const getStatusLabel = (status: string) => {
-  const labels: Record<string, string> = {
-    pending: '접수 대기',
-    reviewing: '검토 중',
-    resolved: '처리 완료',
-    dismissed: '기각',
+  let currentPage = requestedPage;
+  let result = await fetchPage(currentPage);
+  if (result.error) return { kind: errorKind(result.error) };
+  if (!result.items) return { kind: 'error' };
+  if (result.items.length === 0 && currentPage > 1) {
+    const first = await fetchPage(1);
+    if (first.error) return { kind: errorKind(first.error) };
+    if (!first.items) return { kind: 'error' };
+    const total = first.items[0]?.totalCount ?? 0;
+    const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    currentPage = lastPage;
+    result = lastPage === 1 ? first : await fetchPage(lastPage);
+    if (result.error) return { kind: errorKind(result.error) };
+    if (!result.items) return { kind: 'error' };
+  }
+  const totalCount = result.items[0]?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  return { kind: 'success', data: { items: result.items, totalCount, currentPage, totalPages } };
+}
+async function loadPremiumPage(requestedPage: number): Promise<PagedResult<AdminPremiumMembershipListItem>> {
+  const client = await createServerSupabaseClient();
+  const fetchPage = async (page: number) => {
+    const result = await client.rpc('get_admin_premium_memberships', {
+      p_search: null, p_status: 'exists', p_limit: PAGE_SIZE, p_offset: (page - 1) * PAGE_SIZE,
+      p_sort_key: 'updated_at', p_sort_direction: 'desc',
+    });
+    return { error: result.error, items: result.error ? null : parseAdminPremiumMembershipList(result.data) };
   };
-  return labels[status] ?? '기타';
-};
-
-const getStatusClassName = (status: string) => {
-  if (status === 'pending') return 'bg-amber-100 text-amber-800';
-  if (status === 'reviewing') return 'bg-blue-100 text-blue-800';
-  if (status === 'resolved') return 'bg-green-100 text-green-800';
-  if (status === 'dismissed') return 'bg-gray-200 text-gray-700';
-  return 'bg-gray-100 text-gray-600';
-};
-
-const formatReportDate = (value: string) => reportDateFormatter.format(new Date(value));
-
-const formatNullableDate = (value: string | null, emptyLabel = '해당 없음') => (
-  value ? formatReportDate(value) : emptyLabel
-);
-
-const formatPremiumPeriod = (startedAt: string | null, expiresAt: string | null) => (
-  startedAt
-    ? `${formatReportDate(startedAt)} ~ ${formatNullableDate(expiresAt, '무기한')}`
-    : '해당 없음'
-);
-
-const formatFeatureKeys = (featureKeys: PremiumFeatureKey[] | null) => (
-  featureKeys?.length
-    ? featureKeys.map((featureKey) => PREMIUM_FEATURE_LABELS[featureKey]).join(', ')
-    : '해당 없음'
-);
-
-const getMemberStatusClassName = (status: MemberAccountStatus) => (
-  status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'
-);
-
-const getAdminLabel = (role: AdminRole | null, userId: string | null) => {
-  if (role) return getAdminRoleLabel(role);
-  return userId ? '관리자 계정 연결 없음' : '처리 관리자 정보 없음';
-};
-
-const getErrorKind = (error: { code?: string } | null): 'forbidden' | 'error' => (
-  error?.code === '42501' ? 'forbidden' : 'error'
-);
-
-async function loadReportSummary(): Promise<ReportDataResult<ReportSummary>> {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('get_admin_report_summary');
-  if (error) return { kind: getErrorKind(error) };
-
-  const summary = parseReportSummary(data);
-  return summary ? { kind: 'success', data: summary } : { kind: 'error' };
+  let currentPage = requestedPage;
+  let result = await fetchPage(currentPage);
+  if (result.error) return { kind: errorKind(result.error) };
+  if (!result.items) return { kind: 'error' };
+  if (result.items.length === 0 && currentPage > 1) {
+    const first = await fetchPage(1);
+    if (first.error) return { kind: errorKind(first.error) };
+    if (!first.items) return { kind: 'error' };
+    const total = first.items[0]?.totalCount ?? 0;
+    const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    currentPage = lastPage;
+    result = lastPage === 1 ? first : await fetchPage(lastPage);
+    if (result.error) return { kind: errorKind(result.error) };
+    if (!result.items) return { kind: 'error' };
+  }
+  const totalCount = result.items[0]?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  return { kind: 'success', data: { items: result.items, totalCount, currentPage, totalPages } };
 }
 
-async function loadRecentReports(): Promise<ReportDataResult<RecentReport[]>> {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('get_admin_recent_reports', { limit_count: 5 });
-  if (error) return { kind: getErrorKind(error) };
+const ErrorBox = ({ message, href = '/admin' }: { message: string; href?: string }) => <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-red-800"><div className="flex items-start gap-3"><AlertCircle className="mt-0.5 shrink-0" size={20} aria-hidden="true" /><div><p className="font-semibold">{message}</p><a href={href} className="mt-2 inline-block text-sm font-semibold underline underline-offset-4">다시 시도</a></div></div></div>;
+const MemberLink = ({ userId, nickname, memberExists, profileExists }: { userId: string; nickname: string | null; memberExists: boolean; profileExists: boolean }) => memberExists ? <Link href={`/admin/members/${userId}`} className="font-bold text-gray-900 underline-offset-4 hover:text-green-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2">{profileExists && nickname ? nickname : '프로필 정보 없음'}</Link> : <span className="font-bold text-gray-600">탈퇴한 회원</span>;
 
-  const reports = parseRecentReports(data);
-  return reports ? { kind: 'success', data: reports } : { kind: 'error' };
-}
-
-async function loadOperationalSummary(): Promise<ReportDataResult<OperationalSummary>> {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('get_admin_dashboard_operational_summary', {
-    p_expiring_days: 30,
-  });
-  if (error) return { kind: getErrorKind(error) };
-
-  const summary = parseOperationalSummary(data);
-  return summary ? { kind: 'success', data: summary } : { kind: 'error' };
-}
-
-async function loadRecentMemberRestrictionActions(): Promise<
-  ActivityDataResult<RecentMemberRestrictionAction[]>
-> {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc(
-    'get_admin_recent_member_restriction_actions',
-    { p_limit: 5 },
-  );
-  if (error) return { kind: error.code === '42501' ? 'forbidden' : 'rpc_error' };
-
-  const actions = parseRecentMemberRestrictionActions(data);
-  return actions ? { kind: 'success', data: actions } : { kind: 'parse_error' };
-}
-
-async function loadRecentPremiumMembershipActions(): Promise<
-  ActivityDataResult<RecentPremiumMembershipAction[]>
-> {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc(
-    'get_admin_recent_premium_membership_actions',
-    { p_limit: 5 },
-  );
-  if (error) return { kind: error.code === '42501' ? 'forbidden' : 'rpc_error' };
-
-  const actions = parseRecentPremiumMembershipActions(data);
-  return actions ? { kind: 'success', data: actions } : { kind: 'parse_error' };
-}
-
-const ReportError = ({ forbidden }: { forbidden: boolean }) => (
-  <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-red-800">
-    <div className="flex items-start gap-3">
-      <AlertCircle className="mt-0.5 shrink-0" size={20} aria-hidden="true" />
-      <div>
-        <p className="font-semibold">
-          {forbidden ? '신고 조회 권한이 없습니다.' : '신고 현황을 불러오지 못했습니다.'}
-        </p>
-        <a href="/admin" className="mt-2 inline-block text-sm font-semibold underline underline-offset-4">
-          다시 시도
-        </a>
-      </div>
-    </div>
-  </div>
-);
-
-const OperationalStatsError = ({ forbidden }: { forbidden: boolean }) => (
-  <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-red-800">
-    <div className="flex items-start gap-3">
-      <AlertCircle className="mt-0.5 shrink-0" size={20} aria-hidden="true" />
-      <div>
-        <p className="font-semibold">
-          {forbidden ? '운영 통계 조회 권한이 없습니다.' : '운영 통계를 불러오지 못했습니다.'}
-        </p>
-        <a href="/admin" className="mt-2 inline-block text-sm font-semibold underline underline-offset-4">
-          다시 시도
-        </a>
-      </div>
-    </div>
-  </div>
-);
-
-const ActivityError = ({ message }: { message: string }) => (
-  <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-red-800">
-    <div className="flex items-start gap-3">
-      <AlertCircle className="mt-0.5 shrink-0" size={20} aria-hidden="true" />
-      <div>
-        <p className="font-semibold">{message}</p>
-        <a href="/admin" className="mt-2 inline-block text-sm font-semibold underline underline-offset-4">
-          다시 시도
-        </a>
-      </div>
-    </div>
-  </div>
-);
-
-const SummaryMetricCardView = ({
-  label,
-  count,
-  description,
-  href,
-  ariaLabel,
-}: SummaryMetricCard) => {
-  const content = (
-    <>
-      <p className="text-sm font-semibold text-gray-500">{label}</p>
-      <p className="mt-3 text-3xl font-black text-gray-900">{count}</p>
-      {description ? (
-        <p className="mt-2 text-xs leading-5 text-gray-500">{description}</p>
-      ) : null}
-    </>
-  );
-  const className = 'rounded-2xl border border-gray-100 bg-white p-5 shadow-sm';
-
-  return href ? (
-    <Link
-      href={href}
-      aria-label={ariaLabel}
-      className={`${className} transition-colors hover:border-green-200 hover:bg-green-50/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2`}
-    >
-      {content}
-    </Link>
-  ) : (
-    <article className={className}>{content}</article>
-  );
-};
-
-const getRestrictionActivityErrorMessage = (
-  result: Exclude<ActivityDataResult<RecentMemberRestrictionAction[]>, { kind: 'success' }>,
-) => {
-  if (result.kind === 'forbidden') return '회원 제재 이력 조회 권한이 없습니다.';
-  if (result.kind === 'parse_error') return '최근 회원 제재 응답을 확인하지 못했습니다.';
-  return '최근 회원 제재 내역을 불러오지 못했습니다.';
-};
-
-const getPremiumActivityErrorMessage = (
-  result: Exclude<ActivityDataResult<RecentPremiumMembershipAction[]>, { kind: 'success' }>,
-) => {
-  if (result.kind === 'forbidden') return 'Premium 변경 이력 조회 권한이 없습니다.';
-  if (result.kind === 'parse_error') return '최근 Premium 변경 응답을 확인하지 못했습니다.';
-  return '최근 Premium 변경 내역을 불러오지 못했습니다.';
-};
-
-export default async function AdminDashboardPage() {
+export default async function AdminDashboardPage({ searchParams }: { searchParams: Promise<DashboardSearchParams> }) {
   const adminAccess = await requireAdminAccess('admin_dashboard_view');
-  const [
-    summaryResult,
-    operationalSummaryResult,
-    recentReportsResult,
-    recentRestrictionActionsResult,
-    recentPremiumActionsResult,
-  ] = await Promise.all([
-    loadReportSummary(),
-    loadOperationalSummary(),
-    loadRecentReports(),
-    loadRecentMemberRestrictionActions(),
-    loadRecentPremiumMembershipActions(),
+  const query = await searchParams;
+  const reportPage = normalizePage(firstValue(query.reportPage));
+  const premiumPage = normalizePage(firstValue(query.premiumPage));
+  const [summaryResult, operationalResult, reportResult, premiumResult] = await Promise.all([
+    loadReportSummary(), loadOperationalSummary(), loadReportPage(reportPage), loadPremiumPage(premiumPage),
   ]);
+  const summaryCards: AdminMetric[] = summaryResult.kind === 'success' ? [
+    { label: '전체 신고', count: summaryResult.data.totalCount, href: '/admin/reports', ariaLabel: '전체 신고 목록 보기' },
+    { label: '접수 대기', count: summaryResult.data.pendingCount, href: '/admin/reports?status=pending', ariaLabel: '접수 대기 신고 목록 보기' },
+    { label: '검토 중', count: summaryResult.data.reviewingCount, href: '/admin/reports?status=reviewing', ariaLabel: '검토 중 신고 목록 보기' },
+    { label: '처리 완료', count: summaryResult.data.resolvedCount, href: '/admin/reports?status=resolved', ariaLabel: '처리 완료 신고 목록 보기' },
+    { label: '기각', count: summaryResult.data.dismissedCount, href: '/admin/reports?status=dismissed', ariaLabel: '기각 신고 목록 보기' },
+  ] : [];
+  const memberCards: AdminMetric[] = operationalResult.kind === 'success' ? [
+    { label: '전체 회원', count: operationalResult.data.totalMemberCount, href: '/admin/members', ariaLabel: '전체 회원 목록 보기' },
+    { label: '정상 회원', count: operationalResult.data.activeMemberCount, href: '/admin/members?account=active', ariaLabel: '정상 회원 목록 보기' },
+    { label: '정지 회원', count: operationalResult.data.suspendedMemberCount, href: '/admin/members?account=suspended', ariaLabel: '정지 회원 목록 보기' },
+    { label: '숨김 프로필', count: operationalResult.data.hiddenProfileCount, href: '/admin/members?visibility=hidden', ariaLabel: '숨김 프로필 회원 목록 보기' },
+    { label: '프로필 없음', count: operationalResult.data.missingProfileCount, href: '/admin/members?profile=missing', ariaLabel: '프로필 없는 회원 목록 보기' },
+    { label: '프로필 작성 완료', count: operationalResult.data.completedProfileCount, href: '/admin/members?profile=completed', ariaLabel: '프로필 작성 완료 회원 목록 보기' },
+  ] : [];
+  const premiumCards: AdminMetric[] = [
+    ...(premiumResult.kind === 'success' ? [{ label: '실제 Premium 등록', count: premiumResult.data.totalCount, href: '/admin/premium?status=exists', ariaLabel: '실제 Premium 등록 회원 목록 보기' }] : []),
+    ...(operationalResult.kind === 'success' ? [
+    { label: 'Premium 이용 가능', count: operationalResult.data.premiumAvailableCount, href: '/admin/premium?status=available', ariaLabel: '이용 가능한 Premium 회원 목록 보기' },
+    { label: 'Premium 시작 전', count: operationalResult.data.premiumNotStartedCount, href: '/admin/premium?status=not_started', ariaLabel: '시작 전 Premium 회원 목록 보기' },
+    { label: 'Premium 만료', count: operationalResult.data.premiumExpiredCount, href: '/admin/premium?status=expired', ariaLabel: '만료된 Premium 회원 목록 보기' },
+    { label: 'Premium 정지', count: operationalResult.data.premiumSuspendedCount, href: '/admin/premium?status=suspended', ariaLabel: '정지된 Premium 회원 목록 보기' },
+    { label: 'Premium 회수', count: operationalResult.data.premiumRevokedCount, href: '/admin/premium?status=revoked', ariaLabel: '회수된 Premium 회원 목록 보기' },
+    ] : []),
+  ];
 
-  const summaryCards: SummaryMetricCard[] = summaryResult.kind === 'success'
-    ? [
-        {
-          label: '전체 신고',
-          count: summaryResult.data.totalCount,
-          href: '/admin/reports',
-          ariaLabel: '전체 신고 목록 보기',
-        },
-        {
-          label: '접수 대기',
-          count: summaryResult.data.pendingCount,
-          href: '/admin/reports?status=pending',
-          ariaLabel: '접수 대기 신고 목록 보기',
-        },
-        {
-          label: '검토 중',
-          count: summaryResult.data.reviewingCount,
-          href: '/admin/reports?status=reviewing',
-          ariaLabel: '검토 중 신고 목록 보기',
-        },
-        {
-          label: '처리 완료',
-          count: summaryResult.data.resolvedCount,
-          href: '/admin/reports?status=resolved',
-          ariaLabel: '처리 완료 신고 목록 보기',
-        },
-        {
-          label: '기각',
-          count: summaryResult.data.dismissedCount,
-          href: '/admin/reports?status=dismissed',
-          ariaLabel: '기각 신고 목록 보기',
-        },
-      ]
-    : [];
-  const memberSummaryCards: SummaryMetricCard[] = operationalSummaryResult.kind === 'success'
-    ? [
-        {
-          label: '전체 회원',
-          count: operationalSummaryResult.data.totalMemberCount,
-          href: '/admin/members',
-          ariaLabel: '전체 회원 목록 보기',
-        },
-        {
-          label: '활성 회원',
-          count: operationalSummaryResult.data.activeMemberCount,
-          href: '/admin/members?account=active',
-          ariaLabel: '활성 회원 목록 보기',
-        },
-        {
-          label: '정지 회원',
-          count: operationalSummaryResult.data.suspendedMemberCount,
-          href: '/admin/members?account=suspended',
-          ariaLabel: '정지 회원 목록 보기',
-        },
-        {
-          label: '숨김 프로필',
-          count: operationalSummaryResult.data.hiddenProfileCount,
-          href: '/admin/members?visibility=hidden',
-          ariaLabel: '숨김 프로필 회원 목록 보기',
-        },
-        {
-          label: '프로필 미작성',
-          count: operationalSummaryResult.data.missingProfileCount,
-          href: '/admin/members?profile=missing',
-          ariaLabel: '프로필 미작성 회원 목록 보기',
-        },
-        {
-          label: '프로필 작성 완료',
-          count: operationalSummaryResult.data.completedProfileCount,
-          description: '필수 프로필 정보를 모두 입력한 회원',
-          href: '/admin/members?profile=completed',
-          ariaLabel: '프로필 작성 완료 회원 목록 보기',
-        },
-      ]
-    : [];
-  const premiumSummaryCards: SummaryMetricCard[] = operationalSummaryResult.kind === 'success'
-    ? [
-        {
-          label: 'Premium 이용 가능',
-          count: operationalSummaryResult.data.premiumAvailableCount,
-        },
-        {
-          label: '시작 전',
-          count: operationalSummaryResult.data.premiumNotStartedCount,
-        },
-        {
-          label: '만료',
-          count: operationalSummaryResult.data.premiumExpiredCount,
-        },
-        {
-          label: 'Premium 정지',
-          count: operationalSummaryResult.data.premiumSuspendedCount,
-          href: '/admin/premium?status=suspended',
-          ariaLabel: 'Premium 정지 회원 목록 보기',
-        },
-        {
-          label: 'Premium 회수',
-          count: operationalSummaryResult.data.premiumRevokedCount,
-          href: '/admin/premium?status=revoked',
-          ariaLabel: 'Premium 회수 회원 목록 보기',
-        },
-        {
-          label: `${operationalSummaryResult.data.expirationWindowDays}일 내 만료 예정`,
-          count: operationalSummaryResult.data.premiumExpiringSoonCount,
-        },
-      ]
-    : [];
+  return <div className="space-y-8">
+    <section><p className="text-sm font-bold text-green-700">{getAdminRoleLabel(adminAccess.role as AdminRole)}</p><h1 className="mt-2 text-3xl font-black text-gray-900">관리자 대시보드</h1><p className="mt-3 text-gray-600">신고, Premium, 회원 및 서비스 운영 현황을 확인하는 화면입니다.</p></section>
 
-  return (
-    <div className="space-y-8">
-      <section>
-        <p className="text-sm font-bold text-green-700">{getAdminRoleLabel(adminAccess.role)}</p>
-        <h1 className="mt-2 text-3xl font-black text-gray-900">관리자 대시보드</h1>
-        <p className="mt-3 text-gray-600">신고 접수 현황과 최근 신고를 확인할 수 있습니다.</p>
-      </section>
+    <AdminDashboardSection headingId="report-management-heading" title="신고 관리" description="최근 접수된 신고를 최신순으로 확인합니다." viewAllHref={adminAccess.permissions.includes('reports_view') ? '/admin/reports' : undefined} viewAllLabel="신고 관리 전체 보기">
+      {summaryResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">{summaryCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={summaryResult.kind === 'forbidden' ? '신고 조회 권한이 없습니다.' : '신고 현황을 불러오지 못했습니다.'} />}
+      {reportResult.kind === 'success' ? <section aria-labelledby="dashboard-reports-heading" className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+        <div className="border-b border-gray-100 px-5 py-5 sm:px-6"><h3 id="dashboard-reports-heading" className="text-lg font-black text-gray-900">최근 신고</h3><p className="mt-1 text-sm text-gray-500">총 {reportResult.data.totalCount.toLocaleString('ko-KR')}건 · {reportResult.data.currentPage} / {reportResult.data.totalPages}페이지</p></div>
+        {reportResult.data.items.length === 0 ? <p className="px-6 py-12 text-center text-sm font-medium text-gray-500">접수된 신고가 없습니다.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-left text-sm"><thead className="bg-gray-50 text-gray-600"><tr>{['상태', '대상', '신고 사유', '신고자', '신고 대상', '접수 시각', '상세'].map((label) => <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">{reportResult.data.items.map((report) => <tr key={report.reportId}><td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${getReportStatusClassName(report.status)}`}>{REPORT_STATUS_LABELS[report.status]}</span></td><td className="px-4 py-4 font-semibold text-gray-900">{REPORT_TARGET_LABELS[report.targetType]}</td><td className="px-4 py-4 text-gray-700">{REPORT_REASON_LABELS[report.reason]}</td><td className="px-4 py-4"><MemberLink userId={report.reporterUserId} nickname={report.reporterNickname} memberExists={report.reporterMemberExists} profileExists={report.reporterProfileExists} /></td><td className="px-4 py-4"><MemberLink userId={report.reportedUserId} nickname={report.reportedNickname} memberExists={report.reportedMemberExists} profileExists={report.reportedProfileExists} /></td><td className="whitespace-nowrap px-4 py-4 text-gray-600"><time dateTime={report.createdAt}>{dateFormatter.format(new Date(report.createdAt))}</time></td><td className="px-4 py-4"><Link href={`/admin/reports/${report.reportId}`} className="font-bold text-green-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">상세 보기</Link></td></tr>)}</tbody></table></div>}
+        <div className="border-t border-gray-100 px-3 py-4"><AdminPagination pathname="/admin" pageParam="reportPage" currentPage={reportResult.data.currentPage} totalPages={reportResult.data.totalPages} searchParams={query} ariaLabel="대시보드 신고 목록 페이지" /></div>
+      </section> : <ErrorBox message={reportResult.kind === 'forbidden' ? '신고 목록 조회 권한이 없습니다.' : '신고 목록을 불러오지 못했습니다.'} />}
+    </AdminDashboardSection>
 
-      <section aria-labelledby="report-summary-heading">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <h2 id="report-summary-heading" className="text-xl font-black text-gray-900">신고 현황</h2>
-          <FileWarning className="text-gray-400" size={22} aria-hidden="true" />
-        </div>
-        {summaryResult.kind === 'success' ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {summaryCards.map((card) => (
-              <SummaryMetricCardView key={card.label} {...card} />
-            ))}
-          </div>
-        ) : (
-          <ReportError forbidden={summaryResult.kind === 'forbidden'} />
-        )}
-      </section>
+    <AdminDashboardSection headingId="premium-management-heading" title="Premium 관리" description="Premium 멤버십 행이 존재하는 전체 회원을 확인합니다." viewAllHref={adminAccess.permissions.includes('premium_memberships_view') ? '/admin/premium' : undefined} viewAllLabel="Premium 관리 전체 보기">
+      {premiumCards.length > 0 ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{premiumCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : null}
+      {operationalResult.kind !== 'success' ? <ErrorBox message={operationalResult.kind === 'forbidden' ? '운영 통계 조회 권한이 없습니다.' : '운영 통계를 불러오지 못했습니다.'} /> : null}
+      {premiumResult.kind === 'success' ? <section aria-labelledby="dashboard-premium-heading" className="overflow-hidden rounded-2xl border border-gray-200 bg-white"><div className="border-b border-gray-100 px-5 py-5 sm:px-6"><h3 id="dashboard-premium-heading" className="text-lg font-black text-gray-900">전체 Premium 회원 현황</h3><p className="mt-1 text-sm text-gray-500">총 {premiumResult.data.totalCount.toLocaleString('ko-KR')}명 · {premiumResult.data.currentPage} / {premiumResult.data.totalPages}페이지</p></div>
+        {premiumResult.data.items.length === 0 ? <p className="px-6 py-12 text-center text-sm font-medium text-gray-500">Premium 회원이 없습니다.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[1350px] text-left text-sm"><thead className="bg-gray-50 text-gray-600"><tr>{['회원', '짧은 UUID', '저장 상태', '기간 상태', '현재 이용', '시작일', '만료일', '기능 권한', '프로필 상태', '최근 변경', '관리'].map((label) => <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">{premiumResult.data.items.map((membership) => { const status = membership.storedStatus ?? 'none'; const period = getPremiumPeriodState(membership); return <tr key={membership.memberUserId}><td className="px-4 py-4"><Link href={`/admin/members/${membership.memberUserId}`} className="font-bold text-gray-900 underline-offset-4 hover:text-green-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">{membership.profileExists && membership.nickname ? membership.nickname : '프로필 정보 없음'}</Link></td><td className="px-4 py-4 font-mono text-xs text-gray-500">{membership.memberUserId.slice(0, 8)}</td><td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${getPremiumStatusClassName(status)}`}>{PREMIUM_STATUS_LABELS[status]}</span></td><td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${getPremiumPeriodStateClassName(period)}`}>{PREMIUM_PERIOD_STATE_LABELS[period]}</span></td><td className="px-4 py-4 font-semibold text-gray-700">{membership.isAvailable ? '가능' : '불가'}</td><td className="whitespace-nowrap px-4 py-4 text-gray-600">{membership.startedAt ? dateFormatter.format(new Date(membership.startedAt)) : '해당 없음'}</td><td className="whitespace-nowrap px-4 py-4 text-gray-600">{membership.expiresAt ? dateFormatter.format(new Date(membership.expiresAt)) : '무기한'}</td><td className="px-4 py-4 text-gray-700">{membership.featureKeys.map((key) => PREMIUM_FEATURE_LABELS[key]).join(', ') || '해당 없음'}</td><td className="px-4 py-4 text-gray-700">{membership.profileExists ? MEMBER_PROFILE_VISIBILITY_LABELS[membership.profileVisibility] : '프로필 없음'} · {MEMBER_ACCOUNT_STATUS_LABELS[membership.accountStatus]}</td><td className="whitespace-nowrap px-4 py-4 text-gray-600">{membership.membershipUpdatedAt ? dateFormatter.format(new Date(membership.membershipUpdatedAt)) : '해당 없음'}</td><td className="px-4 py-4"><Link href={`/admin/premium/${membership.memberUserId}`} className="font-bold text-green-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">Premium 상세</Link></td></tr>; })}</tbody></table></div>}
+        <div className="border-t border-gray-100 px-3 py-4"><AdminPagination pathname="/admin" pageParam="premiumPage" currentPage={premiumResult.data.currentPage} totalPages={premiumResult.data.totalPages} searchParams={query} ariaLabel="대시보드 Premium 회원 목록 페이지" /></div>
+      </section> : <ErrorBox message={premiumResult.kind === 'forbidden' ? 'Premium 회원 조회 권한이 없습니다.' : 'Premium 회원 목록을 불러오지 못했습니다.'} />}
+    </AdminDashboardSection>
 
-      {operationalSummaryResult.kind === 'success' ? (
-        <>
-          <section aria-labelledby="member-summary-heading">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <h2 id="member-summary-heading" className="text-xl font-black text-gray-900">회원 현황</h2>
-              <Users className="text-gray-400" size={22} aria-hidden="true" />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              {memberSummaryCards.map((card) => (
-                <SummaryMetricCardView key={card.label} {...card} />
-              ))}
-            </div>
-          </section>
-
-          <section aria-labelledby="premium-summary-heading">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <h2 id="premium-summary-heading" className="text-xl font-black text-gray-900">Premium 현황</h2>
-              <Crown className="text-gray-400" size={22} aria-hidden="true" />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              {premiumSummaryCards.map((card) => (
-                <SummaryMetricCardView key={card.label} {...card} />
-              ))}
-            </div>
-          </section>
-        </>
-      ) : (
-        <section aria-labelledby="operational-summary-heading">
-          <h2 id="operational-summary-heading" className="mb-4 text-xl font-black text-gray-900">운영 현황</h2>
-          <OperationalStatsError forbidden={operationalSummaryResult.kind === 'forbidden'} />
-        </section>
-      )}
-
-      <section aria-labelledby="recent-reports-heading" className="rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <h2 id="recent-reports-heading" className="text-xl font-black text-gray-900">최근 신고</h2>
-            <p className="mt-1 text-sm text-gray-500">최근 접수된 신고를 최대 5건 표시합니다.</p>
-          </div>
-          {adminAccess.permissions.includes('reports_view') ? (
-            <Link href="/admin/reports" className="inline-flex items-center gap-1 text-sm font-bold text-green-700 hover:text-green-800">
-              신고 관리로 이동 <ArrowRight size={16} aria-hidden="true" />
-            </Link>
-          ) : null}
-        </div>
-
-        {recentReportsResult.kind === 'success' ? (
-          recentReportsResult.data.length === 0 ? (
-            <p className="px-6 py-12 text-center text-sm font-medium text-gray-500">접수된 신고가 없습니다.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
-                <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 font-semibold">신고 대상</th>
-                    <th scope="col" className="px-6 py-3 font-semibold">신고 사유</th>
-                    <th scope="col" className="px-6 py-3 font-semibold">상태</th>
-                    <th scope="col" className="px-6 py-3 font-semibold">접수일</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {recentReportsResult.data.map((report) => (
-                    <tr key={report.reportId}>
-                      <td className="px-6 py-4 font-semibold text-gray-900">
-                        <Link href={`/admin/reports/${report.reportId}`} className="hover:text-green-700 hover:underline">
-                          {getTargetLabel(report.targetType)}
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4 text-gray-700">{getReasonLabel(report.reason)}</td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getStatusClassName(report.status)}`}>
-                          {getStatusLabel(report.status)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-gray-600">{formatReportDate(report.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        ) : (
-          <div className="p-5 sm:p-6">
-            <ReportError forbidden={recentReportsResult.kind === 'forbidden'} />
-          </div>
-        )}
-      </section>
-
-      <section aria-labelledby="recent-restriction-actions-heading" className="rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <h2 id="recent-restriction-actions-heading" className="text-xl font-black text-gray-900">최근 회원 제재</h2>
-            <p className="mt-1 text-sm text-gray-500">최근 처리된 회원 제재를 최대 5건 표시합니다.</p>
-          </div>
-          <ShieldCheck className="text-gray-400" size={22} aria-hidden="true" />
-        </div>
-
-        {recentRestrictionActionsResult.kind === 'success' ? (
-          recentRestrictionActionsResult.data.length === 0 ? (
-            <p className="px-6 py-12 text-center text-sm font-medium text-gray-500">최근 회원 제재 내역이 없습니다.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1020px] table-fixed text-left text-sm">
-                <colgroup>
-                  <col className="w-[18%]" />
-                  <col className="w-[25%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[23%]" />
-                  <col className="w-[16%]" />
-                </colgroup>
-                <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    {['회원', '조치·상태 변경', '정지 기간', '사유·메모·관련 신고', '관리자·처리 시각'].map((label) => (
-                      <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {recentRestrictionActionsResult.data.map((action) => {
-                    const canViewProfile = action.memberExists
-                      && action.profileExists
-                      && action.currentProfileVisibility === 'visible';
-                    const memberLabel = action.nickname
-                      ?? (action.memberExists ? '닉네임 정보 없음' : '탈퇴 또는 회원 정보 없음');
-                    const suspensionChanged = action.previousSuspendedUntil
-                      !== action.newSuspendedUntil;
-                    return (
-                      <tr key={action.actionId} className="align-top">
-                        <td className="px-4 py-4">
-                          {canViewProfile ? (
-                            <Link
-                              href={`/members/${action.subjectUserId}`}
-                              className="font-bold text-gray-900 underline-offset-4 hover:text-green-700 hover:underline"
-                            >
-                              {memberLabel}
-                            </Link>
-                          ) : (
-                            <p className="font-bold text-gray-900">{memberLabel}</p>
-                          )}
-                          <p className="mt-1 font-mono text-xs text-gray-500">{action.subjectUserId.slice(0, 8)}</p>
-                          {!action.memberExists ? (
-                            <p className="mt-1 text-xs font-semibold text-red-700">탈퇴 또는 회원 정보 없음</p>
-                          ) : null}
-                          {!action.profileExists ? (
-                            <p className="mt-1 text-xs font-semibold text-amber-700">프로필 없음</p>
-                          ) : null}
-                          {canViewProfile ? (
-                            <Link href={`/members/${action.subjectUserId}`} className="mt-2 inline-block text-xs font-bold text-green-700 hover:text-green-800">
-                              프로필 보기
-                            </Link>
-                          ) : null}
-                        </td>
-                        <td className="px-4 py-4 text-gray-700">
-                          <p className="font-bold text-gray-900">{MEMBER_RESTRICTION_ACTION_LABELS[action.actionType]}</p>
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getMemberStatusClassName(action.previousAccountStatus)}`}>
-                              {MEMBER_ACCOUNT_STATUS_LABELS[action.previousAccountStatus]}
-                            </span>
-                            <span aria-hidden="true">→</span>
-                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getMemberStatusClassName(action.newAccountStatus)}`}>
-                              {MEMBER_ACCOUNT_STATUS_LABELS[action.newAccountStatus]}
-                            </span>
-                          </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-gray-500">
-                            <span className="font-semibold">프로필</span>
-                            <span>{MEMBER_PROFILE_VISIBILITY_LABELS[action.previousProfileVisibility]}</span>
-                            <span aria-hidden="true">→</span>
-                            <span>{MEMBER_PROFILE_VISIBILITY_LABELS[action.newProfileVisibility]}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-gray-700">
-                          {suspensionChanged ? (
-                            <div className="space-y-1.5">
-                              <p><span className="font-semibold text-gray-500">이전 종료:</span> {formatNullableDate(action.previousSuspendedUntil, '없음·무기한')}</p>
-                              <p><span className="font-semibold text-gray-500">신규 종료:</span> {formatNullableDate(action.newSuspendedUntil, '없음·무기한')}</p>
-                            </div>
-                          ) : '변경 없음'}
-                        </td>
-                        <td className="px-4 py-4 text-gray-700">
-                          <p className="line-clamp-2 break-words" title={action.reason ?? undefined}>
-                            <span className="font-semibold text-gray-500">사유:</span> {action.reason ?? '해당 없음'}
-                          </p>
-                          <p className="mt-1.5 line-clamp-2 break-words" title={action.note ?? undefined}>
-                            <span className="font-semibold text-gray-500">메모:</span> {action.note ?? '해당 없음'}
-                          </p>
-                          <div className="mt-2">
-                            {action.reportId && action.reportExists ? (
-                              <Link href={`/admin/reports/${action.reportId}`} className="font-bold text-green-700 hover:text-green-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2">
-                                신고 {action.reportId.slice(0, 8)}
-                              </Link>
-                            ) : (
-                              <span className="text-gray-500">연결된 신고 없음</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-gray-700">
-                          <p className="font-semibold text-gray-900">{getAdminLabel(action.adminRole, action.adminUserId)}</p>
-                          {action.adminUserId ? (
-                            <p className="mt-1 font-mono text-xs text-gray-500">{action.adminUserId.slice(0, 8)}</p>
-                          ) : null}
-                          <p className="mt-2 text-xs text-gray-600">
-                            <time dateTime={action.createdAt}>{formatReportDate(action.createdAt)}</time>
-                          </p>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )
-        ) : (
-          <div className="p-5 sm:p-6">
-            <ActivityError message={getRestrictionActivityErrorMessage(recentRestrictionActionsResult)} />
-          </div>
-        )}
-      </section>
-
-      <section aria-labelledby="recent-premium-actions-heading" className="rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <h2 id="recent-premium-actions-heading" className="text-xl font-black text-gray-900">최근 Premium 변경</h2>
-            <p className="mt-1 text-sm text-gray-500">최근 처리된 Premium 변경을 최대 5건 표시합니다.</p>
-          </div>
-          <Crown className="text-gray-400" size={22} aria-hidden="true" />
-        </div>
-
-        {recentPremiumActionsResult.kind === 'success' ? (
-          recentPremiumActionsResult.data.length === 0 ? (
-            <p className="px-6 py-12 text-center text-sm font-medium text-gray-500">최근 Premium 변경 내역이 없습니다.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px] table-fixed text-left text-sm">
-                <colgroup>
-                  <col className="w-[18%]" />
-                  <col className="w-[19%]" />
-                  <col className="w-[23%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[20%]" />
-                </colgroup>
-                <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    {['회원', '조치·상태 변경', '기간 변경', '기능 변경', '사유·관리자·처리 시각'].map((label) => (
-                      <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {recentPremiumActionsResult.data.map((action) => {
-                    const canViewProfile = action.memberExists
-                      && action.profileExists
-                      && action.currentProfileVisibility === 'visible';
-                    const memberLabel = action.nickname
-                      ?? (action.memberExists ? '닉네임 정보 없음' : '탈퇴 또는 회원 정보 없음');
-                    const previousFeatures = formatFeatureKeys(action.previousFeatureKeys);
-                    const newFeatures = formatFeatureKeys(action.newFeatureKeys);
-                    return (
-                      <tr key={action.actionId} className="align-top">
-                        <td className="px-4 py-4">
-                          {canViewProfile ? (
-                            <Link
-                              href={`/members/${action.subjectUserId}`}
-                              className="font-bold text-gray-900 underline-offset-4 hover:text-green-700 hover:underline"
-                            >
-                              {memberLabel}
-                            </Link>
-                          ) : (
-                            <p className="font-bold text-gray-900">{memberLabel}</p>
-                          )}
-                          <p className="mt-1 font-mono text-xs text-gray-500">{action.subjectUserId.slice(0, 8)}</p>
-                          {!action.memberExists ? (
-                            <p className="mt-1 text-xs font-semibold text-red-700">탈퇴 또는 회원 정보 없음</p>
-                          ) : null}
-                          {!action.profileExists ? (
-                            <p className="mt-1 text-xs font-semibold text-amber-700">프로필 없음</p>
-                          ) : null}
-                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                            {canViewProfile ? (
-                              <Link href={`/members/${action.subjectUserId}`} className="text-xs font-bold text-green-700 hover:text-green-800">
-                                프로필 보기
-                              </Link>
-                            ) : null}
-                            {action.memberExists ? (
-                              <Link href={`/admin/premium/${action.subjectUserId}`} className="text-xs font-bold text-green-700 hover:text-green-800">
-                                Premium 상세
-                              </Link>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-gray-700">
-                          <p className="font-bold text-gray-900">{PREMIUM_MEMBERSHIP_ACTION_LABELS[action.actionType]}</p>
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            {action.previousStatus ? (
-                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getPremiumStatusClassName(action.previousStatus)}`}>
-                                {PREMIUM_STATUS_LABELS[action.previousStatus]}
-                              </span>
-                            ) : (
-                              <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">해당 없음</span>
-                            )}
-                            <span aria-hidden="true">→</span>
-                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getPremiumStatusClassName(action.newStatus)}`}>
-                              {PREMIUM_STATUS_LABELS[action.newStatus]}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-gray-700">
-                          <p><span className="font-semibold text-gray-500">이전:</span> {formatPremiumPeriod(action.previousStartedAt, action.previousExpiresAt)}</p>
-                          <p className="mt-2"><span className="font-semibold text-gray-500">신규:</span> {formatPremiumPeriod(action.newStartedAt, action.newExpiresAt)}</p>
-                        </td>
-                        <td className="px-4 py-4 text-gray-700">
-                          <p className="break-words" title={previousFeatures}><span className="font-semibold text-gray-500">이전:</span> {previousFeatures}</p>
-                          <p className="mt-2 break-words" title={newFeatures}><span className="font-semibold text-gray-500">신규:</span> {newFeatures}</p>
-                        </td>
-                        <td className="px-4 py-4 text-gray-700">
-                          <p className="line-clamp-3 break-words" title={action.reason}>
-                            <span className="font-semibold text-gray-500">사유:</span> {action.reason}
-                          </p>
-                          <p className="mt-2 font-semibold text-gray-900">{getAdminLabel(action.adminRole, action.performedBy)}</p>
-                          <p className="mt-1 font-mono text-xs text-gray-500">{action.performedBy.slice(0, 8)}</p>
-                          <p className="mt-2 text-xs text-gray-600">
-                            <time dateTime={action.createdAt}>{formatReportDate(action.createdAt)}</time>
-                          </p>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )
-        ) : (
-          <div className="p-5 sm:p-6">
-            <ActivityError message={getPremiumActivityErrorMessage(recentPremiumActionsResult)} />
-          </div>
-        )}
-      </section>
-
-      <section aria-labelledby="upcoming-admin-features" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
-        <h2 id="upcoming-admin-features" className="text-xl font-black text-gray-900">준비 중인 관리자 기능</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          {['회원 관리 — 준비 중', '관리자 계정 관리 — 준비 중', '서비스 통계 — 준비 중'].map((label) => (
-            <div key={label} className="rounded-2xl bg-gray-100 px-4 py-4 text-sm font-semibold text-gray-500">
-              {label}
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
+    <AdminDashboardSection headingId="member-management-heading" title="회원 관리" description="회원 계정과 프로필 상태를 확인합니다." viewAllHref={adminAccess.permissions.includes('member_restrictions_view') ? '/admin/members' : undefined} viewAllLabel="회원 관리 전체 보기">{operationalResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{memberCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={operationalResult.kind === 'forbidden' ? '운영 통계 조회 권한이 없습니다.' : '운영 통계를 불러오지 못했습니다.'} />}</AdminDashboardSection>
+    <AdminDashboardSection headingId="service-statistics-heading" title="서비스 통계" description="매칭, 메시지, 신규 회원 등 서비스 이용 현황을 확인합니다."><div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-5 py-8 text-center"><span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-600">도입 예정</span><p className="mt-3 text-sm font-semibold text-gray-600">상세 통계 화면 준비 중</p></div></AdminDashboardSection>
+    <AdminDashboardSection headingId="admin-account-management-heading" title="관리자 계정 관리" description="관리자 역할과 계정 상태를 관리합니다."><div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-5 py-8 text-center"><span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-600">도입 예정</span><p className="mt-3 text-sm font-semibold text-gray-600">관리 기능 준비 중</p><p className="mt-1 text-xs text-gray-500">super_admin 전용으로 도입 예정입니다.</p></div></AdminDashboardSection>
+  </div>;
 }

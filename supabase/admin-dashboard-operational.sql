@@ -151,7 +151,7 @@ begin
     raise exception 'Cannot replace dashboard operational summary because dependent objects exist: %',
       v_dependent_objects;
   end if;
-end
+end;
 $preflight$;
 
 drop function public.get_admin_dashboard_operational_summary(integer);
@@ -299,10 +299,12 @@ begin
           and (premium.expires_at is null or premium.expires_at > v_now)
       ) as premium_available_count,
       pg_catalog.count(*) filter (
-        where premium.started_at > v_now
+        where premium.status = 'active'
+          and premium.started_at > v_now
       ) as premium_not_started_count,
       pg_catalog.count(*) filter (
-        where premium.expires_at is not null
+        where premium.status = 'active'
+          and premium.expires_at is not null
           and premium.expires_at <= v_now
       ) as premium_expired_count,
       pg_catalog.count(*) filter (
@@ -336,7 +338,7 @@ begin
     p_expiring_days
   from member_summary
   cross join premium_summary;
-end
+end;
 $function$;
 
 alter function public.get_admin_dashboard_operational_summary(integer) owner to postgres;
@@ -415,7 +417,7 @@ begin
      or not pg_catalog.has_function_privilege('service_role', v_function_oid, 'EXECUTE') then
     raise exception 'Dashboard operational summary function privileges differ from the approved definition';
   end if;
-end
+end;
 $validation$;
 
 commit;

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AlertCircle, ChevronLeft, ChevronRight, RotateCcw, Search } from 'lucide-react';
+import AdminRecentPremiumChanges from '@/components/admin/premium/AdminRecentPremiumChanges';
 import { requireAdminAccess } from '@/lib/admin/access';
 import {
   getPremiumPeriodState,
@@ -18,6 +19,11 @@ import {
   type PremiumMembershipSortDirection,
   type PremiumMembershipSortKey,
 } from '@/lib/admin/premium-memberships';
+import {
+  parseRecentPremiumMembershipActions,
+  type RecentActivityResult,
+  type RecentPremiumMembershipAction,
+} from '@/lib/admin/recent-admin-activities';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 type PremiumSearchParams = {
@@ -107,15 +113,24 @@ export default async function AdminPremiumMembershipsPage({
   const offset = (page - 1) * PAGE_SIZE;
 
   const supabase = await createServerSupabaseClient();
-  const { data, error: rpcError } = await supabase.rpc('get_admin_premium_memberships', {
-    p_search: search || null,
-    p_status: status === 'all' ? null : status,
-    p_limit: PAGE_SIZE,
-    p_offset: offset,
-    p_sort_key: sort,
-    p_sort_direction: direction,
-  });
+  const [listResult, recentChangesRpc] = await Promise.all([
+    supabase.rpc('get_admin_premium_memberships', {
+      p_search: search || null,
+      p_status: status === 'all' ? null : status,
+      p_limit: PAGE_SIZE,
+      p_offset: offset,
+      p_sort_key: sort,
+      p_sort_direction: direction,
+    }),
+    supabase.rpc('get_admin_recent_premium_membership_actions', { p_limit: 5 }),
+  ]);
+  const { data, error: rpcError } = listResult;
   const memberships = rpcError ? null : parseAdminPremiumMembershipList(data);
+  const parsedRecentChanges = recentChangesRpc.error
+    ? null : parseRecentPremiumMembershipActions(recentChangesRpc.data);
+  const recentChanges: RecentActivityResult<RecentPremiumMembershipAction[]> = recentChangesRpc.error
+    ? { kind: recentChangesRpc.error.code === '42501' ? 'forbidden' : 'rpc_error' }
+    : parsedRecentChanges === null ? { kind: 'parse_error' } : { kind: 'success', data: parsedRecentChanges };
   const error: PremiumListError | null = rpcError
     ? rpcError.code === '42501' ? 'forbidden' : 'rpc'
     : memberships === null ? 'parse' : null;
@@ -334,6 +349,8 @@ export default async function AdminPremiumMembershipsPage({
           )}
         </nav>
       ) : null}
+
+      <AdminRecentPremiumChanges result={recentChanges} />
 
       <section className="rounded-3xl border border-dashed border-gray-200 bg-white px-6 py-5 text-sm font-semibold text-gray-500">
         Premium 수동 부여와 변경 기능은 다음 단계에서 제공됩니다.

@@ -5,8 +5,9 @@
 -- administrator and three user-confirmed disposable, non-production Auth users.
 -- Replace PASTE_TEST_FIXTURE_CONFIRMATION with the exact confirmation token shown
 -- below. The role-test user and both Premium targets must start as non-admins and
--- none may have Premium/action/receipt rows. This script never changes auth.users
--- and always ends with ROLLBACK.
+-- none may have Premium/action/receipt rows. The pagination section creates
+-- identifier-only disposable Auth fixtures inside the transaction; all changes
+-- end with ROLLBACK.
 --
 -- Apply admin-premium-memberships.sql before running this test.
 -- Repeat the permission section after each supported reinstall sequence when
@@ -182,7 +183,7 @@ begin
   end if;
 
   raise notice 'PASS fixture and object preflight';
-end
+end;
 $preflight$;
 
 create function pg_temp._commatch_premium_it_set_user(p_user_id uuid)
@@ -202,7 +203,7 @@ begin
   if auth.uid() is distinct from p_user_id then
     raise exception 'auth.uid() setup failed';
   end if;
-end
+end;
 $function$;
 
 create function pg_temp._commatch_premium_it_expect_sqlstate(
@@ -225,7 +226,7 @@ begin
       end if;
       raise notice 'PASS % (SQLSTATE %)', p_label, p_expected_state;
   end;
-end
+end;
 $function$;
 
 grant execute on function pg_temp._commatch_premium_it_set_user(uuid)
@@ -255,7 +256,7 @@ begin
     raise exception using errcode = 'P0001', message = 'TEST_RECEIPT_FAILURE';
   end if;
   return new;
-end
+end;
 $function$;
 
 create trigger _commatch_premium_it_fail_receipt
@@ -319,7 +320,8 @@ begin
   end if;
 
   raise notice 'PASS administrator Premium target blocked without membership, action, or receipt';
-end $$;
+end;
+$$;
 reset role;
 
 -- anon cannot execute any administrator RPC.
@@ -360,7 +362,8 @@ begin
     raise exception 'FAIL ordinary member received a Premium administrator permission';
   end if;
   raise notice 'PASS ordinary member permission matrix';
-end $$;
+end;
+$$;
 select pg_temp._commatch_premium_it_expect_sqlstate(
   'ordinary member list', '42501', 'select * from public.get_admin_premium_memberships()'
 );
@@ -388,6 +391,159 @@ reset role;
 set local role authenticated;
 select pg_temp._commatch_premium_it_set_user(role_test_user_id)
 from _commatch_premium_it_config;
+-- The exists filter returns every membership row regardless of stored status or
+-- time window. Identifier-only Auth fixtures provide exact pagination counts.
+set local role postgres;
+create temp table _commatch_premium_page_users (
+  position integer primary key,
+  user_id uuid not null unique
+) on commit drop;
+insert into _commatch_premium_page_users
+select position, pg_catalog.gen_random_uuid()
+from pg_catalog.generate_series(1,21) as fixture(position);
+grant select on pg_temp._commatch_premium_page_users to authenticated;
+
+insert into auth.users (
+  id, instance_id, aud, role, encrypted_password,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+)
+select fixture.user_id, source.instance_id, 'authenticated', 'authenticated', null,
+  '{}'::jsonb, '{}'::jsonb, pg_catalog.now(), pg_catalog.now()
+from _commatch_premium_page_users as fixture
+cross join lateral (
+  select auth_user.instance_id from auth.users as auth_user
+  where auth_user.id=(select member_id from _commatch_premium_it_config)
+) as source;
+
+delete from public.premium_memberships;
+
+set local role authenticated;
+select pg_temp._commatch_premium_it_set_user(role_test_user_id)
+from _commatch_premium_it_config;
+do $exists_pagination$
+declare v_count integer; v_rows integer; v_total bigint; v_row record;
+begin
+  foreach v_count in array array[0,1,10,11,21] loop
+    set local role postgres;
+    delete from public.premium_memberships;
+    insert into public.premium_memberships (
+      user_id,status,started_at,expires_at,feature_keys,updated_at
+    )
+    select fixture.user_id,
+      case fixture.position%3 when 0 then 'revoked' when 1 then 'active' else 'suspended' end,
+      case when fixture.position=1 then pg_catalog.now()
+           when fixture.position=4 then pg_catalog.now()+interval '1 day'
+           else pg_catalog.now()-interval '2 days' end,
+      case when fixture.position=5 then pg_catalog.now()-interval '1 day'
+           when fixture.position=7 then pg_catalog.now()
+           when fixture.position=6 then null else pg_catalog.now()+interval '2 days' end,
+      array['likes_received']::text[],
+      case when fixture.position>=20 then timestamptz '2099-01-01 00:01:00+00'
+           else timestamptz '2099-01-01 00:00:00+00' + fixture.position*interval '1 second' end
+    from _commatch_premium_page_users fixture where fixture.position<=v_count;
+    set local role authenticated;
+    select pg_catalog.count(*),pg_catalog.max(total_count) into v_rows,v_total
+      from public.get_admin_premium_memberships(null,'exists',10,0,'updated_at','desc');
+    if v_rows<>least(v_count,10) or (v_count>0 and v_total<>v_count) or (v_count=0 and v_total is not null) then
+      raise exception 'FAIL exists count % (rows %, total %)',v_count,v_rows,v_total;
+    end if;
+    select pg_catalog.count(*),pg_catalog.max(total_count) into v_rows,v_total
+      from public.get_admin_premium_memberships(null,'exists',10,10,'updated_at','desc');
+    if v_rows<>greatest(least(v_count-10,10),0) or (v_count>10 and v_total<>v_count) then
+      raise exception 'FAIL exists offset 10 for %',v_count;
+    end if;
+    select pg_catalog.count(*) into v_rows
+      from public.get_admin_premium_memberships(null,'exists',10,20,'updated_at','desc');
+    if v_rows<>greatest(v_count-20,0) then raise exception 'FAIL exists offset 20 for %',v_count; end if;
+    raise notice 'PASS Premium exists pagination fixture count %',v_count;
+  end loop;
+
+  select * into v_row from public.get_admin_premium_memberships(null,'exists',100,0,'updated_at','desc')
+    where member_user_id=(select user_id from _commatch_premium_page_users where position=4);
+  if not v_row.membership_exists or not v_row.is_not_started then raise exception 'FAIL exists future row'; end if;
+  select * into v_row from public.get_admin_premium_memberships(null,'exists',100,0,'updated_at','desc')
+    where member_user_id=(select user_id from _commatch_premium_page_users where position=7);
+  if not v_row.membership_exists or not v_row.is_expired then raise exception 'FAIL exists expired row'; end if;
+  if (select pg_catalog.count(*) from public.get_admin_premium_memberships(null,'exists',100,0,'updated_at','desc'))<>21
+     or exists (select 1 from public.get_admin_premium_memberships(null,'exists',100,0,'updated_at','desc') where not membership_exists)
+     or exists (select 1 from public.get_admin_premium_memberships(null,'exists',100,0,'updated_at','desc') where member_user_id=(select role_test_user_id from _commatch_premium_it_config)) then
+    raise exception 'FAIL exists membership/admin exclusion semantics';
+  end if;
+  if (select pg_catalog.array_agg(member_user_id)
+      from public.get_admin_premium_memberships(null,'exists',2,0,'updated_at','desc'))
+     is distinct from (select pg_catalog.array_agg(user_id order by user_id)
+                       from _commatch_premium_page_users where position>=20) then
+    raise exception 'FAIL updated_at tie-breaker user_id ordering';
+  end if;
+  select pg_catalog.count(*), pg_catalog.max(total_count) into v_rows, v_total
+  from public.get_admin_premium_memberships(null,'available',100,0,'updated_at','desc');
+  if v_rows <> 5 or v_total <> 5
+     or exists (
+       select 1 from public.get_admin_premium_memberships(null,'available',100,0,'updated_at','desc')
+       where not is_available or stored_status <> 'active'
+     ) then
+    raise exception 'FAIL available filter contract (rows %, total %)', v_rows, v_total;
+  end if;
+
+  select pg_catalog.count(*), pg_catalog.max(total_count) into v_rows, v_total
+  from public.get_admin_premium_memberships(null,'not_started',100,0,'updated_at','desc');
+  if v_rows <> 1 or v_total <> 1
+     or not exists (
+       select 1 from public.get_admin_premium_memberships(null,'not_started',100,0,'updated_at','desc')
+       where member_user_id=(select user_id from _commatch_premium_page_users where position=4)
+         and is_not_started and stored_status='active'
+     ) then
+    raise exception 'FAIL not_started filter contract (rows %, total %)', v_rows, v_total;
+  end if;
+
+  select pg_catalog.count(*), pg_catalog.max(total_count) into v_rows, v_total
+  from public.get_admin_premium_memberships(null,'expired',100,0,'updated_at','desc');
+  if v_rows <> 1 or v_total <> 1
+     or not exists (
+       select 1 from public.get_admin_premium_memberships(null,'expired',100,0,'updated_at','desc')
+       where member_user_id=(select user_id from _commatch_premium_page_users where position=7)
+         and is_expired and stored_status='active'
+     ) then
+    raise exception 'FAIL expired filter contract (rows %, total %)', v_rows, v_total;
+  end if;
+
+  select pg_catalog.count(*), pg_catalog.max(total_count) into v_rows, v_total
+  from public.get_admin_premium_memberships(null,'suspended',100,0,'updated_at','desc');
+  if v_rows <> 7 or v_total <> 7
+     or exists (
+       select 1 from public.get_admin_premium_memberships(null,'suspended',100,0,'updated_at','desc')
+       where stored_status <> 'suspended' or is_not_started or is_expired
+     ) then
+    raise exception 'FAIL suspended filter contract (rows %, total %)', v_rows, v_total;
+  end if;
+
+  select pg_catalog.count(*), pg_catalog.max(total_count) into v_rows, v_total
+  from public.get_admin_premium_memberships(null,'revoked',100,0,'updated_at','desc');
+  if v_rows <> 7 or v_total <> 7
+     or exists (
+       select 1 from public.get_admin_premium_memberships(null,'revoked',100,0,'updated_at','desc')
+       where stored_status <> 'revoked' or is_not_started or is_expired
+     ) then
+    raise exception 'FAIL revoked filter contract (rows %, total %)', v_rows, v_total;
+  end if;
+
+  perform * from public.get_admin_premium_memberships(null,'all',10,0,'updated_at','desc');
+  raise notice 'PASS exists/available/not_started/expired/suspended/revoked filters and time boundaries';
+end;
+$exists_pagination$;
+
+select pg_temp._commatch_premium_it_expect_sqlstate(
+  'invalid list status', '22023',
+  'select * from public.get_admin_premium_memberships(null,''unsupported'',10,0,''updated_at'',''desc'')'
+);
+
+set local role postgres;
+delete from public.premium_memberships;
+delete from auth.users where id in (select user_id from _commatch_premium_page_users);
+
+set local role authenticated;
+select pg_temp._commatch_premium_it_set_user(role_test_user_id)
+from _commatch_premium_it_config;
 do $$
 declare
   v_config _commatch_premium_it_config%rowtype;
@@ -410,7 +566,7 @@ begin
     raise exception 'FAIL active admin Premium permission matrix';
   end if;
 
-  perform * from public.get_admin_premium_memberships(null, 'none', 10, 0, 'updated_at', 'desc');
+  perform * from public.get_admin_premium_memberships(null, 'all', 10, 0, 'updated_at', 'desc');
   perform * from public.get_admin_premium_membership(v_config.member_id, 10);
 
   select * into v_result
@@ -437,7 +593,8 @@ begin
     raise exception 'FAIL grant did not create exactly one action';
   end if;
   raise notice 'PASS admin grant, finite period, partial features, canonical order, and audit';
-end $$;
+end;
+$$;
 
 -- Same request_id returns the original action result without a second write.
 set local role authenticated;
@@ -478,7 +635,8 @@ begin
     raise exception 'FAIL duplicate request idempotency';
   end if;
   raise notice 'PASS duplicate request returns original receipt without new write/action';
-end $$;
+end;
+$$;
 
 set local role authenticated;
 select pg_temp._commatch_premium_it_set_user(role_test_user_id)
@@ -556,22 +714,68 @@ begin
     raise exception 'FAIL immediate no-op request receipt replay';
   end if;
   raise notice 'PASS no-op receipt and immediate idempotent replay';
-end $$;
+end;
+$$;
 
 -- Stale version and invalid input validation.
 set local role authenticated;
 select pg_temp._commatch_premium_it_set_user(role_test_user_id)
 from _commatch_premium_it_config;
-select pg_temp._commatch_premium_it_expect_sqlstate(
-  'stale updated_at',
-  '40001',
-  format(
-    'select * from public.update_admin_premium_membership(%L,%L,''active'',pg_catalog.now(),null,array[''likes_received'']::text[],''stale'',%L)',
-    (select member_id from _commatch_premium_it_config),
-    '2000-01-01T00:00:00Z'::timestamptz,
-    (select failed_request_id from _commatch_premium_it_config)
-  )
-);
+do $stale_contract$
+declare
+  v_config _commatch_premium_it_config%rowtype;
+begin
+  select * into v_config from _commatch_premium_it_config;
+
+  begin
+    perform * from public.update_admin_premium_membership(
+      v_config.member_id,
+      '2000-01-01T00:00:00Z'::timestamptz,
+      'active',
+      pg_catalog.now(),
+      null,
+      array['likes_received']::text[],
+      'stale existing membership',
+      v_config.failed_request_id
+    );
+    raise exception 'FAIL stale existing membership unexpectedly succeeded';
+  exception
+    when others then
+      if sqlstate is distinct from 'P0001'
+         or sqlerrm is distinct from 'PREMIUM_STALE_VERSION' then
+        raise exception
+          'FAIL stale existing membership: expected P0001 / PREMIUM_STALE_VERSION, received % / %',
+          sqlstate,
+          sqlerrm;
+      end if;
+  end;
+
+  begin
+    perform * from public.update_admin_premium_membership(
+      v_config.second_member_id,
+      '2000-01-01T00:00:00Z'::timestamptz,
+      'active',
+      pg_catalog.now(),
+      null,
+      array['likes_received']::text[],
+      'stale missing membership',
+      v_config.failed_request_id
+    );
+    raise exception 'FAIL stale missing membership unexpectedly succeeded';
+  exception
+    when others then
+      if sqlstate is distinct from 'P0001'
+         or sqlerrm is distinct from 'PREMIUM_STALE_VERSION' then
+        raise exception
+          'FAIL stale missing membership: expected P0001 / PREMIUM_STALE_VERSION, received % / %',
+          sqlstate,
+          sqlerrm;
+      end if;
+  end;
+
+  raise notice 'PASS stale existing/missing membership contracts (P0001 / PREMIUM_STALE_VERSION)';
+end;
+$stale_contract$;
 do $$
 declare
   v_config _commatch_premium_it_config%rowtype;
@@ -588,7 +792,8 @@ begin
     raise exception 'FAIL stale request left a receipt or action';
   end if;
   raise notice 'PASS failed request left no receipt or action';
-end $$;
+end;
+$$;
 set local role authenticated;
 select pg_temp._commatch_premium_it_set_user(role_test_user_id)
 from _commatch_premium_it_config;
@@ -680,7 +885,7 @@ begin
     raise exception 'FAIL % changed membership, action, or receipt data', p_label;
   end if;
   raise notice 'PASS % left membership, action, and receipt data unchanged', p_label;
-end
+end;
 $function$;
 
 set local role authenticated;
@@ -823,7 +1028,8 @@ begin
     raise exception 'FAIL receipt fault left a membership, action, or receipt change';
   end if;
   raise notice 'PASS receipt failure rolled back membership, action, and receipt atomically';
-end $$;
+end;
+$$;
 
 drop trigger _commatch_premium_it_fail_receipt
   on public.premium_membership_request_receipts;
@@ -868,7 +1074,8 @@ begin
     raise exception 'FAIL equality start or indefinite full-feature update';
   end if;
   raise notice 'PASS future start, start equality, indefinite period, full features, feature add/remove';
-end $$;
+end;
+$$;
 
 -- A no-op receipt remains authoritative after later requests have changed the
 -- membership. Reusing the old request ID returns its original snapshot and does
@@ -912,7 +1119,8 @@ begin
     raise exception 'FAIL historical no-op request replay';
   end if;
   raise notice 'PASS historical no-op response replay after later membership changes';
-end $$;
+end;
+$$;
 
 -- Explicit finite-period extension and shortening remain the general updated
 -- action; their previous/new timestamps in the action row carry the detail.
@@ -956,7 +1164,8 @@ begin
     raise exception 'FAIL finite-period shortening';
   end if;
   raise notice 'PASS period extension and shortening use updated actions';
-end $$;
+end;
+$$;
 
 -- Existing member-facing functions still use the same three-feature membership.
 select pg_temp._commatch_premium_it_set_user(member_id)
@@ -976,7 +1185,8 @@ begin
     raise exception 'FAIL existing access snapshot regression';
   end if;
   raise notice 'PASS existing member Premium functions and priority separation';
-end $$;
+end;
+$$;
 
 -- Member can SELECT only their row and cannot mutate it or access action rows.
 do $$
@@ -985,7 +1195,8 @@ begin
     raise exception 'FAIL member own SELECT RLS scope';
   end if;
   raise notice 'PASS member own SELECT retained';
-end $$;
+end;
+$$;
 select pg_temp._commatch_premium_it_expect_sqlstate(
   'member direct Premium insert',
   '42501',
@@ -1105,7 +1316,8 @@ begin
     raise exception 'FAIL regrant created a duplicate membership';
   end if;
   raise notice 'PASS suspend, reactivate, revoke, regrant, single row, and expiry boundary';
-end $$;
+end;
+$$;
 
 -- Super admin also has both permissions and can grant a second member.
 set local role authenticated;
@@ -1150,7 +1362,8 @@ begin
   );
   if v_result.action_type <> 'granted' then raise exception 'FAIL super admin grant'; end if;
   raise notice 'PASS super admin view/manage and grant';
-end $$;
+end;
+$$;
 reset role;
 
 -- Account restriction is returned by the detail RPC but does not mutate or
@@ -1197,7 +1410,8 @@ begin
     raise exception 'FAIL detail action history';
   end if;
   raise notice 'PASS restriction state included without changing Premium';
-end $$;
+end;
+$$;
 
 select pg_temp._commatch_premium_it_set_user(member_id)
 from _commatch_premium_it_config;
@@ -1207,7 +1421,8 @@ begin
     raise exception 'FAIL member restriction improperly changed Premium function result';
   end if;
   raise notice 'PASS Premium duration/state remain independent from member restriction';
-end $$;
+end;
+$$;
 reset role;
 
 -- Audit invariants: every substantive RPC change has one action, previous/new
@@ -1245,7 +1460,8 @@ begin
     raise exception 'FAIL changed request receipt/action linkage';
   end if;
   raise notice 'PASS action values, receipts, performer, reason, no-op, and duplicate invariants';
-end $$;
+end;
+$$;
 
 -- Reuse the same disposable Auth user for the remaining administrator states.
 -- The active-admin assertions and all mutations above ran first. Each UPDATE and
@@ -1282,7 +1498,8 @@ begin
     (select second_member_id from _commatch_premium_it_config), 10
   );
   raise notice 'PASS moderator list, detail, and permission matrix';
-end $$;
+end;
+$$;
 select pg_temp._commatch_premium_it_expect_sqlstate(
   'moderator change',
   '42501',
@@ -1313,7 +1530,8 @@ begin
     raise exception 'FAIL suspended administrator retained permissions';
   end if;
   raise notice 'PASS suspended administrator empty permissions';
-end $$;
+end;
+$$;
 select pg_temp._commatch_premium_it_expect_sqlstate(
   'suspended administrator list', '42501', 'select * from public.get_admin_premium_memberships()'
 );
@@ -1355,7 +1573,8 @@ begin
     raise exception 'FAIL revoked administrator retained permissions';
   end if;
   raise notice 'PASS revoked administrator empty permissions';
-end $$;
+end;
+$$;
 select pg_temp._commatch_premium_it_expect_sqlstate(
   'revoked administrator list', '42501', 'select * from public.get_admin_premium_memberships()'
 );
@@ -1421,7 +1640,8 @@ begin
     raise exception 'FAIL priority pilot key entered Premium memberships';
   end if;
   raise notice 'PASS ACL, RLS, existing object markers, and priority separation';
-end $$;
+end;
+$$;
 
 select 'PASS all single-session integration tests; rolling back every fixture and data change' as test_result;
 
@@ -1453,7 +1673,7 @@ rollback;
 -- Start SESSION B during A's sleep. It must wait on the target advisory lock.
 -- Because A rolls back, B then becomes the single successful grant. For a stale
 -- update test, commit A instead and have B pass the pre-A updated_at; B must fail
--- with SQLSTATE 40001 / PREMIUM_STALE_VERSION.
+-- with SQLSTATE P0001 / PREMIUM_STALE_VERSION.
 --
 -- SESSION B:
 --   begin;

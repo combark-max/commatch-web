@@ -93,7 +93,7 @@ begin
         v_function.proname, v_function.arguments;
     end if;
   end loop;
-end
+end;
 $preflight$;
 
 create table if not exists public.premium_membership_actions (
@@ -359,7 +359,7 @@ begin
   ) then
     raise exception 'A required Premium action index is missing';
   end if;
-end
+end;
 $table_validation$;
 
 do $receipt_table_validation$
@@ -434,7 +434,7 @@ begin
   ) then
     raise exception 'A required Premium request receipt index is missing';
   end if;
-end
+end;
 $receipt_table_validation$;
 
 -- Extend the current permission matrix without changing any existing permission.
@@ -524,7 +524,7 @@ as $function$
       ),
       false
     )
-  end
+  end;
 $function$;
 
 comment on function public.has_admin_permission(text)
@@ -545,7 +545,7 @@ begin
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended(p_user_id::text, 982451)
   );
-end
+end;
 $function$;
 
 comment on function public.lock_premium_membership_write(uuid)
@@ -587,6 +587,7 @@ declare
   v_status text := coalesce(nullif(pg_catalog.btrim(p_status), ''), 'all');
   v_sort_key text := coalesce(nullif(pg_catalog.btrim(p_sort_key), ''), 'updated_at');
   v_sort_direction text := coalesce(nullif(pg_catalog.btrim(p_sort_direction), ''), 'desc');
+  v_now timestamptz := pg_catalog.now();
 begin
   if not coalesce(public.has_admin_permission('premium_memberships_view'), false) then
     raise exception using errcode = '42501', message = 'Insufficient admin permission';
@@ -594,7 +595,9 @@ begin
   if v_search is not null and pg_catalog.char_length(v_search) > 100 then
     raise exception using errcode = '22023', message = 'Search text must be 100 characters or fewer';
   end if;
-  if v_status not in ('all', 'none', 'active', 'suspended', 'revoked') then
+  if v_status not in (
+    'all', 'exists', 'available', 'not_started', 'expired', 'suspended', 'revoked'
+  ) then
     raise exception using errcode = '22023', message = 'Invalid Premium status filter';
   end if;
   if p_limit is null or p_limit < 1 or p_limit > 100
@@ -616,12 +619,17 @@ begin
     membership.status,
     coalesce(
       membership.status = 'active'
-        and membership.started_at <= pg_catalog.now()
-        and (membership.expires_at is null or membership.expires_at > pg_catalog.now()),
+        and membership.started_at <= v_now
+        and (membership.expires_at is null or membership.expires_at > v_now),
       false
     ),
-    coalesce(membership.started_at > pg_catalog.now(), false),
-    coalesce(membership.expires_at <= pg_catalog.now(), false),
+    coalesce(membership.status = 'active' and membership.started_at > v_now, false),
+    coalesce(
+      membership.status = 'active'
+        and membership.expires_at is not null
+        and membership.expires_at <= v_now,
+      false
+    ),
     membership.started_at,
     membership.expires_at,
     coalesce(membership.feature_keys, array[]::text[]),
@@ -645,8 +653,26 @@ begin
     )
     and (
       v_status = 'all'
-      or (v_status = 'none' and membership.id is null)
-      or membership.status = v_status
+      or (v_status = 'exists' and membership.id is not null)
+      or (
+        v_status = 'available'
+        and membership.status = 'active'
+        and membership.started_at <= v_now
+        and (membership.expires_at is null or membership.expires_at > v_now)
+      )
+      or (
+        v_status = 'not_started'
+        and membership.status = 'active'
+        and membership.started_at > v_now
+      )
+      or (
+        v_status = 'expired'
+        and membership.status = 'active'
+        and membership.expires_at is not null
+        and membership.expires_at <= v_now
+      )
+      or (v_status = 'suspended' and membership.status = 'suspended')
+      or (v_status = 'revoked' and membership.status = 'revoked')
     )
   order by
     case when v_sort_key = 'updated_at' and v_sort_direction = 'asc' then membership.updated_at end asc nulls last,
@@ -660,7 +686,7 @@ begin
     auth_user.id
   limit p_limit
   offset p_offset;
-end
+end;
 $function$;
 
 comment on function public.get_admin_premium_memberships(text, text, integer, integer, text, text)
@@ -727,8 +753,17 @@ begin
         and (membership.expires_at is null or membership.expires_at > pg_catalog.now()),
       false
     ),
-    coalesce(membership.started_at > pg_catalog.now(), false),
-    coalesce(membership.expires_at <= pg_catalog.now(), false),
+    coalesce(
+      membership.status = 'active'
+        and membership.started_at > pg_catalog.now(),
+      false
+    ),
+    coalesce(
+      membership.status = 'active'
+        and membership.expires_at is not null
+        and membership.expires_at <= pg_catalog.now(),
+      false
+    ),
     membership.started_at,
     membership.expires_at,
     coalesce(membership.feature_keys, array[]::text[]),
@@ -771,7 +806,7 @@ begin
       limit p_action_limit
     ) as recent_action
   ) as action_history on true;
-end
+end;
 $function$;
 
 comment on function public.get_admin_premium_membership(uuid, integer)
@@ -1156,7 +1191,7 @@ begin
     v_membership.updated_at,
     v_action_id,
     v_action_type;
-end
+end;
 $function$;
 
 comment on function public.update_admin_premium_membership(
@@ -1383,7 +1418,7 @@ begin
      ) = 0 then
     raise exception 'Premium update RPC does not use the approved target lock helper';
   end if;
-end
+end;
 $installation_validation$;
 
 commit;

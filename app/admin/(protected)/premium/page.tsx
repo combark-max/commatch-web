@@ -157,8 +157,10 @@ export default async function AdminPremiumMembershipsPage({
           <label htmlFor="premium-status-filter" className="mb-2 block text-sm font-semibold text-gray-700">Premium 상태</label>
           <select id="premium-status-filter" name="status" defaultValue={status} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
             <option value="all">전체</option>
-            <option value="none">미보유</option>
-            <option value="active">활성</option>
+            <option value="exists">Premium 등록</option>
+            <option value="available">이용 가능</option>
+            <option value="not_started">시작 전</option>
+            <option value="expired">만료</option>
             <option value="suspended">정지</option>
             <option value="revoked">회수</option>
           </select>
@@ -238,9 +240,14 @@ export default async function AdminPremiumMembershipsPage({
                   return (
                     <tr key={membership.memberUserId} className="hover:bg-gray-50/70">
                       <td className="px-4 py-4">
-                        <p className="truncate font-bold text-gray-900" title={membership.nickname ?? undefined}>
-                          {membership.nickname ?? '닉네임 정보 없음'}
-                        </p>
+                        <Link
+                          href={`/admin/members/${membership.memberUserId}`}
+                          title={membership.nickname ?? undefined}
+                          aria-label={`${membership.nickname ?? '프로필 정보 없음'} 관리자 회원 상세 보기`}
+                          className="block truncate font-bold text-gray-900 underline-offset-4 hover:text-green-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+                        >
+                          {membership.profileExists && membership.nickname ? membership.nickname : '프로필 정보 없음'}
+                        </Link>
                         <p
                           className="mt-1 font-mono text-xs text-gray-500"
                           title={membership.memberUserId}
@@ -284,9 +291,15 @@ export default async function AdminPremiumMembershipsPage({
                       </td>
                       <td className="px-4 py-4">
                         <Link
+                          href={`/admin/members/${membership.memberUserId}`}
+                          className="block font-bold text-green-700 underline-offset-4 hover:text-green-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+                        >
+                          회원 상세
+                        </Link>
+                        <Link
                           href={`/admin/premium/${membership.memberUserId}`}
                           aria-label={`${membership.nickname ?? '닉네임 정보 없음'} Premium 상세 보기`}
-                          className="font-bold text-green-700 underline-offset-4 hover:text-green-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+                          className="mt-2 block font-bold text-green-700 underline-offset-4 hover:text-green-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
                         >
                           상세 보기
                         </Link>

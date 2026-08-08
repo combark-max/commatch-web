@@ -1,7 +1,9 @@
 export const PREMIUM_MEMBERSHIP_FILTERS = [
   'all',
-  'none',
-  'active',
+  'exists',
+  'available',
+  'not_started',
+  'expired',
   'suspended',
   'revoked',
 ] as const;

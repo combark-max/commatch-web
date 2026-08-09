@@ -69,10 +69,15 @@ export default function AdminNavigation({
             회원 관리
           </Link>
         ) : null}
-        <span aria-disabled="true" className="inline-flex shrink-0 cursor-not-allowed items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-gray-400">
-          <UserCog size={17} aria-hidden="true" />
-          {canManageAdmins ? '관리자 계정 관리' : '관리자 관리'} <span className="text-xs">— 준비 중</span>
-        </span>
+        {canManageAdmins ? (
+          <Link
+            href="/admin/admins"
+            className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/admins') ? activeClassName : defaultClassName}`}
+          >
+            <UserCog size={17} aria-hidden="true" />
+            관리자 계정 관리
+          </Link>
+        ) : null}
         <span aria-disabled="true" className="inline-flex shrink-0 cursor-not-allowed items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-gray-400">
           <BarChart3 size={17} aria-hidden="true" />
           서비스 통계 상세 <span className="text-xs">— 준비 중</span>

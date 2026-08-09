@@ -408,6 +408,7 @@ returns table (
   hobby text,
   drinking text,
   smoking text,
+  marriage_history text,
   marriage_values text,
   profile_image text,
   profile_images text[]
@@ -445,6 +446,7 @@ begin
     target_profile.hobby,
     target_profile.drinking,
     target_profile.smoking,
+    target_profile.marriage_history,
     target_profile.marriage_values,
     target_profile.profile_image,
     target_profile.profile_images
@@ -1195,7 +1197,7 @@ begin
      ) <> 'TABLE(id uuid, nickname text, birth_date text, gender text, region text, job text, introduction text, profile_image text)'
      or pg_catalog.pg_get_function_result(
        'public.get_visible_member_detail(uuid)'::pg_catalog.regprocedure
-     ) <> 'TABLE(id uuid, nickname text, birth_date text, gender text, height integer, job text, region text, introduction text, education text, religion text, hobby text, drinking text, smoking text, marriage_values text, profile_image text, profile_images text[])'
+     ) <> 'TABLE(id uuid, nickname text, birth_date text, gender text, height integer, job text, region text, introduction text, education text, religion text, hobby text, drinking text, smoking text, marriage_history text, marriage_values text, profile_image text, profile_images text[])'
      or pg_catalog.pg_get_function_result(
        'public.get_ai_match_candidates()'::pg_catalog.regprocedure
      ) <> 'TABLE(id uuid, nickname text, birth_date text, gender text, height integer, region text, job text, education text, religion text, hobby text, drinking text, smoking text, marriage_history text, introduction text, marriage_values text, profile_image text, profile_images text[], is_priority_recommendation boolean)'

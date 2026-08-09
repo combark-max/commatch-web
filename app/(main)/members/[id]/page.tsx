@@ -37,6 +37,7 @@ type MemberProfile = {
   hobby: string | null;
   drinking: string | null;
   smoking: string | null;
+  marriage_history: string | null;
   marriage_values: string | null;
   profile_image?: string | null;
   profile_images?: string[] | null;
@@ -76,6 +77,12 @@ const getVisibleProfileValue = (value: string | null) => {
   return normalizedValue && !['미입력', '선택하지 않음', '공개하지 않음'].includes(normalizedValue)
     ? normalizedValue
     : '';
+};
+
+const getMarriageHistoryLabel = (value: string | null) => {
+  if (value === 'first_marriage') return '초혼';
+  if (value === 'remarriage') return '재혼';
+  return '정보 미입력';
 };
 
 const resolveProfileImageUrls = (profileImage: unknown, profileImages: unknown) => {
@@ -483,10 +490,11 @@ export default function MemberDetailPage() {
                 ) : null}
               </div>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <ProfileFact icon={<User size={18} />} label="성별" value={member.gender || '정보 미입력'} />
                 <ProfileFact icon={<Ruler size={18} />} label="키" value={member.height ? `${member.height}cm` : '정보 미입력'} />
                 <ProfileFact icon={<GraduationCap size={18} />} label="학력" value={member.education || '정보 미입력'} />
+                <ProfileFact icon={<Heart size={18} />} label="결혼 이력" value={getMarriageHistoryLabel(member.marriage_history)} />
               </div>
             </section>
 

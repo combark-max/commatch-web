@@ -1,5 +1,6 @@
 -- ComMatch user consent integration tests (rollback-safe)
--- Run only after supabase/user-consents.sql has been installed in a disposable/staging DB.
+-- Run only after supabase/user-consents.sql and
+-- supabase/user-consent-subject-retention.sql have been installed in a disposable/staging DB.
 -- Execute as a database owner capable of SET ROLE and inserting disposable auth.users rows.
 -- This script does not require or modify an existing application user.
 
@@ -143,16 +144,22 @@ BEGIN
     'id primary key'
   );
   PERFORM pg_temp._consent_assert(
-    'schema_auth_users_fk_restrict',
+    'schema_no_auth_users_fk',
     EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'user_consent_events'
+        AND column_name = 'user_id'
+        AND data_type = 'uuid'
+        AND is_nullable = 'NO'
+    )
+    AND NOT EXISTS (
       SELECT 1 FROM pg_catalog.pg_constraint
       WHERE conrelid = 'public.user_consent_events'::regclass
-        AND conname = 'user_consent_events_user_id_fkey'
         AND contype = 'f'
         AND confrelid = 'auth.users'::regclass
-        AND confdeltype = 'r'
     ),
-    'auth.users ON DELETE RESTRICT'
+    'user_id uuid NOT NULL with no auth.users foreign key'
   );
   PERFORM pg_temp._consent_assert(
     'schema_checks',
@@ -604,18 +611,72 @@ BEGIN
 END
 $multiple_user_tests$;
 
--- FK RESTRICT preserves the event instead of silently deleting it with auth.users.
-DO $fk_delete_test$
+-- Auth deletion keeps immutable consent rows under the deleted subject UUID.
+DO $retention_test$
 DECLARE
   v_user uuid := (SELECT id FROM pg_temp.comatch_consent_test_users WHERE name = 'user_2');
+  v_other_user uuid := (SELECT id FROM pg_temp.comatch_consent_test_users WHERE name = 'user_1');
+  v_before_count bigint;
+  v_after_count bigint;
+  v_before_rows jsonb;
+  v_after_rows jsonb;
+  v_other_user_isolated boolean;
 BEGIN
-  PERFORM pg_temp._consent_expect_error(
-    'fk_auth_user_delete_restricted',
-    pg_catalog.format('DELETE FROM auth.users WHERE id = %L::uuid', v_user),
-    '23503'
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp._consent_set_user(v_user);
+  PERFORM public.record_my_consent_event(
+    'sensitive_profile',
+    'accepted',
+    'retention-v1',
+    'settings',
+    gen_random_uuid()
+  );
+  RESET ROLE;
+
+  SELECT count(*), jsonb_agg(to_jsonb(event_row) ORDER BY event_row.created_at, event_row.id)
+  INTO v_before_count, v_before_rows
+  FROM public.user_consent_events AS event_row
+  WHERE event_row.user_id = v_user;
+
+  DELETE FROM auth.users WHERE id = v_user;
+
+  SELECT count(*), jsonb_agg(to_jsonb(event_row) ORDER BY event_row.created_at, event_row.id)
+  INTO v_after_count, v_after_rows
+  FROM public.user_consent_events AS event_row
+  WHERE event_row.user_id = v_user;
+
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp._consent_set_user(v_other_user);
+  SELECT NOT EXISTS (
+    SELECT 1
+    FROM public.get_my_consent_status()
+    WHERE consent_type IN ('adult_confirmation', 'sensitive_profile')
+  ) INTO v_other_user_isolated;
+  RESET ROLE;
+
+  PERFORM pg_temp._consent_assert(
+    'retention_auth_user_delete_preserves_events',
+    v_before_count >= 2
+    AND NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_user)
+    AND v_after_count = v_before_count
+    AND v_after_rows IS NOT DISTINCT FROM v_before_rows
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.user_consent_events AS retained_event
+      WHERE retained_event.user_id = v_user
+        AND (
+          retained_event.action IS NULL
+          OR retained_event.document_version IS NULL
+          OR retained_event.source IS NULL
+          OR retained_event.request_id IS NULL
+          OR retained_event.created_at IS NULL
+        )
+    )
+    AND v_other_user_isolated,
+    pg_catalog.format('before=%s after=%s subject=%s', v_before_count, v_after_count, v_user)
   );
 END
-$fk_delete_test$;
+$retention_test$;
 
 -- Emit the complete summary once, then fail the run if any assertion failed.
 SELECT test_name, passed, info

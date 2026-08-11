@@ -2,23 +2,25 @@ import 'server-only';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import {
+  ACTIVE_CONSENT_TYPES,
   CONSENT_POLICIES,
-  CONSENT_TYPES,
+  CONSENT_EVENT_TYPES,
   type ConsentPolicy,
   type ConsentPolicyMap,
-  type ConsentType,
+  type ActiveConsentType,
+  type ConsentEventType,
 } from '@/lib/consent/policy';
 
 export type ConsentAction = 'accepted' | 'withdrawn';
 
 export type LatestConsentEvent = {
-  consentType: ConsentType;
+  consentType: ConsentEventType;
   latestAction: ConsentAction;
   documentVersion: string;
   createdAt: string;
 };
 
-export type LatestConsentByType = Partial<Record<ConsentType, LatestConsentEvent>>;
+export type LatestConsentByType = Partial<Record<ConsentEventType, LatestConsentEvent>>;
 
 export type ConsentSatisfaction =
   | { status: 'satisfied'; satisfied: true }
@@ -42,7 +44,7 @@ export type ConsentRolloutDecision =
     };
 
 export type ConsentRequirementAssessment = {
-  type: ConsentType;
+  type: ActiveConsentType;
   required: boolean;
   rollout: ConsentRolloutDecision;
   satisfaction: ConsentSatisfaction;
@@ -52,7 +54,7 @@ export type ConsentAccessAssessment = {
   canAccess: boolean;
   hasInvalidConfiguration: boolean;
   requirements: ConsentRequirementAssessment[];
-  blockingTypes: ConsentType[];
+  blockingTypes: ActiveConsentType[];
 };
 
 export type CurrentConsentLookup =
@@ -80,8 +82,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null
 );
 
-const isConsentType = (value: unknown): value is ConsentType => (
-  typeof value === 'string' && (CONSENT_TYPES as readonly string[]).includes(value)
+const isConsentEventType = (value: unknown): value is ConsentEventType => (
+  typeof value === 'string' && (CONSENT_EVENT_TYPES as readonly string[]).includes(value)
 );
 
 const isConsentAction = (value: unknown): value is ConsentAction => (
@@ -127,14 +129,14 @@ const isValidDocumentVersion = (value: unknown): value is string => (
 );
 
 export function parseConsentStatusRpcResponse(value: unknown): LatestConsentByType | null {
-  if (!Array.isArray(value) || value.length > CONSENT_TYPES.length) return null;
+  if (!Array.isArray(value) || value.length > CONSENT_EVENT_TYPES.length) return null;
 
   const latestByType: LatestConsentByType = {};
 
   for (const row of value) {
     if (
       !isRecord(row)
-      || !isConsentType(row.consent_type)
+      || !isConsentEventType(row.consent_type)
       || !isConsentAction(row.latest_action)
       || !isValidDocumentVersion(row.document_version)
       || !isValidTimestamp(row.created_at)
@@ -216,7 +218,7 @@ export function assessConsentAccess(
   latestByType: LatestConsentByType,
   policies: ConsentPolicyMap = CONSENT_POLICIES,
 ): ConsentAccessAssessment {
-  const requirements = CONSENT_TYPES.map((type): ConsentRequirementAssessment => {
+  const requirements = ACTIVE_CONSENT_TYPES.map((type): ConsentRequirementAssessment => {
     const policy = policies[type];
     return {
       type,

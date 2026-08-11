@@ -168,6 +168,24 @@ BEGIN
     'consent_type/action/document_version/source checks'
   );
   PERFORM pg_temp._consent_assert(
+    'schema_sensitive_profile_remains_reserved',
+    (
+      SELECT pg_catalog.regexp_replace(
+        pg_catalog.lower(pg_catalog.pg_get_expr(c.conbin, c.conrelid, false)),
+        '[[:space:]()]',
+        '',
+        'g'
+      ) = 'consent_type=anyarray[''terms''::text,''privacy''::text,''sensitive_profile''::text,''adult_confirmation''::text]'
+      FROM pg_catalog.pg_constraint AS c
+      WHERE c.conrelid = 'public.user_consent_events'::regclass
+        AND c.conname = 'user_consent_events_consent_type_check'
+        AND c.contype = 'c'
+        AND c.convalidated
+        AND NOT c.connoinherit
+    ),
+    'four wire/audit event types remain schema-valid'
+  );
+  PERFORM pg_temp._consent_assert(
     'schema_unique_user_request',
     EXISTS (
       SELECT 1 FROM pg_catalog.pg_constraint
@@ -270,6 +288,14 @@ BEGIN
     'status_deterministic_latest_order',
     v_status_def LIKE '%e.created_at DESC, e.id DESC%',
     'created_at DESC, id DESC'
+  );
+  PERFORM pg_temp._consent_assert(
+    'function_sensitive_profile_recording_inactive',
+    pg_catalog.lower(v_record_def) LIKE '%sensitive_profile_consent_inactive%'
+    AND pg_catalog.lower(v_record_def) LIKE '%errcode = ''0a000''%'
+    AND position('sensitive_profile_consent_inactive' IN pg_catalog.lower(v_record_def))
+      < position('insert into public.user_consent_events' IN pg_catalog.lower(v_record_def)),
+    'reserved rows remain readable but new events are rejected before INSERT'
   );
 END
 $function_contract_tests$;
@@ -448,6 +474,16 @@ BEGIN
     '22023'
   );
   PERFORM pg_temp._consent_expect_error(
+    'validation_sensitive_profile_accepted_inactive',
+    'SELECT * FROM public.record_my_consent_event(''sensitive_profile'',''accepted'',''sensitive-v1'',''profile_create'',gen_random_uuid())',
+    '0A000'
+  );
+  PERFORM pg_temp._consent_expect_error(
+    'validation_sensitive_profile_withdrawn_inactive',
+    'SELECT * FROM public.record_my_consent_event(''sensitive_profile'',''withdrawn'',''sensitive-v1'',''settings'',gen_random_uuid())',
+    '0A000'
+  );
+  PERFORM pg_temp._consent_expect_error(
     'validation_action',
     'SELECT * FROM public.record_my_consent_event(''terms'',''confirmed'',''test-v1'',''settings'',gen_random_uuid())',
     '22023'
@@ -473,6 +509,16 @@ BEGIN
     '22023'
   );
   RESET ROLE;
+  PERFORM pg_temp._consent_assert(
+    'validation_sensitive_profile_writes_absent',
+    NOT EXISTS (
+      SELECT 1
+      FROM public.user_consent_events
+      WHERE user_id = v_user
+        AND consent_type = 'sensitive_profile'
+    ),
+    'inactive accepted and withdrawn attempts wrote no rows'
+  );
 END
 $validation_tests$;
 
@@ -625,9 +671,9 @@ BEGIN
   SET LOCAL ROLE authenticated;
   PERFORM pg_temp._consent_set_user(v_user);
   PERFORM public.record_my_consent_event(
-    'sensitive_profile',
-    'accepted',
-    'retention-v1',
+    'adult_confirmation',
+    'withdrawn',
+    'adult-v2',
     'settings',
     gen_random_uuid()
   );
@@ -650,7 +696,7 @@ BEGIN
   SELECT NOT EXISTS (
     SELECT 1
     FROM public.get_my_consent_status()
-    WHERE consent_type IN ('adult_confirmation', 'sensitive_profile')
+    WHERE consent_type = 'adult_confirmation'
   ) INTO v_other_user_isolated;
   RESET ROLE;
 

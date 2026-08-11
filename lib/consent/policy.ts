@@ -1,13 +1,21 @@
 import 'server-only';
 
-export const CONSENT_TYPES = [
+export const CONSENT_EVENT_TYPES = [
   'terms',
   'privacy',
   'adult_confirmation',
   'sensitive_profile',
 ] as const;
 
-export type ConsentType = (typeof CONSENT_TYPES)[number];
+export type ConsentEventType = (typeof CONSENT_EVENT_TYPES)[number];
+
+export const ACTIVE_CONSENT_TYPES = [
+  'terms',
+  'privacy',
+  'adult_confirmation',
+] as const satisfies readonly ConsentEventType[];
+
+export type ActiveConsentType = (typeof ACTIVE_CONSENT_TYPES)[number];
 
 export type ConsentSource =
   | 'email_verification'
@@ -40,7 +48,7 @@ export type ConsentEnforcementPolicy =
     };
 
 export type ConsentPolicy = {
-  type: ConsentType;
+  type: ActiveConsentType;
   required: boolean;
   source: ConsentSource;
   document: ConsentDocumentPolicy;
@@ -48,7 +56,7 @@ export type ConsentPolicy = {
 };
 
 export type ConsentPolicyMap = {
-  readonly [Type in ConsentType]: ConsentPolicy & { type: Type };
+  readonly [Type in ActiveConsentType]: ConsentPolicy & { type: Type };
 };
 
 export type AdultConfirmationPresentationPolicy =
@@ -94,13 +102,6 @@ export const CONSENT_POLICIES = {
     type: 'adult_confirmation',
     required: true,
     source: 'email_verification',
-    document: unconfiguredDocument(),
-    enforcement: disabledEnforcement(),
-  },
-  sensitive_profile: {
-    type: 'sensitive_profile',
-    required: true,
-    source: 'profile_create',
     document: unconfiguredDocument(),
     enforcement: disabledEnforcement(),
   },

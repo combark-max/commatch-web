@@ -89,6 +89,11 @@ BEGIN
   ) THEN
     RAISE USING ERRCODE = '22023', MESSAGE = 'Invalid consent_type';
   END IF;
+  IF p_consent_type = 'sensitive_profile' THEN
+    RAISE USING
+      ERRCODE = '0A000',
+      MESSAGE = 'SENSITIVE_PROFILE_CONSENT_INACTIVE';
+  END IF;
   IF p_action IS NULL OR p_action NOT IN ('accepted', 'withdrawn') THEN
     RAISE USING ERRCODE = '22023', MESSAGE = 'Invalid action';
   END IF;

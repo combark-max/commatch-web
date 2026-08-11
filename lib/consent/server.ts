@@ -191,6 +191,9 @@ export function evaluateConsentRollout(
   if (policy.enforcement.status === 'disabled') {
     return { status: 'disabled', applies: false };
   }
+  if (policy.enforcement.status === 'enabled') {
+    return { status: 'applies', applies: true };
+  }
   const enforcementStart = parseTimestamp(policy.enforcement.startsAt);
   if (!enforcementStart) {
     return { status: 'invalid_policy', applies: false };
@@ -259,6 +262,20 @@ export function getConsentCompletionDestination(
   hasProfile: boolean,
 ): ConsentCompletionDestination {
   return hasProfile ? '/dashboard' : '/profile/create';
+}
+
+export async function getConsentCompletionDestinationForUser(
+  userId: string,
+): Promise<ConsentCompletionDestination | null> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) return null;
+  return getConsentCompletionDestination(Boolean(data));
 }
 
 export async function getCurrentConsentStatus(): Promise<CurrentConsentLookup> {

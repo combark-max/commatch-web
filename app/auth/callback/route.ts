@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 type VerificationErrorStatus = 'session_error' | 'expired' | 'invalid' | 'error';
 type AuthFlow = 'signup/profile' | 'password reset';
 
-const DEFAULT_NEXT_PATH = '/profile/create';
+const DEFAULT_NEXT_PATH = '/consent';
 const SAFE_MESSAGE_MAX_LENGTH = 160;
 
 const expiredErrorCodes = new Set([

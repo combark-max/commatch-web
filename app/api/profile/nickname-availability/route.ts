@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import * as z from 'zod';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { getCurrentMemberServiceAccess } from '@/lib/member/access';
 
 const nicknameRequestSchema = z.object({
   nickname: z.string().trim().min(2, { message: '닉네임은 최소 2자 이상이어야 합니다.' }),
@@ -17,6 +18,32 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { available: false, message: '로그인이 필요합니다.' },
       { status: 401 },
+    );
+  }
+
+  const serviceAccess = await getCurrentMemberServiceAccess();
+  if (serviceAccess.kind === 'anonymous') {
+    return NextResponse.json(
+      { available: false, message: '로그인이 필요합니다.' },
+      { status: 401 },
+    );
+  }
+  if (serviceAccess.kind === 'error') {
+    return NextResponse.json(
+      { available: false, message: '회원 서비스 이용 상태를 확인하지 못했습니다.' },
+      { status: 500 },
+    );
+  }
+  if (serviceAccess.kind === 'suspended') {
+    return NextResponse.json(
+      { available: false, message: '현재 회원 서비스를 이용할 수 없습니다.' },
+      { status: 403 },
+    );
+  }
+  if (serviceAccess.kind === 'consent_required') {
+    return NextResponse.json(
+      { available: false, message: '필수 동의를 먼저 완료해 주세요.' },
+      { status: 403 },
     );
   }
 

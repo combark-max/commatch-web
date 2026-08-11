@@ -3,6 +3,7 @@ import { STANDARD_JOB_VALUES } from '@/constants/jobs';
 import { getPremiumFeatureAccess } from '@/lib/premium/server';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getCurrentMemberServiceAccess } from '@/lib/member/access';
 
 type Profile = {
   id: string;
@@ -338,6 +339,20 @@ export async function GET(request: NextRequest) {
 
     if (userError || !user?.id) {
       return jsonResponse({ error: 'Authentication required.' }, 401);
+    }
+
+    const serviceAccess = await getCurrentMemberServiceAccess();
+    if (serviceAccess.kind === 'anonymous') {
+      return jsonResponse({ error: 'Authentication required.' }, 401);
+    }
+    if (serviceAccess.kind === 'error') {
+      return jsonResponse({ error: 'Member service access could not be verified.' }, 500);
+    }
+    if (serviceAccess.kind === 'suspended') {
+      return jsonResponse({ error: 'Member service access is suspended.' }, 403);
+    }
+    if (serviceAccess.kind === 'consent_required') {
+      return jsonResponse({ error: 'Required consent is incomplete.' }, 403);
     }
 
     if (expandedRequested) {

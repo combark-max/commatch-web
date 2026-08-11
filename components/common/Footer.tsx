@@ -1,9 +1,9 @@
 import Link from 'next/link';
 
 const footerItems = [
-  { label: '회사소개', href: '#about' },
-  { label: '이용약관' },
-  { label: '개인정보처리방침' },
+  { label: '회사소개', href: '/#about' },
+  { label: '이용약관', href: '/terms' },
+  { label: '개인정보처리방침', href: '/privacy' },
   { label: '공지사항' },
   { label: '문의하기' },
 ];

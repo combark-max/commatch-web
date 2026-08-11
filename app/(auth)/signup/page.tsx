@@ -22,16 +22,9 @@ const signupSchema = z.object({
     message: passwordMessage,
   }),
   confirmPassword: z.string().min(1, { message: '비밀번호 확인을 입력해주세요.' }),
-  terms: z.boolean(),
-  privacy: z.boolean(),
-  adult: z.boolean(),
-  marketing: z.boolean(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: '비밀번호가 일치하지 않습니다.',
   path: ['confirmPassword'],
-}).refine((data) => data.terms && data.privacy && data.adult, {
-  message: '필수 약관에 동의해주세요.',
-  path: ['terms'],
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
@@ -66,10 +59,6 @@ export default function SignupPage() {
       email: '',
       password: '',
       confirmPassword: '',
-      terms: false,
-      privacy: false,
-      adult: false,
-      marketing: false,
     },
   });
 
@@ -79,7 +68,7 @@ export default function SignupPage() {
 
     try {
       const email = data.email.trim();
-      const emailRedirectTo = `${window.location.origin}/auth/callback?next=/profile/create`;
+      const emailRedirectTo = `${window.location.origin}/auth/callback?next=/consent`;
       const { data: signUpData, error: signUpError } = await signUp(email, data.password, emailRedirectTo);
 
       if (signUpError) {
@@ -119,7 +108,7 @@ export default function SignupPage() {
             <div className="mt-6 flex items-end justify-between gap-6">
               <div>
                 <h1 className="text-3xl font-black text-gray-950">회원가입</h1>
-                <p className="mt-2 text-base text-gray-600">이메일 인증 후 프로필을 작성할 수 있습니다.</p>
+                <p className="mt-2 text-base text-gray-600">이메일 인증 후 필수 동의를 확인하고 프로필을 작성할 수 있습니다.</p>
               </div>
               <p className="hidden text-sm font-semibold text-green-700 lg:block">계정 정보 입력</p>
             </div>
@@ -197,7 +186,7 @@ export default function SignupPage() {
                     <h2 id="identity-verification-heading" className="font-bold text-gray-900">본인 및 성인 인증</h2>
                     <p className="mt-2 text-sm leading-6 text-gray-600">
                       안전한 회원 가입을 위해 향후 PASS 본인인증이 제공될 예정입니다.<br />
-                      PASS 도입 후 본인 명의와 만 20세 이상 여부를 확인합니다.
+                      PASS 도입 후 본인 명의와 만 19세 이상 여부를 확인합니다.
                     </p>
                   </div>
                 </div>
@@ -215,19 +204,8 @@ export default function SignupPage() {
 
               <div id="identity-verification-notice" className="mt-4 rounded-xl bg-white px-4 py-3 text-sm leading-6 text-gray-500">
                 <p>현재는 PASS 본인인증 서비스 준비 중입니다.</p>
-                <p>정식 서비스 도입 전까지 만 20세 이상 여부는 가입자의 확인을 기준으로 합니다.</p>
+                <p>정식 서비스 도입 전까지 만 19세 이상 여부는 가입자의 확인을 기준으로 합니다.</p>
               </div>
-            </section>
-
-            <section className="mt-9 rounded-2xl border border-gray-200 p-6" aria-labelledby="agreements-heading">
-              <h2 id="agreements-heading" className="font-bold text-gray-900">약관 동의</h2>
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <label className="flex cursor-pointer items-center gap-3 text-sm text-gray-700"><input {...register('terms')} type="checkbox" className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500" />이용약관 동의 <span className="text-red-500">(필수)</span></label>
-                <label className="flex cursor-pointer items-center gap-3 text-sm text-gray-700"><input {...register('privacy')} type="checkbox" className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500" />개인정보처리방침 동의 <span className="text-red-500">(필수)</span></label>
-                <label className="flex cursor-pointer items-center gap-3 text-sm text-gray-700"><input {...register('adult')} type="checkbox" className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500" />본인은 만 20세 이상임을 확인합니다. <span className="text-red-500">(필수)</span></label>
-                <label className="flex cursor-pointer items-center gap-3 text-sm text-gray-700"><input {...register('marketing')} type="checkbox" className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500" />마케팅 수신 동의 <span className="text-gray-400">(선택)</span></label>
-              </div>
-              {errors.terms ? <p role="alert" className="mt-4 flex items-center gap-1 text-sm text-red-600"><AlertCircle size={14} />{errors.terms.message}</p> : null}
             </section>
 
             <div className="mt-9">

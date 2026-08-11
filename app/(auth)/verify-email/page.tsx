@@ -88,7 +88,7 @@ function VerifyEmailContent() {
 
     setIsResending(true);
     setMessage(null);
-    const emailRedirectTo = `${window.location.origin}/auth/callback?next=/profile/create`;
+    const emailRedirectTo = `${window.location.origin}/auth/callback?next=/consent`;
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email,

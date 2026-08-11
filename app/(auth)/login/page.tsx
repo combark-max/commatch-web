@@ -85,18 +85,7 @@ export default function LoginPage() {
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (profileError) {
-        setToast({ message: '프로필 정보를 확인하는 중 오류가 발생했습니다.', type: 'error' });
-        return;
-      }
-
-      router.push(profile ? '/dashboard' : '/profile/create');
+      router.push('/consent');
     } catch {
       setToast({ message: '이메일 또는 비밀번호가 올바르지 않습니다.', type: 'error' });
     } finally {

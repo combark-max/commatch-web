@@ -43,6 +43,10 @@ export type ConsentEnforcementPolicy =
       startsAt: null;
     }
   | {
+      status: 'enabled';
+      startsAt: null;
+    }
+  | {
       status: 'scheduled';
       startsAt: string;
     };
@@ -71,46 +75,42 @@ export type AdultConfirmationPresentationPolicy =
       approvedLabel: string;
     };
 
-const unconfiguredDocument = (): ConsentDocumentPolicy => ({
-  status: 'unconfigured',
-  currentVersion: null,
+const configuredDocument = (currentVersion: string): ConsentDocumentPolicy => ({
+  status: 'configured',
+  currentVersion,
 });
 
-const disabledEnforcement = (): ConsentEnforcementPolicy => ({
-  status: 'disabled',
+const enabledEnforcement = (): ConsentEnforcementPolicy => ({
+  status: 'enabled',
   startsAt: null,
 });
 
-// Legal documents, versions, and rollout dates have not been approved yet.
-// Keeping both layers explicit prevents this foundation from enabling a gate.
 export const CONSENT_POLICIES = {
   terms: {
     type: 'terms',
     required: true,
     source: 'email_verification',
-    document: unconfiguredDocument(),
-    enforcement: disabledEnforcement(),
+    document: configuredDocument('terms-v1.0'),
+    enforcement: enabledEnforcement(),
   },
   privacy: {
     type: 'privacy',
     required: true,
     source: 'email_verification',
-    document: unconfiguredDocument(),
-    enforcement: disabledEnforcement(),
+    document: configuredDocument('privacy-v1.0'),
+    enforcement: enabledEnforcement(),
   },
   adult_confirmation: {
     type: 'adult_confirmation',
     required: true,
     source: 'email_verification',
-    document: unconfiguredDocument(),
-    enforcement: disabledEnforcement(),
+    document: configuredDocument('adult-confirmation-v1.0'),
+    enforcement: enabledEnforcement(),
   },
 } as const satisfies ConsentPolicyMap;
 
-// The existing signup copy is not an approved policy value. A minimum age and
-// its display text must be configured together before adult consent is enabled.
 export const ADULT_CONFIRMATION_PRESENTATION = {
-  status: 'unconfigured',
-  minimumAge: null,
-  approvedLabel: null,
+  status: 'configured',
+  minimumAge: 19,
+  approvedLabel: '[필수] 본인은 만 19세 이상임을 확인합니다.',
 } as const satisfies AdultConfirmationPresentationPolicy;

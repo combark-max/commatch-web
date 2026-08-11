@@ -170,7 +170,7 @@ select role_test_user_id, 'admin', 'active'
 from _commatch_members_it_config;
 
 insert into public.profiles (
-  id, nickname, gender, birth_date, height, region, job, education, religion,
+  id, nickname, gender, birth_date, height, region, job, education,
   hobby, drinking, smoking, marriage_history, introduction, marriage_values,
   profile_image, profile_images
 )
@@ -183,7 +183,6 @@ select
   '부산',
   '기획자',
   '대졸',
-  '무교',
   '운동',
   '가끔 함',
   '비흡연',
@@ -195,7 +194,7 @@ select
 from _commatch_members_it_config;
 
 insert into public.profiles (
-  id, nickname, gender, birth_date, height, region, job, education, religion,
+  id, nickname, gender, birth_date, height, region, job, education,
   hobby, drinking, smoking, marriage_history, introduction, marriage_values,
   profile_image, profile_images
 )
@@ -208,7 +207,6 @@ select
   '서울',
   '개발자',
   '대졸',
-  '무교',
   '독서',
   '가끔 함',
   '비흡연',

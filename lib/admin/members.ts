@@ -53,7 +53,6 @@ export type AdminMemberDetail = Omit<AdminMemberListItem, 'nickname' | 'totalCou
   region: string | null;
   job: string | null;
   education: string | null;
-  religion: string | null;
   hobby: string | null;
   drinking: string | null;
   smoking: string | null;
@@ -304,7 +303,6 @@ export const parseAdminMemberDetail = (value: unknown): AdminMemberDetail | null
     || !isNullableString(row.region)
     || !isNullableString(row.job)
     || !isNullableString(row.education)
-    || !isNullableString(row.religion)
     || !isNullableString(row.hobby)
     || !isNullableString(row.drinking)
     || !isNullableString(row.smoking)
@@ -334,7 +332,6 @@ export const parseAdminMemberDetail = (value: unknown): AdminMemberDetail | null
     row.region,
     row.job,
     row.education,
-    row.religion,
     row.hobby,
     row.drinking,
     row.smoking,
@@ -403,7 +400,6 @@ export const parseAdminMemberDetail = (value: unknown): AdminMemberDetail | null
     region: row.region,
     job: row.job,
     education: row.education,
-    religion: row.religion,
     hobby: row.hobby,
     drinking: row.drinking,
     smoking: row.smoking,

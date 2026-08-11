@@ -38,7 +38,6 @@ type Profile = {
   region: string | null;
   job: string | null;
   education: string | null;
-  religion: string | null;
   hobby: string | null;
   drinking: string | null;
   smoking: string | null;
@@ -78,7 +77,6 @@ const calculateProfileCompleteness = (profile: Profile | null) => {
     Boolean(profile.region?.trim()),
     Boolean(profile.job?.trim()),
     Boolean(profile.education?.trim()),
-    Boolean(profile.religion?.trim()),
     Boolean(profile.hobby?.trim()),
     Boolean(profile.drinking?.trim()),
     Boolean(profile.smoking?.trim()),
@@ -87,7 +85,7 @@ const calculateProfileCompleteness = (profile: Profile | null) => {
     (profile.marriage_values?.trim().length ?? 0) >= 10,
   ].filter(Boolean).length;
 
-  return Math.round((completedFields / 15) * 100);
+  return Math.round((completedFields / 14) * 100);
 };
 
 const profileLinks = [
@@ -131,7 +129,7 @@ export default function DashboardPage() {
         const [profileResult, favoritesResult, matchesResult] = await Promise.all([
           supabase
             .from('profiles')
-            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, smoking, marriage_history, introduction, marriage_values, profile_image, profile_images')
+            .select('nickname, gender, birth_date, height, region, job, education, hobby, drinking, smoking, marriage_history, introduction, marriage_values, profile_image, profile_images')
             .eq('id', user.id)
             .maybeSingle(),
           supabase

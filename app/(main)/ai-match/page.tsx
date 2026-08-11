@@ -562,7 +562,7 @@ export default function AiMatchPage() {
                           </ul>
                         ) : (
                           <p className="mt-2 text-sm leading-6 text-gray-600">
-                            종교, 음주, 흡연, 취미 중 신뢰할 수 있게 같은 값을 확인하지 못했습니다.
+                            음주, 흡연, 취미 중 신뢰할 수 있게 같은 값을 확인하지 못했습니다.
                           </p>
                         )}
                       </div>

@@ -8,7 +8,7 @@ do $preflight$
 declare
   v_install_marker constant text := 'commatch_advanced_member_search_v1';
   v_expected_signature constant text :=
-    'public.search_members_advanced(integer,integer,text,text,text,text)';
+    'public.search_members_advanced(integer,integer,text,text,text)';
 begin
   if pg_catalog.to_regclass('public.profiles') is null then
     raise exception 'public.profiles does not exist';
@@ -59,7 +59,6 @@ create or replace function public.search_members_advanced(
   p_height_min integer default null,
   p_height_max integer default null,
   p_education text default null,
-  p_religion text default null,
   p_drinking text default null,
   p_hobby text default null
 )
@@ -82,7 +81,6 @@ declare
   v_user_id uuid;
   v_gender text;
   v_education text := nullif(pg_catalog.btrim(p_education), '');
-  v_religion text := nullif(pg_catalog.btrim(p_religion), '');
   v_drinking text := nullif(pg_catalog.btrim(p_drinking), '');
   v_hobby text := nullif(pg_catalog.btrim(p_hobby), '');
 begin
@@ -110,8 +108,6 @@ begin
        and p_height_min > p_height_max
      or v_education is not null
        and v_education <> all (array['고졸', '전문대졸', '대졸', '석사', '박사']::text[])
-     or v_religion is not null
-       and v_religion <> all (array['무교', '기독교', '천주교', '불교', '기타']::text[])
      or v_drinking is not null
        and v_drinking <> all (array['전혀 안 함', '가끔 함', '자주 함']::text[]) then
     raise exception using
@@ -149,7 +145,6 @@ begin
     and (p_height_min is null or member_profile.height >= p_height_min)
     and (p_height_max is null or member_profile.height <= p_height_max)
     and (v_education is null or member_profile.education = v_education)
-    and (v_religion is null or member_profile.religion = v_religion)
     and (v_drinking is null or member_profile.drinking = v_drinking)
     and (
       v_hobby is null
@@ -161,13 +156,13 @@ begin
 end
 $function$;
 
-comment on function public.search_members_advanced(integer, integer, text, text, text, text)
+comment on function public.search_members_advanced(integer, integer, text, text, text)
   is 'commatch_advanced_member_search_v1';
 
 do $function_validation$
 declare
   v_function_oid oid := pg_catalog.to_regprocedure(
-    'public.search_members_advanced(integer,integer,text,text,text,text)'
+    'public.search_members_advanced(integer,integer,text,text,text)'
   );
 begin
   if v_function_oid is null
@@ -178,17 +173,16 @@ begin
          on language_info.oid = function_info.prolang
        where function_info.oid = v_function_oid
          and language_info.lanname = 'plpgsql'
-         and function_info.pronargs = 6
-         and function_info.pronargdefaults = 6
+         and function_info.pronargs = 5
+         and function_info.pronargdefaults = 5
          and function_info.proretset
          and function_info.prorettype = 'pg_catalog.record'::pg_catalog.regtype
          and function_info.prosecdef
          and function_info.provolatile = 's'
-         and function_info.proargnames[1:6] = array[
+         and function_info.proargnames[1:5] = array[
            'p_height_min',
            'p_height_max',
            'p_education',
-           'p_religion',
            'p_drinking',
            'p_hobby'
          ]::text[]
@@ -209,9 +203,9 @@ begin
 end
 $function_validation$;
 
-revoke all on function public.search_members_advanced(integer, integer, text, text, text, text)
+revoke all on function public.search_members_advanced(integer, integer, text, text, text)
   from public, anon, authenticated, service_role;
-grant execute on function public.search_members_advanced(integer, integer, text, text, text, text)
+grant execute on function public.search_members_advanced(integer, integer, text, text, text)
   to authenticated, service_role;
 
 commit;

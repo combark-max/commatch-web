@@ -41,7 +41,6 @@ begin
       ('public', 'profiles', 'region', 'text', 'text', false),
       ('public', 'profiles', 'job', 'text', 'text', false),
       ('public', 'profiles', 'education', 'text', 'text', false),
-      ('public', 'profiles', 'religion', 'text', 'text', false),
       ('public', 'profiles', 'hobby', 'text', 'text', false),
       ('public', 'profiles', 'drinking', 'text', 'text', false),
       ('public', 'profiles', 'smoking', 'text', 'text', false),
@@ -108,7 +107,6 @@ returns table (
   region text,
   job text,
   education text,
-  religion text,
   hobby text,
   drinking text,
   smoking text,
@@ -173,7 +171,6 @@ begin
     profile.region,
     profile.job,
     profile.education,
-    profile.religion,
     profile.hobby,
     profile.drinking,
     profile.smoking,
@@ -240,7 +237,7 @@ begin
   end if;
 
   if pg_catalog.pg_get_function_result(v_function_oid) <>
-    'TABLE(member_user_id uuid, joined_at timestamp with time zone, profile_exists boolean, profile_status text, profile_visibility text, nickname text, gender text, birth_date date, height integer, region text, job text, education text, religion text, hobby text, drinking text, smoking text, marriage_history text, introduction text, marriage_values text, profile_image text, profile_images text[], stored_account_status text, current_account_status text, suspended_at timestamp with time zone, suspended_until timestamp with time zone, premium_membership_exists boolean, premium_stored_status text, premium_is_available boolean, premium_period_state text, premium_started_at timestamp with time zone, premium_expires_at timestamp with time zone)' then
+    'TABLE(member_user_id uuid, joined_at timestamp with time zone, profile_exists boolean, profile_status text, profile_visibility text, nickname text, gender text, birth_date date, height integer, region text, job text, education text, hobby text, drinking text, smoking text, marriage_history text, introduction text, marriage_values text, profile_image text, profile_images text[], stored_account_status text, current_account_status text, suspended_at timestamp with time zone, suspended_until timestamp with time zone, premium_membership_exists boolean, premium_stored_status text, premium_is_available boolean, premium_period_state text, premium_started_at timestamp with time zone, premium_expires_at timestamp with time zone)' then
     raise exception 'Administrator member detail return contract differs from the approved definition';
   end if;
 

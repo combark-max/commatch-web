@@ -60,7 +60,6 @@ begin
       ('region', 'text', 'text', false),
       ('job', 'text', 'text', false),
       ('education', 'text', 'text', false),
-      ('religion', 'text', 'text', false),
       ('hobby', 'text', 'text', false),
       ('drinking', 'text', 'text', false),
       ('smoking', 'text', 'text', false),
@@ -208,7 +207,6 @@ begin
       profile.region,
       profile.job,
       profile.education,
-      profile.religion,
       profile.hobby,
       profile.drinking,
       profile.smoking,
@@ -268,7 +266,6 @@ begin
           and nullif(pg_catalog.btrim(member.region), '') is not null
           and nullif(pg_catalog.btrim(member.job), '') is not null
           and nullif(pg_catalog.btrim(member.education), '') is not null
-          and nullif(pg_catalog.btrim(member.religion), '') is not null
           and nullif(pg_catalog.btrim(member.hobby), '') is not null
           and nullif(pg_catalog.btrim(member.drinking), '') is not null
           and nullif(pg_catalog.btrim(member.smoking), '') is not null

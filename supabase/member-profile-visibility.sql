@@ -404,7 +404,6 @@ returns table (
   region text,
   introduction text,
   education text,
-  religion text,
   hobby text,
   drinking text,
   smoking text,
@@ -442,7 +441,6 @@ begin
     target_profile.region,
     target_profile.introduction,
     target_profile.education,
-    target_profile.religion,
     target_profile.hobby,
     target_profile.drinking,
     target_profile.smoking,
@@ -469,7 +467,6 @@ returns table (
   region text,
   job text,
   education text,
-  religion text,
   hobby text,
   drinking text,
   smoking text,
@@ -512,7 +509,6 @@ begin
     candidate_profile.region,
     candidate_profile.job,
     candidate_profile.education,
-    candidate_profile.religion,
     candidate_profile.hobby,
     candidate_profile.drinking,
     candidate_profile.smoking,
@@ -684,7 +680,6 @@ create or replace function public.search_members_advanced(
   p_height_min integer default null,
   p_height_max integer default null,
   p_education text default null,
-  p_religion text default null,
   p_drinking text default null,
   p_hobby text default null
 )
@@ -707,7 +702,6 @@ declare
   v_user_id uuid := auth.uid();
   v_gender text;
   v_education text := nullif(pg_catalog.btrim(p_education), '');
-  v_religion text := nullif(pg_catalog.btrim(p_religion), '');
   v_drinking text := nullif(pg_catalog.btrim(p_drinking), '');
   v_hobby text := nullif(pg_catalog.btrim(p_hobby), '');
 begin
@@ -724,8 +718,6 @@ begin
      or p_height_min is not null and p_height_max is not null and p_height_min > p_height_max
      or v_education is not null
        and v_education <> all (array['고졸', '전문대졸', '대졸', '석사', '박사']::text[])
-     or v_religion is not null
-       and v_religion <> all (array['무교', '기독교', '천주교', '불교', '기타']::text[])
      or v_drinking is not null
        and v_drinking <> all (array['전혀 안 함', '가끔 함', '자주 함']::text[]) then
     raise exception using errcode = '22023', message = 'Invalid advanced search filters';
@@ -758,7 +750,6 @@ begin
     and (p_height_min is null or member_profile.height >= p_height_min)
     and (p_height_max is null or member_profile.height <= p_height_max)
     and (v_education is null or member_profile.education = v_education)
-    and (v_religion is null or member_profile.religion = v_religion)
     and (v_drinking is null or member_profile.drinking = v_drinking)
     and (
       v_hobby is null
@@ -770,7 +761,7 @@ begin
 end
 $function$;
 
-comment on function public.search_members_advanced(integer, integer, text, text, text, text)
+comment on function public.search_members_advanced(integer, integer, text, text, text)
   is 'commatch_advanced_member_search_v1';
 
 create or replace function public.get_priority_recommendation_candidate_ids()
@@ -1001,7 +992,7 @@ alter function public.get_visible_member_detail(uuid) owner to postgres;
 alter function public.get_ai_match_candidates() owner to postgres;
 alter function public.get_my_favorite_members() owner to postgres;
 alter function public.get_my_match_summary() owner to postgres;
-alter function public.search_members_advanced(integer, integer, text, text, text, text) owner to postgres;
+alter function public.search_members_advanced(integer, integer, text, text, text) owner to postgres;
 alter function public.get_priority_recommendation_candidate_ids() owner to postgres;
 alter function public.get_received_favorites() owner to postgres;
 alter function public.handle_mutual_favorite_match() owner to postgres;
@@ -1027,7 +1018,7 @@ revoke all on function public.get_my_favorite_members()
   from public, anon, authenticated, service_role;
 revoke all on function public.get_my_match_summary()
   from public, anon, authenticated, service_role;
-revoke all on function public.search_members_advanced(integer, integer, text, text, text, text)
+revoke all on function public.search_members_advanced(integer, integer, text, text, text)
   from public, anon, authenticated, service_role;
 revoke all on function public.get_priority_recommendation_candidate_ids()
   from public, anon, authenticated, service_role;
@@ -1044,7 +1035,7 @@ grant execute on function public.get_my_favorite_members()
   to authenticated, service_role;
 grant execute on function public.get_my_match_summary()
   to authenticated, service_role;
-grant execute on function public.search_members_advanced(integer, integer, text, text, text, text)
+grant execute on function public.search_members_advanced(integer, integer, text, text, text)
   to authenticated, service_role;
 grant execute on function public.get_priority_recommendation_candidate_ids()
   to authenticated, service_role;
@@ -1140,7 +1131,7 @@ begin
         ('public.get_ai_match_candidates()'::pg_catalog.regprocedure, 'rpc', true, 's'::"char", true, 'pg_catalog.record'::pg_catalog.regtype),
         ('public.get_my_favorite_members()'::pg_catalog.regprocedure, 'rpc', true, 's'::"char", true, 'pg_catalog.record'::pg_catalog.regtype),
         ('public.get_my_match_summary()'::pg_catalog.regprocedure, 'rpc', true, 's'::"char", true, 'pg_catalog.record'::pg_catalog.regtype),
-        ('public.search_members_advanced(integer,integer,text,text,text,text)'::pg_catalog.regprocedure, 'rpc', true, 's'::"char", true, 'pg_catalog.record'::pg_catalog.regtype),
+        ('public.search_members_advanced(integer,integer,text,text,text)'::pg_catalog.regprocedure, 'rpc', true, 's'::"char", true, 'pg_catalog.record'::pg_catalog.regtype),
         ('public.get_priority_recommendation_candidate_ids()'::pg_catalog.regprocedure, 'rpc', true, 'v'::"char", true, 'pg_catalog.uuid'::pg_catalog.regtype),
         ('public.get_received_favorites()'::pg_catalog.regprocedure, 'rpc', true, 'v'::"char", true, 'pg_catalog.record'::pg_catalog.regtype),
         ('public.handle_mutual_favorite_match()'::pg_catalog.regprocedure, 'trigger', true, 'v'::"char", false, 'pg_catalog.trigger'::pg_catalog.regtype),
@@ -1197,10 +1188,10 @@ begin
      ) <> 'TABLE(id uuid, nickname text, birth_date text, gender text, region text, job text, introduction text, profile_image text)'
      or pg_catalog.pg_get_function_result(
        'public.get_visible_member_detail(uuid)'::pg_catalog.regprocedure
-     ) <> 'TABLE(id uuid, nickname text, birth_date text, gender text, height integer, job text, region text, introduction text, education text, religion text, hobby text, drinking text, smoking text, marriage_history text, marriage_values text, profile_image text, profile_images text[])'
+     ) <> 'TABLE(id uuid, nickname text, birth_date text, gender text, height integer, job text, region text, introduction text, education text, hobby text, drinking text, smoking text, marriage_history text, marriage_values text, profile_image text, profile_images text[])'
      or pg_catalog.pg_get_function_result(
        'public.get_ai_match_candidates()'::pg_catalog.regprocedure
-     ) <> 'TABLE(id uuid, nickname text, birth_date text, gender text, height integer, region text, job text, education text, religion text, hobby text, drinking text, smoking text, marriage_history text, introduction text, marriage_values text, profile_image text, profile_images text[], is_priority_recommendation boolean)'
+     ) <> 'TABLE(id uuid, nickname text, birth_date text, gender text, height integer, region text, job text, education text, hobby text, drinking text, smoking text, marriage_history text, introduction text, marriage_values text, profile_image text, profile_images text[], is_priority_recommendation boolean)'
      or pg_catalog.pg_get_function_result(
        'public.get_my_favorite_members()'::pg_catalog.regprocedure
      ) <> 'TABLE(favorite_id uuid, favorited_at timestamp with time zone, member_id uuid, nickname text, age integer, profile_image_url text, region text, job text, is_mutual boolean, match_id uuid, match_status text, matched_at timestamp with time zone)'
@@ -1208,7 +1199,7 @@ begin
        'public.get_my_match_summary()'::pg_catalog.regprocedure
      ) <> 'TABLE(total_unread_count bigint, active_match_count bigint, total_match_count bigint)'
      or pg_catalog.pg_get_function_result(
-       'public.search_members_advanced(integer,integer,text,text,text,text)'::pg_catalog.regprocedure
+       'public.search_members_advanced(integer,integer,text,text,text)'::pg_catalog.regprocedure
      ) <> 'TABLE(id uuid, nickname text, birth_date text, gender text, region text, job text, introduction text, profile_image text)'
      or pg_catalog.pg_get_function_result(
        'public.get_priority_recommendation_candidate_ids()'::pg_catalog.regprocedure

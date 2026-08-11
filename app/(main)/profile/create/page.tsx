@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Camera, User, Calendar, MapPin, Briefcase, GraduationCap, Wine, Quote, Loader2, Ruler, Church, Palette, Plus, Star, Trash2 } from 'lucide-react';
+import { Camera, User, Calendar, MapPin, Briefcase, GraduationCap, Wine, Quote, Loader2, Ruler, Palette, Plus, Star, Trash2 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 import ImageModal from '@/components/common/ImageModal';
@@ -27,7 +27,6 @@ const profileSchema = z.object({
   job: z.string().min(1, { message: "직업을 선택해주세요." }),
   job_other: z.string().optional(),
   education: z.string().min(1, { message: "학력을 선택해주세요." }),
-  religion: z.string().min(1, { message: "종교를 선택해주세요." }),
   hobby: z.string().min(1, { message: "취미를 입력해주세요." }),
   drinking: z.string().min(1, { message: "음주 여부를 선택해주세요." }),
   smoking: z.string().trim().min(1, { message: "흡연 정보를 선택해 주세요." }),
@@ -158,7 +157,6 @@ export default function ProfileCreatePage() {
     Boolean(formValues.region?.trim()),
     Boolean(formValues.job?.trim()),
     Boolean(formValues.education?.trim()),
-    Boolean(formValues.religion?.trim()),
     Boolean(formValues.hobby?.trim()),
     Boolean(formValues.drinking?.trim()),
     Boolean(formValues.smoking?.trim()),
@@ -400,7 +398,7 @@ export default function ProfileCreatePage() {
         try {
           const result = await supabase
             .from('profiles')
-            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, smoking, marriage_history, marriage_values, introduction, profile_image, profile_images')
+            .select('nickname, gender, birth_date, height, region, job, education, hobby, drinking, smoking, marriage_history, marriage_values, introduction, profile_image, profile_images')
             .eq('id', user.id)
             .maybeSingle();
 
@@ -415,7 +413,7 @@ export default function ProfileCreatePage() {
 
           const fallbackResult = await supabase
             .from('profiles')
-            .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, smoking, marriage_history, marriage_values, introduction, profile_image')
+            .select('nickname, gender, birth_date, height, region, job, education, hobby, drinking, smoking, marriage_history, marriage_values, introduction, profile_image')
             .eq('id', user.id)
             .maybeSingle();
 
@@ -424,7 +422,7 @@ export default function ProfileCreatePage() {
 
             const legacyFallbackResult = await supabase
               .from('profiles')
-              .select('nickname, gender, birth_date, height, region, job, education, religion, hobby, drinking, smoking, marriage_history, marriage_values, introduction')
+              .select('nickname, gender, birth_date, height, region, job, education, hobby, drinking, smoking, marriage_history, marriage_values, introduction')
               .eq('id', user.id)
               .maybeSingle();
             if (legacyFallbackResult.error) throw legacyFallbackResult.error;
@@ -450,7 +448,6 @@ export default function ProfileCreatePage() {
             job: existingJob ? (isStandardJob ? existingJob : '기타') : '',
             job_other: existingJob && !isStandardJob ? existingJob : '',
             education: (profileData.education as string | null) ?? '',
-            religion: (profileData.religion as string | null) ?? '',
             hobby: (profileData.hobby as string | null) ?? '',
             drinking: (profileData.drinking as string | null) ?? '',
             smoking: profileData.smoking === '미입력' ? '' : (profileData.smoking as string | null) ?? '',
@@ -608,7 +605,6 @@ export default function ProfileCreatePage() {
         region: data.region,
         job: finalJob,
         education: data.education,
-        religion: data.religion,
         hobby: data.hobby,
         drinking: data.drinking,
         smoking: data.smoking.trim(),
@@ -1000,27 +996,7 @@ export default function ProfileCreatePage() {
           <section id="lifestyle" className="scroll-mt-24 rounded-2xl border border-gray-200 p-5 sm:p-6">
             <h2 className="mb-6 text-lg font-bold text-gray-900">생활 정보</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* 9. Religion */}
-            <div>
-              <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
-                <Church size={16} className="mr-2 text-[#16a34a]" />
-                종교
-              </label>
-              <select
-                {...register("religion")}
-                className={`w-full px-4 py-2.5 border ${errors.religion ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
-              >
-                <option value="">종교 선택</option>
-                <option value="무교">무교</option>
-                <option value="기독교">기독교</option>
-                <option value="천주교">천주교</option>
-                <option value="불교">불교</option>
-                <option value="기타">기타</option>
-              </select>
-              {errors.religion && <p className="mt-1 text-xs text-red-500">{errors.religion.message}</p>}
-            </div>
-
-            {/* 10. Hobby */}
+            {/* 9. Hobby */}
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
                 <Palette size={16} className="mr-2 text-[#16a34a]" />

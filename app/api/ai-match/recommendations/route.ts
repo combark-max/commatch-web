@@ -13,7 +13,6 @@ type Profile = {
   region: string | null;
   job: string | null;
   education: string | null;
-  religion: string | null;
   hobby: string | null;
   drinking: string | null;
   smoking: string | null;
@@ -127,7 +126,6 @@ const calculateProfileCompleteness = (profile: Profile) => {
     Boolean(profile.region?.trim()),
     Boolean(profile.job?.trim()),
     Boolean(profile.education?.trim()),
-    Boolean(profile.religion?.trim()),
     Boolean(profile.hobby?.trim()),
     Boolean(profile.drinking?.trim()),
     Boolean(profile.smoking?.trim()),
@@ -136,7 +134,7 @@ const calculateProfileCompleteness = (profile: Profile) => {
     (profile.marriage_values?.trim().length ?? 0) >= 10,
   ].filter(Boolean).length;
 
-  return Math.round((completedFields / 15) * 100);
+  return Math.round((completedFields / 14) * 100);
 };
 
 const isSpecified = (value: string | null) => Boolean(value && value !== '상관없음');
@@ -265,13 +263,12 @@ const getAdvancedRecommendationAnalysis = (
   let hasUnavailableProfileComparison = false;
 
   const compareSelectedValue = (
-    label: '종교' | '음주' | '흡연',
+    label: '음주' | '흡연',
     currentValue: string | null,
     candidateValue: string | null,
   ) => {
-    const excludeOther = label === '종교';
-    const normalizedCurrentValue = getComparableText(currentValue, excludeOther);
-    const normalizedCandidateValue = getComparableText(candidateValue, excludeOther);
+    const normalizedCurrentValue = getComparableText(currentValue);
+    const normalizedCandidateValue = getComparableText(candidateValue);
 
     if (!normalizedCurrentValue || !normalizedCandidateValue) {
       hasUnavailableProfileComparison = true;
@@ -285,7 +282,6 @@ const getAdvancedRecommendationAnalysis = (
     }
   };
 
-  compareSelectedValue('종교', currentProfile.religion, candidateProfile.religion);
   compareSelectedValue('음주', currentProfile.drinking, candidateProfile.drinking);
   compareSelectedValue('흡연', currentProfile.smoking, candidateProfile.smoking);
 
@@ -359,7 +355,7 @@ export async function GET(request: NextRequest) {
     const [profileResult, preferenceResult] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, nickname, birth_date, gender, height, region, job, education, religion, hobby, drinking, smoking, marriage_history, introduction, marriage_values, profile_image, profile_images')
+        .select('id, nickname, birth_date, gender, height, region, job, education, hobby, drinking, smoking, marriage_history, introduction, marriage_values, profile_image, profile_images')
         .eq('id', user.id)
         .maybeSingle(),
       supabase

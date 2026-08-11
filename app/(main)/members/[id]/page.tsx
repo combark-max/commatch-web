@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
-  Church,
   Cigarette,
   Flag,
   GraduationCap,
@@ -33,7 +32,6 @@ type MemberProfile = {
   region: string | null;
   introduction: string | null;
   education: string | null;
-  religion: string | null;
   hobby: string | null;
   drinking: string | null;
   smoking: string | null;
@@ -518,7 +516,6 @@ export default function MemberDetailPage() {
               <h2 id="lifestyle-heading" className="text-xl font-bold text-gray-900">생활 스타일</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <ProfileFact icon={<Palette size={18} />} label="취미" value={member.hobby || '정보 미입력'} />
-                <ProfileFact icon={<Church size={18} />} label="종교" value={member.religion || '정보 미입력'} />
                 <ProfileFact icon={<Wine size={18} />} label="음주 여부" value={member.drinking || '정보 미입력'} />
                 <ProfileFact icon={<Cigarette size={18} />} label="흡연 여부" value={visibleSmoking || '정보 없음'} />
               </div>

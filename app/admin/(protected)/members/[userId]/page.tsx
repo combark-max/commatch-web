@@ -230,7 +230,6 @@ export default async function AdminMemberDetailPage({
               <InformationItem label="지역" value={displayText(member.region)} />
               <InformationItem label="직업" value={displayText(member.job)} />
               <InformationItem label="학력" value={displayText(member.education)} />
-              <InformationItem label="종교" value={displayText(member.religion)} />
               <InformationItem label="취미" value={displayText(member.hobby)} />
               <InformationItem label="음주" value={displayText(member.drinking)} />
               <InformationItem label="흡연" value={displayText(member.smoking)} />

@@ -93,8 +93,6 @@ job
 
 education
 
-religion
-
 hobby
 
 drinking

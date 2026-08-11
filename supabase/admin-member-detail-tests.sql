@@ -107,7 +107,7 @@ begin
     raise exception 'General visible member detail function marker changed';
   end if;
   if pg_catalog.pg_get_function_result(v_function_oid) <>
-    'TABLE(member_user_id uuid, joined_at timestamp with time zone, profile_exists boolean, profile_status text, profile_visibility text, nickname text, gender text, birth_date date, height integer, region text, job text, education text, religion text, hobby text, drinking text, smoking text, marriage_history text, introduction text, marriage_values text, profile_image text, profile_images text[], stored_account_status text, current_account_status text, suspended_at timestamp with time zone, suspended_until timestamp with time zone, premium_membership_exists boolean, premium_stored_status text, premium_is_available boolean, premium_period_state text, premium_started_at timestamp with time zone, premium_expires_at timestamp with time zone)' then
+    'TABLE(member_user_id uuid, joined_at timestamp with time zone, profile_exists boolean, profile_status text, profile_visibility text, nickname text, gender text, birth_date date, height integer, region text, job text, education text, hobby text, drinking text, smoking text, marriage_history text, introduction text, marriage_values text, profile_image text, profile_images text[], stored_account_status text, current_account_status text, suspended_at timestamp with time zone, suspended_until timestamp with time zone, premium_membership_exists boolean, premium_stored_status text, premium_is_available boolean, premium_period_state text, premium_started_at timestamp with time zone, premium_expires_at timestamp with time zone)' then
     raise exception 'Administrator member detail return contract differs';
   end if;
   if not exists (
@@ -234,7 +234,7 @@ select
 from _commatch_member_detail_it_config;
 
 insert into public.profiles (
-  id, nickname, gender, birth_date, height, region, job, education, religion,
+  id, nickname, gender, birth_date, height, region, job, education,
   hobby, drinking, smoking, marriage_history, introduction, marriage_values,
   profile_image, profile_images
 )
@@ -247,7 +247,6 @@ select
   '서울',
   '개발자',
   '대졸',
-  '무교',
   '독서',
   '가끔 함',
   '비흡연',
@@ -259,7 +258,7 @@ select
 from _commatch_member_detail_it_config;
 
 insert into public.profiles (
-  id, nickname, gender, birth_date, height, region, job, education, religion,
+  id, nickname, gender, birth_date, height, region, job, education,
   hobby, drinking, smoking, marriage_history, introduction, marriage_values,
   profile_image, profile_images
 )
@@ -272,7 +271,6 @@ select
   '부산',
   '기획자',
   '대졸',
-  '무교',
   '운동',
   '가끔 함',
   '비흡연',
@@ -437,7 +435,6 @@ select pg_temp._commatch_member_detail_it_assert(
      and region = '서울'
      and job = '개발자'
      and education = '대졸'
-     and religion = '무교'
      and hobby = '독서'
      and drinking = '가끔 함'
      and smoking = '비흡연'

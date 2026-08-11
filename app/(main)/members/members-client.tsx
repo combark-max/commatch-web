@@ -22,7 +22,6 @@ type Member = {
 };
 
 const EDUCATION_OPTIONS = ['전체', '고졸', '전문대졸', '대졸', '석사', '박사'] as const;
-const RELIGION_OPTIONS = ['전체', '무교', '기독교', '천주교', '불교', '기타'] as const;
 const DRINKING_OPTIONS = ['전체', '전혀 안 함', '가끔 함', '자주 함'] as const;
 
 type MembersClientProps = {
@@ -52,7 +51,6 @@ export default function MembersClient({
   const [heightMin, setHeightMin] = useState('');
   const [heightMax, setHeightMax] = useState('');
   const [selectedEducation, setSelectedEducation] = useState('전체');
-  const [selectedReligion, setSelectedReligion] = useState('전체');
   const [selectedDrinking, setSelectedDrinking] = useState('전체');
   const [hobbySearch, setHobbySearch] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -251,7 +249,6 @@ export default function MembersClient({
   const hasAdvancedFilters = heightMin !== ''
     || heightMax !== ''
     || selectedEducation !== '전체'
-    || selectedReligion !== '전체'
     || selectedDrinking !== '전체'
     || hobbySearch.trim() !== '';
 
@@ -271,7 +268,6 @@ export default function MembersClient({
             p_height_min: heightMin === '' ? null : Number(heightMin),
             p_height_max: heightMax === '' ? null : Number(heightMax),
             p_education: selectedEducation === '전체' ? null : selectedEducation,
-            p_religion: selectedReligion === '전체' ? null : selectedReligion,
             p_drinking: selectedDrinking === '전체' ? null : selectedDrinking,
             p_hobby: hobbySearch.trim() || null,
           });
@@ -330,7 +326,6 @@ export default function MembersClient({
     heightMin,
     heightMax,
     selectedEducation,
-    selectedReligion,
     selectedDrinking,
     hobbySearch,
     router,
@@ -389,7 +384,6 @@ export default function MembersClient({
     setHeightMin('');
     setHeightMax('');
     setSelectedEducation('전체');
-    setSelectedReligion('전체');
     setSelectedDrinking('전체');
     setHobbySearch('');
     setAdvancedMembers(null);
@@ -513,7 +507,7 @@ export default function MembersClient({
               <div>
                 <h2 className="text-lg font-bold text-gray-900">고급 회원 검색</h2>
                 <p className="mt-1 text-sm leading-6 text-gray-600">
-                  키, 학력, 종교, 음주 여부와 취미 조건으로 회원을 더 세밀하게 찾아볼 수 있습니다.
+                  키, 학력, 음주 여부와 취미 조건으로 회원을 더 세밀하게 찾아볼 수 있습니다.
                 </p>
               </div>
 
@@ -553,17 +547,6 @@ export default function MembersClient({
                     className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 shadow-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
                   >
                     {EDUCATION_OPTIONS.map((education) => <option key={education} value={education}>{education}</option>)}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">종교</label>
-                  <select
-                    value={selectedReligion}
-                    onChange={(event) => setSelectedReligion(event.target.value)}
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 shadow-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                  >
-                    {RELIGION_OPTIONS.map((religion) => <option key={religion} value={religion}>{religion}</option>)}
                   </select>
                 </div>
 

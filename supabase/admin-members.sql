@@ -31,7 +31,6 @@ begin
       ('public', 'profiles', 'region', 'text', 'text', false),
       ('public', 'profiles', 'job', 'text', 'text', false),
       ('public', 'profiles', 'education', 'text', 'text', false),
-      ('public', 'profiles', 'religion', 'text', 'text', false),
       ('public', 'profiles', 'hobby', 'text', 'text', false),
       ('public', 'profiles', 'drinking', 'text', 'text', false),
       ('public', 'profiles', 'smoking', 'text', 'text', false),
@@ -179,7 +178,6 @@ begin
         and nullif(pg_catalog.btrim(profile.region), '') is not null
         and nullif(pg_catalog.btrim(profile.job), '') is not null
         and nullif(pg_catalog.btrim(profile.education), '') is not null
-        and nullif(pg_catalog.btrim(profile.religion), '') is not null
         and nullif(pg_catalog.btrim(profile.hobby), '') is not null
         and nullif(pg_catalog.btrim(profile.drinking), '') is not null
         and nullif(pg_catalog.btrim(profile.smoking), '') is not null

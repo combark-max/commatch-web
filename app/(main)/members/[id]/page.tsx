@@ -301,14 +301,6 @@ export default function MemberDetailPage() {
     }
   };
 
-  const showComingSoonNotice = (feature: 'like' | 'report') => {
-    // 향후 신고 사유: 허위 정보, 부적절한 사진, 욕설, 광고, 사기 의심, 기타
-    setNotice({
-      message: feature === 'like' ? '좋아요 기능은 도입 예정입니다.' : '신고 기능은 준비 중입니다.',
-      type: 'info',
-    });
-  };
-
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4">
@@ -577,13 +569,6 @@ export default function MemberDetailPage() {
                 <Heart className="mr-2 h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
                 {isTogglingFavorite ? '처리 중...' : isFavorite ? '관심 취소' : '관심'}
               </Button>
-              <button
-                type="button"
-                onClick={() => showComingSoonNotice('like')}
-                className="min-h-12 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 px-5 py-3 text-sm font-bold text-gray-500 transition hover:bg-gray-100"
-              >
-                좋아요 · 도입 예정
-              </button>
             </div>
           )}
         </div>

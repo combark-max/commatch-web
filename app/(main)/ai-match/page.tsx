@@ -334,9 +334,9 @@ export default function AiMatchPage() {
     }
   };
 
-  const showComingSoonNotice = (feature: 'like' | 'notification') => {
+  const showComingSoonNotice = () => {
     setNotice({
-      message: feature === 'like' ? '좋아요 기능은 도입 예정입니다.' : '알림 기능은 현재 준비 중입니다.',
+      message: '알림 기능은 현재 준비 중입니다.',
       type: 'info',
     });
   };
@@ -353,7 +353,7 @@ export default function AiMatchPage() {
           </div>
           <button
             type="button"
-            onClick={() => showComingSoonNotice('notification')}
+            onClick={showComingSoonNotice}
             className="shrink-0 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-gray-400 shadow-sm transition hover:bg-gray-50"
             aria-label="알림 기능 준비 중"
           >
@@ -629,13 +629,6 @@ export default function AiMatchPage() {
                 <Heart className="mr-2 h-4 w-4" fill={favoriteIds.has(currentMember.id) ? 'currentColor' : 'none'} />
                 {isTogglingFavorite ? '처리 중...' : favoriteIds.has(currentMember.id) ? '관심 취소' : '관심'}
               </Button>
-              <button
-                type="button"
-                onClick={() => showComingSoonNotice('like')}
-                className="min-h-12 rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-500 transition hover:bg-gray-100"
-              >
-                좋아요 · 도입 예정
-              </button>
               <Button
                 variant="outline"
                 className="min-h-12 rounded-2xl px-4 py-3 text-sm font-bold"

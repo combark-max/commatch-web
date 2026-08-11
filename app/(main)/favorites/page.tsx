@@ -17,6 +17,7 @@ type FavoriteMember = {
   job: string | null;
   profile_image: string | null;
   isMutual: boolean;
+  hasLiked: boolean;
   matchId: string | null;
   matchStatus: MatchStatus | null;
   matchedAt: string | null;
@@ -36,6 +37,8 @@ type FavoriteMemberRpcRow = {
   region?: unknown;
   job?: unknown;
   is_mutual?: unknown;
+  has_liked?: unknown;
+  liked_by_member?: unknown;
   match_id?: unknown;
   match_status?: unknown;
   matched_at?: unknown;
@@ -74,7 +77,8 @@ export default function FavoritesPage() {
   const [retryKey, setRetryKey] = useState(0);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
-  const [likeNoticeMemberId, setLikeNoticeMemberId] = useState<string | null>(null);
+  const [sendingLikeMemberId, setSendingLikeMemberId] = useState<string | null>(null);
+  const [matchedLikeMemberIds, setMatchedLikeMemberIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [isMutualInfoAvailable, setIsMutualInfoAvailable] = useState(false);
@@ -111,7 +115,7 @@ export default function FavoritesPage() {
           return;
         }
 
-        const { data, error: favoritesError } = await supabase.rpc('get_my_favorite_members');
+        const { data, error: favoritesError } = await supabase.rpc('get_my_favorite_members_with_likes');
         if (favoritesError) throw favoritesError;
         if (!Array.isArray(data)) throw new Error('관심회원 응답 형식이 올바르지 않습니다.');
 
@@ -136,6 +140,7 @@ export default function FavoritesPage() {
             job: normalizeNullableText(row.job),
             profile_image: resolveProfileImageUrl(normalizeNullableText(row.profile_image_url)),
             isMutual: row.is_mutual === true,
+            hasLiked: row.has_liked === true,
             matchId: normalizeNullableText(row.match_id),
             matchStatus,
             matchedAt: normalizeDateText(row.matched_at),
@@ -364,7 +369,6 @@ export default function FavoritesPage() {
     const removedIndex = favorites.findIndex((member) => member.id === favoriteUserId);
     const removedMember = favorites[removedIndex];
     setIsDeletingId(favoriteUserId);
-    setLikeNoticeMemberId((current) => current === favoriteUserId ? null : current);
     setFavorites((current) => current.filter((member) => member.id !== favoriteUserId));
 
     try {
@@ -412,6 +416,41 @@ export default function FavoritesPage() {
       setToast({ message: '관심회원 해제에 실패했습니다. 잠시 후 다시 시도해주세요.', type: 'error' });
     } finally {
       setIsDeletingId(null);
+    }
+  };
+
+  const handleSendLike = async (memberId: string) => {
+    if (sendingLikeMemberId || favorites.find((member) => member.id === memberId)?.hasLiked) return;
+
+    setSendingLikeMemberId(memberId);
+    try {
+      const { data, error: likeError } = await supabase.rpc('send_member_like', {
+        target_user_id: memberId,
+      });
+      if (likeError) throw likeError;
+
+      setFavorites((current) => current.map((member) => (
+        member.id === memberId ? { ...member, hasLiked: true } : member
+      )));
+      if (data === 'matched' || data === 'already_matched') {
+        setMatchedLikeMemberIds((current) => new Set(current).add(memberId));
+      }
+      setToast({
+        message: data === 'matched'
+          ? '서로 좋아요를 보내 매칭되었습니다.'
+          : data === 'already_matched'
+            ? '이미 매칭된 회원입니다.'
+            : data === 'already_liked'
+              ? '이미 좋아요를 보냈습니다.'
+              : '좋아요를 보냈습니다.',
+        type: 'success',
+      });
+    } catch (err: unknown) {
+      const supabaseError = err as { message?: string };
+      console.error('좋아요 전송 실패:', supabaseError.message ?? err);
+      setToast({ message: '좋아요를 보내지 못했습니다. 잠시 후 다시 시도해주세요.', type: 'error' });
+    } finally {
+      setSendingLikeMemberId(null);
     }
   };
 
@@ -696,12 +735,6 @@ export default function FavoritesPage() {
                       <p className="mt-2 text-sm text-gray-500">AI 추천 이유 기능은 도입 예정입니다.</p>
                     </section>
 
-                    {likeNoticeMemberId === member.id ? (
-                      <p role="status" className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600">
-                        좋아요 기능은 도입 예정입니다.
-                      </p>
-                    ) : null}
-
                     <div className="mt-6 grid gap-2 sm:grid-cols-2">
                       <Button
                         className="min-h-11 rounded-2xl px-4 py-3 text-sm font-bold"
@@ -711,10 +744,17 @@ export default function FavoritesPage() {
                       </Button>
                       <button
                         type="button"
-                        onClick={() => setLikeNoticeMemberId(member.id)}
-                        className="min-h-11 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm font-bold text-gray-500 transition hover:bg-gray-100"
+                        onClick={() => handleSendLike(member.id)}
+                        disabled={member.hasLiked || sendingLikeMemberId === member.id}
+                        className="min-h-11 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-500"
                       >
-                        좋아요 · 도입 예정
+                        {sendingLikeMemberId === member.id
+                          ? '좋아요 보내는 중...'
+                          : member.matchId || matchedLikeMemberIds.has(member.id)
+                            ? '매칭됨'
+                            : member.hasLiked
+                              ? '좋아요 보냄'
+                              : '좋아요 보내기'}
                       </button>
                       {isAdvancedMode && member.matchId && member.matchStatus ? (
                         <Button

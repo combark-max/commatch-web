@@ -530,11 +530,12 @@ export default function MemberDetailPage() {
                 <h2 id="ai-summary-heading" className="flex items-center gap-2 text-xl font-bold text-gray-700">
                   <Sparkles size={21} className="text-gray-400" /> 맞춤 분석 요약
                 </h2>
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">추천 화면 제공</span>
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">AI 추천 · 테스트 제공 중</span>
               </div>
-              <p className="mt-4 text-sm leading-6 text-gray-500">
-                입력된 프로필과 이상형 조건을 바탕으로 한 맞춤 분석은 추천 화면에서 확인할 수 있습니다.
-              </p>
+              <div className="mt-4 space-y-1 text-sm leading-6 text-gray-500">
+                <p>맞춤 분석은 AI 추천에 포함된 회원을 대상으로 제공합니다.</p>
+                <p>AI Match에서 선호조건 일치율과 추천 이유를 확인할 수 있습니다.</p>
+              </div>
             </section>
           </div>
         </article>
@@ -559,10 +560,10 @@ export default function MemberDetailPage() {
               내 프로필 수정
             </Button>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex justify-center">
               <Button
                 variant={isFavorite ? 'primary' : 'outline'}
-                className="min-h-12 rounded-2xl py-3 text-sm font-bold"
+                className="min-h-12 w-full rounded-2xl py-3 text-sm font-bold sm:w-1/2"
                 onClick={handleFavoriteToggle}
                 disabled={isTogglingFavorite}
               >

@@ -96,7 +96,12 @@ const profileLinks = [
 
 const supportItems = [
   { label: '문의하기', icon: MessageCircle },
-  { label: '신고 내역', icon: Shield },
+  {
+    label: '신고 내역',
+    description: '내가 접수한 신고와 처리 상태를 확인합니다.',
+    href: '/reports',
+    icon: Shield,
+  },
 ];
 
 export default function DashboardPage() {
@@ -406,20 +411,38 @@ export default function DashboardPage() {
           <section aria-labelledby="support-heading">
             <h2 id="support-heading" className="text-xl font-bold text-gray-900">고객지원</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              {supportItems.map(({ label, icon: Icon }) => (
-                <button
-                  key={label}
-                  type="button"
-                  disabled
-                  className="cursor-not-allowed rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm"
-                >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-50 text-gray-400">
-                    <Icon size={20} />
-                  </span>
-                  <span className="mt-4 block font-bold text-gray-700">{label}</span>
-                  <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500">준비 중</span>
-                </button>
-              ))}
+              {supportItems.map(({ label, description, href, icon: Icon }) => {
+                if (href) {
+                  return (
+                    <Link
+                      key={label}
+                      href={href}
+                      className="group rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm transition hover:border-green-200 hover:shadow-md"
+                    >
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
+                        <Icon size={20} />
+                      </span>
+                      <span className="mt-4 block font-bold text-gray-700 group-hover:text-green-700">{label}</span>
+                      <span className="mt-2 block text-sm leading-5 text-gray-500">{description}</span>
+                    </Link>
+                  );
+                }
+
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    disabled
+                    className="cursor-not-allowed rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm"
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-50 text-gray-400">
+                      <Icon size={20} />
+                    </span>
+                    <span className="mt-4 block font-bold text-gray-700">{label}</span>
+                    <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500">준비 중</span>
+                  </button>
+                );
+              })}
             </div>
           </section>
         </div>

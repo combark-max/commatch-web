@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { CalendarClock, CircleAlert, Headphones, ShieldAlert } from 'lucide-react';
 import AccountSuspendedActions from '@/components/account/AccountSuspendedActions';
 import { getCurrentMemberAccess } from '@/lib/member/access';
@@ -81,10 +82,10 @@ export default async function AccountSuspendedPage() {
 
           <AccountSuspendedActions />
 
-          <div className="mt-7 flex items-center gap-3 border-t border-gray-100 pt-6 text-sm text-gray-500">
+          <Link href="/support/inquiries" className="mt-7 flex items-center gap-3 border-t border-gray-100 pt-6 text-sm font-semibold text-green-700 hover:text-green-800">
             <Headphones size={19} className="shrink-0" aria-hidden="true" />
-            <span>고객 문의 — 준비 중</span>
-          </div>
+            <span>1:1 문의 작성 및 답변 확인</span>
+          </Link>
         </section>
       </div>
     </div>

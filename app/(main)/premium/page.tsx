@@ -92,9 +92,10 @@ const supportItems = [
   },
   {
     label: '문의하기',
-    description: 'Premium 관련 문의 채널을 준비하고 있습니다.',
-    status: '준비 중',
+    description: 'Premium과 서비스 이용에 관한 문의를 접수하고 답변을 확인할 수 있습니다.',
+    status: '1:1 문의',
     icon: MessagesSquare,
+    href: '/support/inquiries',
   },
 ];
 

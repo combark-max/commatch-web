@@ -6,7 +6,7 @@ const footerItems = [
   { label: '개인정보처리방침', href: '/privacy' },
   { label: '공지사항', href: '/notices' },
   { label: 'FAQ', href: '/faq' },
-  { label: '문의하기' },
+  { label: '문의하기', href: '/support/inquiries' },
 ];
 
 const Footer = () => {

@@ -8,6 +8,7 @@ import {
   FileWarning,
   LayoutDashboard,
   Megaphone,
+  MessagesSquare,
   UserCog,
   Users,
 } from 'lucide-react';
@@ -18,6 +19,7 @@ type AdminNavigationProps = {
   canViewMembers: boolean;
   canManageAdmins: boolean;
   canManageNotices: boolean;
+  canViewSupportInquiries: boolean;
 };
 
 const activeClassName = 'bg-green-100 text-green-800';
@@ -29,6 +31,7 @@ export default function AdminNavigation({
   canViewMembers,
   canManageAdmins,
   canManageNotices,
+  canViewSupportInquiries,
 }: AdminNavigationProps) {
   const pathname = usePathname();
 
@@ -88,6 +91,15 @@ export default function AdminNavigation({
           >
             <Megaphone size={17} aria-hidden="true" />
             공지사항 관리
+          </Link>
+        ) : null}
+        {canViewSupportInquiries ? (
+          <Link
+            href="/admin/inquiries"
+            className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/inquiries') ? activeClassName : defaultClassName}`}
+          >
+            <MessagesSquare size={17} aria-hidden="true" />
+            1:1 문의
           </Link>
         ) : null}
         <span aria-disabled="true" className="inline-flex shrink-0 cursor-not-allowed items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-gray-400">

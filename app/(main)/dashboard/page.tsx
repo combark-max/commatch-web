@@ -95,7 +95,12 @@ const profileLinks = [
 ];
 
 const supportItems = [
-  { label: '문의하기', icon: MessageCircle },
+  {
+    label: '1:1 문의',
+    description: '서비스 이용 중 궁금한 점을 문의하고 답변을 확인합니다.',
+    href: '/support/inquiries',
+    icon: MessageCircle,
+  },
   {
     label: '신고 내역',
     description: '내가 접수한 신고와 처리 상태를 확인합니다.',

@@ -11,6 +11,7 @@ type AdminShellProps = {
   canViewMembers: boolean;
   canManageAdmins: boolean;
   canManageNotices: boolean;
+  canViewSupportInquiries: boolean;
 };
 
 export default function AdminShell({
@@ -21,6 +22,7 @@ export default function AdminShell({
   canViewMembers,
   canManageAdmins,
   canManageNotices,
+  canViewSupportInquiries,
 }: AdminShellProps) {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-gray-50">
@@ -53,6 +55,7 @@ export default function AdminShell({
         canViewMembers={canViewMembers}
         canManageAdmins={canManageAdmins}
         canManageNotices={canManageNotices}
+        canViewSupportInquiries={canViewSupportInquiries}
       />
       <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         {children}

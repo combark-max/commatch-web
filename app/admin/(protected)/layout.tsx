@@ -16,6 +16,7 @@ export default async function ProtectedAdminLayout({
       canViewPremium={adminAccess.permissions.includes('premium_memberships_view')}
       canViewMembers={adminAccess.permissions.includes('member_restrictions_view')}
       canManageAdmins={adminAccess.permissions.includes('admin_accounts_manage')}
+      canManageNotices={adminAccess.permissions.includes('notices_manage')}
     >
       {children}
     </AdminShell>

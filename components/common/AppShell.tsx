@@ -176,10 +176,14 @@ export default function AppShell({ children }: AppShellProps) {
     return (
       <div className="flex min-h-screen flex-col bg-gray-50">
         <header className="border-b border-gray-100 bg-white">
-          <div className="mx-auto flex h-16 max-w-7xl items-center px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
             <Link href="/" className="text-2xl font-black text-green-600">
               ComMatch
             </Link>
+            <nav aria-label="공개 내비게이션" className="flex items-center gap-3 text-sm font-semibold text-gray-600 sm:gap-5">
+              <Link href="/notices" className="transition-colors hover:text-green-600">공지사항</Link>
+              <Link href="/faq" className="transition-colors hover:text-green-600">FAQ</Link>
+            </nav>
           </div>
         </header>
         <main className="flex-1">{children}</main>
@@ -197,6 +201,8 @@ export default function AppShell({ children }: AppShellProps) {
 
           <nav aria-label="주요 내비게이션" className="hidden items-center gap-5 text-sm font-semibold text-gray-600 md:flex">
             <Link href="/" className="transition-colors hover:text-green-600">홈</Link>
+            <Link href="/notices" className="transition-colors hover:text-green-600">공지사항</Link>
+            <Link href="/faq" className="transition-colors hover:text-green-600">FAQ</Link>
             {isLoggedIn ? (
               <>
                 <Link
@@ -291,6 +297,8 @@ export default function AppShell({ children }: AppShellProps) {
         {isMobileMenuOpen ? (
           <nav id="mobile-navigation" aria-label="모바일 내비게이션" className="absolute left-0 right-0 top-full z-[70] border-t border-gray-100 bg-white p-4 shadow-xl md:hidden">
             <Link href="/" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">홈</Link>
+            <Link href="/notices" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">공지사항</Link>
+            <Link href="/faq" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">FAQ</Link>
             {isLoggedIn ? (
               <>
                 <p className="px-4 pb-2 pt-4 text-xs font-bold text-green-600">{accountLabel}</p>

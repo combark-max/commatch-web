@@ -79,9 +79,10 @@ const premiumBenefits = [
 const supportItems = [
   {
     label: '자주 묻는 질문',
-    description: 'Premium 기능과 이용 방법에 대한 자주 묻는 질문을 준비하고 있습니다.',
-    status: '준비 중',
+    description: 'Premium을 포함한 ComMatch의 현재 기능과 이용 방법을 확인할 수 있습니다.',
+    status: 'FAQ 보기',
     icon: HelpCircle,
+    href: '/faq',
   },
   {
     label: '환불 및 해지 정책',
@@ -273,13 +274,10 @@ export default function PremiumPage() {
         <section aria-labelledby="premium-support-heading">
           <h2 id="premium-support-heading" className="text-2xl font-bold text-gray-900">고객지원</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-3">
-            {supportItems.map(({ label, description, status, icon: Icon }) => (
-              <button
-                key={label}
-                type="button"
-                disabled
-                className="cursor-not-allowed rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm"
-              >
+            {supportItems.map((item) => {
+              const { label, description, status, icon: Icon } = item;
+              const content = (
+                <>
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-50 text-gray-400">
                   <Icon size={20} />
                 </span>
@@ -288,8 +286,19 @@ export default function PremiumPage() {
                 <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500">
                   {status}
                 </span>
-              </button>
-            ))}
+                </>
+              );
+
+              return 'href' in item && item.href ? (
+                <Link key={label} href={item.href} className="rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm transition hover:border-green-200 hover:shadow-md">
+                  {content}
+                </Link>
+              ) : (
+                <button key={label} type="button" disabled className="cursor-not-allowed rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm">
+                  {content}
+                </button>
+              );
+            })}
           </div>
         </section>
       </div>

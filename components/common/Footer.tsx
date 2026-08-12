@@ -4,7 +4,8 @@ const footerItems = [
   { label: '회사소개', href: '/#about' },
   { label: '이용약관', href: '/terms' },
   { label: '개인정보처리방침', href: '/privacy' },
-  { label: '공지사항' },
+  { label: '공지사항', href: '/notices' },
+  { label: 'FAQ', href: '/faq' },
   { label: '문의하기' },
 ];
 

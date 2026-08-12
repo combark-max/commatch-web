@@ -7,6 +7,7 @@ import {
   Crown,
   FileWarning,
   LayoutDashboard,
+  Megaphone,
   UserCog,
   Users,
 } from 'lucide-react';
@@ -16,6 +17,7 @@ type AdminNavigationProps = {
   canViewPremium: boolean;
   canViewMembers: boolean;
   canManageAdmins: boolean;
+  canManageNotices: boolean;
 };
 
 const activeClassName = 'bg-green-100 text-green-800';
@@ -26,6 +28,7 @@ export default function AdminNavigation({
   canViewPremium,
   canViewMembers,
   canManageAdmins,
+  canManageNotices,
 }: AdminNavigationProps) {
   const pathname = usePathname();
 
@@ -76,6 +79,15 @@ export default function AdminNavigation({
           >
             <UserCog size={17} aria-hidden="true" />
             관리자 계정 관리
+          </Link>
+        ) : null}
+        {canManageNotices ? (
+          <Link
+            href="/admin/notices"
+            className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/notices') ? activeClassName : defaultClassName}`}
+          >
+            <Megaphone size={17} aria-hidden="true" />
+            공지사항 관리
           </Link>
         ) : null}
         <span aria-disabled="true" className="inline-flex shrink-0 cursor-not-allowed items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-gray-400">

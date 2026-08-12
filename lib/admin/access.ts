@@ -11,7 +11,8 @@ export type AdminPermission =
   | 'member_restrictions_view'
   | 'member_restrictions_manage'
   | 'premium_memberships_view'
-  | 'premium_memberships_manage';
+  | 'premium_memberships_manage'
+  | 'notices_manage';
 
 export type AdminRole = 'super_admin' | 'admin' | 'moderator';
 
@@ -56,6 +57,7 @@ const ADMIN_PERMISSIONS = new Set<AdminPermission>([
   'member_restrictions_manage',
   'premium_memberships_view',
   'premium_memberships_manage',
+  'notices_manage',
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (

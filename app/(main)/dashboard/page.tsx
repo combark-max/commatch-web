@@ -9,14 +9,12 @@ import {
   Briefcase,
   Camera,
   ChevronRight,
-  CircleUser,
   Heart,
   KeyRound,
   Loader2,
   LogOut,
   MessageCircle,
   Quote,
-  Settings,
   Shield,
   SlidersHorizontal,
   Sparkles,
@@ -96,7 +94,10 @@ const profileLinks = [
   { label: '이상형 설정', description: '희망하는 상대의 조건을 관리합니다.', href: '/preference', icon: SlidersHorizontal },
 ];
 
-const supportItems = ['공지사항', 'FAQ', '문의하기', '신고 내역'];
+const supportItems = [
+  { label: '문의하기', icon: MessageCircle },
+  { label: '신고 내역', icon: Shield },
+];
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -405,17 +406,17 @@ export default function DashboardPage() {
           <section aria-labelledby="support-heading">
             <h2 id="support-heading" className="text-xl font-bold text-gray-900">고객지원</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              {supportItems.map((item, index) => (
+              {supportItems.map(({ label, icon: Icon }) => (
                 <button
-                  key={item}
+                  key={label}
                   type="button"
                   disabled
                   className="cursor-not-allowed rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm"
                 >
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-50 text-gray-400">
-                    {index === 1 ? <CircleUser size={20} /> : index === 3 ? <Shield size={20} /> : <Settings size={20} />}
+                    <Icon size={20} />
                   </span>
-                  <span className="mt-4 block font-bold text-gray-700">{item}</span>
+                  <span className="mt-4 block font-bold text-gray-700">{label}</span>
                   <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500">준비 중</span>
                 </button>
               ))}

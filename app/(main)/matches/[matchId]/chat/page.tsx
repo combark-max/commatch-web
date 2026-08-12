@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -83,12 +83,58 @@ function dateKey(value: string): string {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
+function compareMessages(left: MessageRow, right: MessageRow): number {
+  return left.created_at.localeCompare(right.created_at) || left.id.localeCompare(right.id);
+}
+
+function mergeMessages(current: MessageRow[], incoming: MessageRow[]): MessageRow[] {
+  const messagesById = new Map(current.map((message) => [message.id, message]));
+
+  incoming.forEach((message) => {
+    const existingMessage = messagesById.get(message.id);
+    messagesById.set(message.id, existingMessage ? {
+      ...existingMessage,
+      ...message,
+      read_at: message.read_at ?? existingMessage.read_at,
+    } : message);
+  });
+
+  return Array.from(messagesById.values()).sort(compareMessages);
+}
+
+function parseRealtimeMessage(value: unknown): MessageRow | null {
+  if (!value || typeof value !== 'object') return null;
+
+  const message = value as Record<string, unknown>;
+  if (
+    typeof message.id !== 'string'
+    || typeof message.match_id !== 'string'
+    || typeof message.sender_id !== 'string'
+    || typeof message.content !== 'string'
+    || typeof message.created_at !== 'string'
+    || (message.read_at !== null && typeof message.read_at !== 'string')
+  ) {
+    return null;
+  }
+
+  return {
+    id: message.id,
+    match_id: message.match_id,
+    sender_id: message.sender_id,
+    content: message.content,
+    read_at: message.read_at,
+    created_at: message.created_at,
+  };
+}
+
 export default function ChatPage() {
   const params = useParams<{ matchId: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const activeMatchIdRef = useRef<string | null>(null);
+  const realtimeChannelSequenceRef = useRef(0);
   const matchId = params.matchId;
   const matchesHref = searchParams.get('from') === 'advanced' ? '/matches?advanced=1' : '/matches';
 
@@ -124,6 +170,10 @@ export default function ChatPage() {
       setSelectedReportMessage(null);
       setReportedMessageIds(new Set());
       setReportNotice('');
+      setCurrentUserId(null);
+      setMatch(null);
+      setMessages([]);
+      activeMatchIdRef.current = null;
 
       if (!matchId || !UUID_PATTERN.test(matchId)) {
         if (isMounted) {
@@ -187,9 +237,10 @@ export default function ChatPage() {
         };
 
         if (isMounted) {
+          activeMatchIdRef.current = matchId;
           setCurrentUserId(user.id);
           setMatch(resolvedMatch);
-          setMessages((messageRows ?? []) as MessageRow[]);
+          setMessages((currentMessages) => mergeMessages(currentMessages, (messageRows ?? []) as MessageRow[]));
           setImageFailed(false);
           setPageState('ready');
         }
@@ -220,6 +271,9 @@ export default function ChatPage() {
 
     return () => {
       isMounted = false;
+      if (activeMatchIdRef.current === matchId) {
+        activeMatchIdRef.current = null;
+      }
     };
   }, [matchId, retryKey, router, supabase]);
 
@@ -228,7 +282,7 @@ export default function ChatPage() {
     messageEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, pageState]);
 
-  const refreshMessages = async (): Promise<boolean> => {
+  const refreshMessages = useCallback(async (): Promise<MessageRow[] | null> => {
     const { data, error } = await supabase
       .from('messages')
       .select('id, match_id, sender_id, content, read_at, created_at')
@@ -236,10 +290,131 @@ export default function ChatPage() {
       .order('created_at', { ascending: true })
       .order('id', { ascending: true });
 
-    if (error) return false;
-    setMessages((data ?? []) as MessageRow[]);
-    return true;
-  };
+    if (error) return null;
+    if (activeMatchIdRef.current !== matchId) return null;
+
+    const refreshedMessages = (data ?? []) as MessageRow[];
+    setMessages((currentMessages) => mergeMessages(currentMessages, refreshedMessages));
+    return refreshedMessages;
+  }, [matchId, supabase]);
+
+  useEffect(() => {
+    if (pageState !== 'ready' || !currentUserId || match?.id !== matchId) return;
+
+    let isActive = true;
+    let markReadTimer: ReturnType<typeof setTimeout> | null = null;
+    let isMarkReadInFlight = false;
+    let hasPendingMarkRead = false;
+
+    const hasUnreadIncomingMessages = (messageRows: MessageRow[]) => messageRows.some(
+      (message) => message.sender_id !== currentUserId && message.read_at === null,
+    );
+
+    function scheduleMarkRead() {
+      if (!isActive || document.visibilityState !== 'visible') return;
+
+      if (markReadTimer) clearTimeout(markReadTimer);
+      markReadTimer = setTimeout(() => {
+        markReadTimer = null;
+        void markMessagesRead();
+      }, 350);
+    }
+
+    async function markMessagesRead() {
+      if (!isActive || document.visibilityState !== 'visible') return;
+
+      if (isMarkReadInFlight) {
+        hasPendingMarkRead = true;
+        return;
+      }
+
+      isMarkReadInFlight = true;
+
+      try {
+        const { error } = await supabase.rpc('mark_match_read', {
+          p_match_id: matchId,
+        });
+
+        if (error) {
+          console.error('채팅 메시지 읽음 처리에 실패했습니다.', error);
+        }
+      } catch (error) {
+        console.error('채팅 메시지 읽음 처리에 실패했습니다.', error);
+      } finally {
+        isMarkReadInFlight = false;
+
+        if (isActive && hasPendingMarkRead) {
+          hasPendingMarkRead = false;
+          scheduleMarkRead();
+        }
+      }
+    }
+
+    const refreshAndMarkUnreadMessages = async () => {
+      const refreshedMessages = await refreshMessages();
+      if (!isActive || !refreshedMessages) return;
+
+      if (
+        document.visibilityState === 'visible'
+        && hasUnreadIncomingMessages(refreshedMessages)
+      ) {
+        scheduleMarkRead();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshAndMarkUnreadMessages();
+      }
+    };
+
+    realtimeChannelSequenceRef.current += 1;
+    const channel = supabase
+      .channel(`match-chat:${matchId}:${realtimeChannelSequenceRef.current}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `match_id=eq.${matchId}`,
+        },
+        (payload) => {
+          if (!isActive) return;
+
+          const message = parseRealtimeMessage(payload.new);
+          if (!message || message.match_id !== matchId) return;
+
+          setMessages((currentMessages) => mergeMessages(currentMessages, [message]));
+
+          if (
+            message.sender_id !== currentUserId
+            && document.visibilityState === 'visible'
+          ) {
+            scheduleMarkRead();
+          }
+        },
+      )
+      .subscribe((status) => {
+        if (!isActive) return;
+
+        if (status === 'SUBSCRIBED') {
+          void refreshAndMarkUnreadMessages();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error(`채팅 Realtime 연결 상태: ${status}`);
+        }
+      });
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isActive = false;
+      hasPendingMarkRead = false;
+      if (markReadTimer) clearTimeout(markReadTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      void supabase.removeChannel(channel);
+    };
+  }, [currentUserId, match?.id, matchId, pageState, refreshMessages, supabase]);
 
   const sendMessage = async () => {
     const content = draft.trim();

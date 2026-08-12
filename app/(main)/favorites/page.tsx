@@ -27,6 +27,19 @@ type FavoriteSort = 'default' | 'recent' | 'oldest' | 'younger' | 'older' | 'nic
 type RelationshipFilter = 'all' | 'mutual' | 'matched' | 'not-mutual';
 type MatchStatus = 'active' | 'ended';
 
+type LikeResult = 'liked' | 'already_liked' | 'matched' | 'already_matched';
+
+type SendLikeWithMatchRow = {
+  like_result?: unknown;
+  match_id?: unknown;
+};
+
+type ToastState = {
+  message: string;
+  type: 'success' | 'error';
+  matchId?: string;
+};
+
 type FavoriteMemberRpcRow = {
   favorite_id?: unknown;
   favorited_at?: unknown;
@@ -44,6 +57,7 @@ type FavoriteMemberRpcRow = {
   matched_at?: unknown;
 };
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const favoriteDateFormatter = new Intl.DateTimeFormat('ko-KR', {
   year: 'numeric',
   month: 'numeric',
@@ -68,6 +82,36 @@ function normalizeAge(value: unknown): number | null {
   return Number.isInteger(normalized) && normalized >= 0 ? normalized : null;
 }
 
+function normalizeLikeResult(value: unknown): { likeResult: LikeResult; matchId: string | null } {
+  if (!Array.isArray(value) || value.length !== 1 || !value[0] || typeof value[0] !== 'object') {
+    throw new Error('Unexpected send-like response');
+  }
+
+  const row = value[0] as SendLikeWithMatchRow;
+  const likeResult = normalizeNullableText(row.like_result);
+  const matchId = normalizeNullableText(row.match_id);
+
+  if (
+    likeResult !== 'liked'
+    && likeResult !== 'already_liked'
+    && likeResult !== 'matched'
+    && likeResult !== 'already_matched'
+  ) {
+    throw new Error('Unexpected send-like result');
+  }
+  if (
+    (likeResult === 'matched' || likeResult === 'already_matched')
+    && (!matchId || !UUID_PATTERN.test(matchId))
+  ) {
+    throw new Error('Matched response did not include a match id');
+  }
+  if ((likeResult === 'liked' || likeResult === 'already_liked') && matchId !== null) {
+    throw new Error('Non-match response unexpectedly included a match id');
+  }
+
+  return { likeResult, matchId };
+}
+
 export default function FavoritesPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -79,7 +123,7 @@ export default function FavoritesPage() {
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
   const [sendingLikeMemberId, setSendingLikeMemberId] = useState<string | null>(null);
   const [matchedLikeMemberIds, setMatchedLikeMemberIds] = useState<Set<string>>(new Set());
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [isMutualInfoAvailable, setIsMutualInfoAvailable] = useState(false);
   const [isMatchInfoAvailable, setIsMatchInfoAvailable] = useState(false);
@@ -424,26 +468,42 @@ export default function FavoritesPage() {
 
     setSendingLikeMemberId(memberId);
     try {
-      const { data, error: likeError } = await supabase.rpc('send_member_like', {
+      const { data, error: likeError } = await supabase.rpc('send_member_like_with_match', {
         target_user_id: memberId,
       });
       if (likeError) throw likeError;
 
+      const { likeResult, matchId } = normalizeLikeResult(data);
+
       setFavorites((current) => current.map((member) => (
-        member.id === memberId ? { ...member, hasLiked: true } : member
+        member.id === memberId
+          ? {
+              ...member,
+              hasLiked: true,
+              matchId: likeResult === 'matched' ? matchId : member.matchId,
+              matchStatus: likeResult === 'matched' ? 'active' : member.matchStatus,
+              matchedAt: likeResult === 'matched' ? new Date().toISOString() : member.matchedAt,
+            }
+          : member
       )));
-      if (data === 'matched' || data === 'already_matched') {
+      if (likeResult === 'matched' || likeResult === 'already_matched') {
         setMatchedLikeMemberIds((current) => new Set(current).add(memberId));
       }
+
+      if (likeResult === 'matched') {
+        window.dispatchEvent(new Event('commatch:notifications-changed'));
+      }
+
       setToast({
-        message: data === 'matched'
-          ? '서로 좋아요를 보내 매칭되었습니다.'
-          : data === 'already_matched'
+        message: likeResult === 'matched'
+          ? '새로운 매칭이 생겼어요! 서로 좋아요를 보냈습니다. 지금 대화를 시작해 보세요.'
+          : likeResult === 'already_matched'
             ? '이미 매칭된 회원입니다.'
-            : data === 'already_liked'
+            : likeResult === 'already_liked'
               ? '이미 좋아요를 보냈습니다.'
               : '좋아요를 보냈습니다.',
         type: 'success',
+        matchId: likeResult === 'matched' ? matchId ?? undefined : undefined,
       });
     } catch (err: unknown) {
       const supabaseError = err as { message?: string };
@@ -781,7 +841,20 @@ export default function FavoritesPage() {
           </div>
         )}
       </div>
-      {toast ? <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} /> : null}
+      {toast ? (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          duration={toast.matchId ? 8000 : undefined}
+          actionLabel={toast.matchId ? '채팅하기' : undefined}
+          onAction={toast.matchId ? () => {
+            const matchId = toast.matchId;
+            setToast(null);
+            router.push(`/matches/${matchId}/chat`);
+          } : undefined}
+          onClose={() => setToast(null)}
+        />
+      ) : null}
     </div>
   );
 }

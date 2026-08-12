@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
+  Bell,
   ChevronDown,
   CircleUser,
   Heart,
@@ -39,6 +40,7 @@ export default function AppShell({ children }: AppShellProps) {
   const headerRef = useRef<HTMLElement | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [nickname, setNickname] = useState<string | null>(null);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -59,6 +61,7 @@ export default function AppShell({ children }: AppShellProps) {
 
       if (!resolvedUserId) {
         setNickname(null);
+        setUnreadNotificationCount(0);
         return;
       }
 
@@ -81,6 +84,39 @@ export default function AppShell({ children }: AppShellProps) {
       authListener.subscription.unsubscribe();
     };
   }, [isAccountSuspendedPage, supabase]);
+
+  useEffect(() => {
+    if (!isLoggedIn || isAccountSuspendedPage) return;
+
+    let isMounted = true;
+
+    const loadUnreadNotificationCount = async () => {
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .is('read_at', null);
+
+      if (!isMounted) return;
+      if (error) {
+        setUnreadNotificationCount(0);
+        return;
+      }
+
+      setUnreadNotificationCount(count ?? 0);
+    };
+
+    const handleNotificationsChanged = () => {
+      void loadUnreadNotificationCount();
+    };
+
+    void loadUnreadNotificationCount();
+    window.addEventListener('commatch:notifications-changed', handleNotificationsChanged);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('commatch:notifications-changed', handleNotificationsChanged);
+    };
+  }, [isAccountSuspendedPage, isLoggedIn, pathname, supabase]);
 
   useEffect(() => {
     const closeMenus = () => {
@@ -127,12 +163,14 @@ export default function AppShell({ children }: AppShellProps) {
     }
     setIsLoggedIn(false);
     setNickname(null);
+    setUnreadNotificationCount(0);
     router.push('/');
     router.refresh();
   };
 
   const accountLabel = nickname ? `${nickname}님` : '내정보';
   const isHome = pathname === '/';
+  const unreadBadgeLabel = unreadNotificationCount > 99 ? '99+' : String(unreadNotificationCount);
 
   if (isAccountSuspendedPage) {
     return (
@@ -160,7 +198,26 @@ export default function AppShell({ children }: AppShellProps) {
           <nav aria-label="주요 내비게이션" className="hidden items-center gap-5 text-sm font-semibold text-gray-600 md:flex">
             <Link href="/" className="transition-colors hover:text-green-600">홈</Link>
             {isLoggedIn ? (
-              <div className="relative">
+              <>
+                <Link
+                  href="/notifications"
+                  onClick={closeMenus}
+                  aria-label={unreadNotificationCount > 0 ? `읽지 않은 알림 ${unreadNotificationCount}개` : '알림'}
+                  aria-current={pathname === '/notifications' ? 'page' : undefined}
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-full transition ${
+                    pathname === '/notifications'
+                      ? 'bg-green-100 text-green-700'
+                      : 'text-gray-500 hover:bg-green-50 hover:text-green-700'
+                  }`}
+                >
+                  <Bell size={20} />
+                  {unreadNotificationCount > 0 ? (
+                    <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black leading-none text-white">
+                      {unreadBadgeLabel}
+                    </span>
+                  ) : null}
+                </Link>
+                <div className="relative">
                 <button
                   type="button"
                   aria-expanded={isAccountMenuOpen}
@@ -198,7 +255,8 @@ export default function AppShell({ children }: AppShellProps) {
                     </button>
                   </div>
                 ) : null}
-              </div>
+                </div>
+              </>
             ) : (
               <div className="flex items-center gap-3">
                 <Link
@@ -236,6 +294,20 @@ export default function AppShell({ children }: AppShellProps) {
             {isLoggedIn ? (
               <>
                 <p className="px-4 pb-2 pt-4 text-xs font-bold text-green-600">{accountLabel}</p>
+                <Link
+                  href="/notifications"
+                  onClick={closeMenus}
+                  aria-current={pathname === '/notifications' ? 'page' : undefined}
+                  className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-700 hover:bg-green-50 hover:text-green-700"
+                >
+                  <Bell size={19} />
+                  <span className="flex-1">알림</span>
+                  {unreadNotificationCount > 0 ? (
+                    <span className="flex min-h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-black text-white">
+                      {unreadBadgeLabel}
+                    </span>
+                  ) : null}
+                </Link>
                 {accountLinks.map(({ href, label, icon: Icon }) => (
                   <Link key={href} href={href} onClick={closeMenus} className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-700 hover:bg-green-50 hover:text-green-700">
                     <Icon size={19} /> {label}

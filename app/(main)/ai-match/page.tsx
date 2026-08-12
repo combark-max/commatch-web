@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Bell,
   Briefcase,
   Check,
   ChevronLeft,
@@ -334,13 +333,6 @@ export default function AiMatchPage() {
     }
   };
 
-  const showComingSoonNotice = () => {
-    setNotice({
-      message: '알림 기능은 현재 준비 중입니다.',
-      type: 'info',
-    });
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
       <div className="mx-auto max-w-4xl">
@@ -351,15 +343,6 @@ export default function AiMatchPage() {
               회원님의 프로필과 이상형 조건을 바탕으로 추천한 회원입니다.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={showComingSoonNotice}
-            className="shrink-0 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-gray-400 shadow-sm transition hover:bg-gray-50"
-            aria-label="알림 기능 준비 중"
-          >
-            <Bell className="mx-auto h-5 w-5" />
-            <span className="mt-1 block text-[10px] font-bold">준비 중</span>
-          </button>
         </div>
 
         {isExpandedMode ? (

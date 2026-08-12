@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 interface ToastProps {
@@ -6,9 +6,18 @@ interface ToastProps {
   type: 'success' | 'error';
   onClose: () => void;
   duration?: number;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
-const Toast = ({ message, type, onClose, duration = 3000 }: ToastProps) => {
+const Toast = ({
+  message,
+  type,
+  onClose,
+  duration = 3000,
+  actionLabel,
+  onAction,
+}: ToastProps) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose();
@@ -23,12 +32,23 @@ const Toast = ({ message, type, onClose, duration = 3000 }: ToastProps) => {
   const Icon = type === 'success' ? CheckCircle2 : AlertCircle;
 
   return (
-    <div className={`fixed bottom-4 right-4 flex items-center p-4 rounded-lg border ${bgColor} ${borderColor} ${textColor} shadow-lg z-50 animate-in fade-in slide-in-from-bottom-4`}>
+    <div className={`fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] items-center rounded-lg border p-4 shadow-lg animate-in fade-in slide-in-from-bottom-4 ${bgColor} ${borderColor} ${textColor}`} role="status">
       <Icon className="w-5 h-5 mr-3 flex-shrink-0" />
-      <span className="text-sm font-medium mr-8">{message}</span>
+      <span className="text-sm font-medium">{message}</span>
+      {actionLabel && onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="ml-4 shrink-0 rounded-lg bg-green-600 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+        >
+          {actionLabel}
+        </button>
+      ) : null}
       <button
+        type="button"
         onClick={onClose}
-        className="ml-auto text-gray-400 hover:text-gray-600 transition-colors"
+        aria-label="알림 닫기"
+        className="ml-4 shrink-0 text-gray-400 transition-colors hover:text-gray-600"
       >
         <X size={16} />
       </button>

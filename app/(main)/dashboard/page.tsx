@@ -9,7 +9,6 @@ import {
   Briefcase,
   Camera,
   ChevronRight,
-  CircleCheck,
   CircleUser,
   Heart,
   KeyRound,
@@ -314,7 +313,7 @@ export default function DashboardPage() {
 
         <section aria-labelledby="activity-heading">
           <h2 id="activity-heading" className="text-xl font-bold text-gray-900">내 활동</h2>
-          <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <ActivityLink href="/ai-match" title="오늘의 추천" status="추천 보기" icon={Sparkles} />
             <ActivityLink
               href="/favorites"
@@ -324,15 +323,8 @@ export default function DashboardPage() {
             />
             <ActivityLink
               href="/matches"
-              title="매칭목록"
-              description="서로 호감이 성립된 회원을 확인하는 기능입니다."
-              icon={CircleCheck}
-            />
-            <ActivityLink
-              href="/matches"
-              title="채팅"
-              description="매칭된 회원과 대화할 수 있는 기능입니다."
-              status="매칭 후 이용 가능"
+              title="매칭 및 대화"
+              description="새롭게 성립한 매칭과 대화를 확인할 수 있습니다."
               icon={MessageCircle}
               badge={unreadMessageCount}
             />

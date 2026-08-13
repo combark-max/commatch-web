@@ -414,18 +414,30 @@ export default function MatchesPage() {
               <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">매칭목록</h1>
               <p className="mt-2 text-gray-600">서로 관심을 표현해 매칭된 회원을 확인할 수 있습니다.</p>
             </div>
-            {!matchesError ? (
-              <span className="rounded-full bg-green-50 px-4 py-2 text-sm font-bold text-green-700">
-                매칭 {matches.length}명
-              </span>
-            ) : null}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {!matchesError ? (
+                <span className="rounded-full bg-green-50 px-4 py-2 text-sm font-bold text-green-700">
+                  매칭 {matches.length}명
+                </span>
+              ) : null}
+              <Link
+                href={isAdvancedMode ? '/matches' : '/matches?advanced=1'}
+                onClick={() => {
+                  setIsAdvancedMode(!isAdvancedMode);
+                  if (isAdvancedMode) resetAdvancedFilters();
+                }}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition hover:border-green-200 hover:bg-green-50 hover:text-green-700"
+              >
+                {isAdvancedMode ? '기본 보기' : '검색·필터'}
+              </Link>
+            </div>
           </div>
         </header>
 
         {isAdvancedMode && !matchesError ? (
           <>
             <section className="mb-5 rounded-[2rem] border border-green-100 bg-green-50 p-6 sm:p-7">
-              <p className="text-sm font-bold text-green-800">Premium 도입 전 테스트 제공 기능입니다.</p>
+              <p className="text-sm font-bold text-green-800">매칭목록 검색·필터</p>
               <p className="mt-2 text-sm leading-6 text-green-900">
                 매칭 목록을 메시지 상태와 대화 진행 상황에 따라 정리할 수 있습니다.
               </p>

@@ -10,7 +10,6 @@ import {
   Heart,
   HelpCircle,
   Loader2,
-  MessageCircle,
   MessagesSquare,
   ReceiptText,
   Sparkles,
@@ -59,20 +58,6 @@ const premiumBenefits = [
     description: '프로필에 Premium 회원임을 알 수 있는 전용 표시가 제공될 예정입니다.',
     status: '도입 예정',
     icon: BadgeCheck,
-  },
-  {
-    title: '고급 매칭 관리',
-    description: '읽지 않은 메시지와 대화 상태에 따라 매칭 목록을 정리하고 원하는 순서로 확인할 수 있습니다.',
-    status: '테스트 제공 중',
-    icon: MessageCircle,
-    href: '/matches?advanced=1',
-  },
-  {
-    title: '관심목록 고급 관리',
-    description: '저장한 관심회원을 지역, 직업, 나이와 등록 순서에 따라 정리할 수 있습니다.',
-    status: '테스트 제공 중',
-    icon: Heart,
-    href: '/favorites?advanced=1',
   },
 ];
 

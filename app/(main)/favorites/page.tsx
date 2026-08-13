@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Briefcase, CalendarDays, Loader2, MapPin, Search, Sparkles, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -383,8 +384,8 @@ export default function FavoritesPage() {
 
   const advancedInfoNotice = useMemo(() => {
     if (!isAdvancedMode || (isMutualInfoAvailable && isMatchInfoAvailable)) return null;
-    if (!isMutualInfoAvailable && !isMatchInfoAvailable) return '상호 관심과 매칭 정보를 불러오지 못했습니다. 기존 관심목록 기능은 계속 이용할 수 있습니다.';
-    if (!isMutualInfoAvailable) return '상호 관심 정보를 불러오지 못해 관련 요약, 필터와 정렬을 사용할 수 없습니다.';
+    if (!isMutualInfoAvailable && !isMatchInfoAvailable) return '서로 관심 등록과 매칭 정보를 불러오지 못했습니다. 기존 관심목록 기능은 계속 이용할 수 있습니다.';
+    if (!isMutualInfoAvailable) return '서로 관심 등록 정보를 불러오지 못해 관련 요약, 필터와 정렬을 사용할 수 없습니다.';
     return '매칭 정보를 불러오지 못해 관련 요약, 필터와 정렬을 사용할 수 없습니다.';
   }, [isAdvancedMode, isMatchInfoAvailable, isMutualInfoAvailable]);
 
@@ -539,16 +540,28 @@ export default function FavoritesPage() {
               <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">관심목록</h1>
               <p className="mt-2 text-gray-600">관심 등록한 회원의 프로필을 다시 확인해 보세요.</p>
             </div>
-            <span className="rounded-full bg-green-50 px-4 py-2 text-sm font-bold text-green-700">
-              관심 {favorites.length}명
-            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="rounded-full bg-green-50 px-4 py-2 text-sm font-bold text-green-700">
+                관심 {favorites.length}명
+              </span>
+              <Link
+                href={isAdvancedMode ? '/favorites' : '/favorites?advanced=1'}
+                onClick={() => {
+                  setIsAdvancedMode(!isAdvancedMode);
+                  if (isAdvancedMode) resetAdvancedFilters();
+                }}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition hover:border-green-200 hover:bg-green-50 hover:text-green-700"
+              >
+                {isAdvancedMode ? '기본 보기' : '검색·필터'}
+              </Link>
+            </div>
           </div>
         </div>
 
         {isAdvancedMode ? (
           <>
             <section className="mb-5 rounded-[2rem] border border-green-100 bg-green-50 p-6 sm:p-7">
-              <p className="text-sm font-bold text-green-800">Premium 도입 전 테스트 제공 기능입니다.</p>
+              <p className="text-sm font-bold text-green-800">관심목록 검색·필터</p>
               <p className="mt-2 text-sm leading-6 text-green-900">
                 관심회원 목록을 지역, 직업, 나이와 등록 순서에 따라 정리할 수 있습니다.
               </p>
@@ -558,9 +571,9 @@ export default function FavoritesPage() {
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {[
                   { label: '전체', value: advancedCounts.total },
-                  { label: '상호 관심', value: advancedCounts.mutual },
+                  { label: '서로 관심 등록', value: advancedCounts.mutual },
                   { label: '매칭', value: advancedCounts.matched },
-                  { label: '상대 관심 없음', value: advancedCounts.notMutual },
+                  { label: '상대방 관심 등록 없음', value: advancedCounts.notMutual },
                 ].map(({ label, value }) => (
                   <article key={label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
                     <p className="text-sm font-bold text-gray-500">{label}</p>
@@ -571,7 +584,7 @@ export default function FavoritesPage() {
                 ))}
               </div>
               <p className="mt-3 text-xs leading-5 text-gray-500">
-                상호 관심과 매칭은 서로 독립적으로 집계되어 같은 회원이 두 항목에 모두 포함될 수 있습니다.
+                서로 관심 등록과 매칭은 서로 독립적으로 집계되어 같은 회원이 두 항목에 모두 포함될 수 있습니다.
               </p>
               {advancedInfoNotice ? (
                 <p role="status" className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-semibold text-[#806B26]">
@@ -653,9 +666,9 @@ export default function FavoritesPage() {
                     className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                   >
                     <option value="all">전체</option>
-                    <option value="mutual">상호 관심</option>
+                    <option value="mutual">서로 관심 등록</option>
                     <option value="matched">매칭</option>
-                    <option value="not-mutual">상대 관심 없음</option>
+                    <option value="not-mutual">상대방 관심 등록 없음</option>
                   </select>
                 </label>
 
@@ -672,7 +685,7 @@ export default function FavoritesPage() {
                     <option value="younger">나이 어린 순</option>
                     <option value="older">나이 많은 순</option>
                     <option value="nickname">닉네임순</option>
-                    <option value="mutual-first" disabled={!isMutualInfoAvailable}>상호 관심 우선</option>
+                    <option value="mutual-first" disabled={!isMutualInfoAvailable}>서로 관심 등록 우선</option>
                     <option value="matched-first" disabled={!isMatchInfoAvailable}>매칭된 회원 우선</option>
                   </select>
                 </label>
@@ -758,7 +771,7 @@ export default function FavoritesPage() {
                     {isAdvancedMode && (member.isMutual === true || member.matchStatus) ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {member.isMutual === true ? (
-                          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-[#806B26]">상호 관심</span>
+                          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-[#806B26]">서로 관심 등록</span>
                         ) : null}
                         {member.matchStatus === 'active' ? (
                           <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">진행 중 매칭</span>

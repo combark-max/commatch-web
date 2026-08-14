@@ -119,7 +119,7 @@ export async function updateAdminPremiumMembershipAction(
 
   if (
     featureKeyValues.length < 1
-    || featureKeyValues.length > 3
+    || featureKeyValues.length > 4
     || !featureKeyValues.every(isPremiumFeatureKey)
     || new Set(featureKeyValues).size !== featureKeyValues.length
   ) return errorState('Premium 기능을 1개 이상 선택해 주세요.', requestId);

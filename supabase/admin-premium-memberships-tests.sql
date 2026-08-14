@@ -12,8 +12,8 @@
 -- Apply admin-premium-memberships.sql before running this test.
 -- Repeat the permission section after each supported reinstall sequence when
 -- validating deployment order. admin-accounts.sql and premium-memberships.sql
--- remain prerequisites; admin-member-restrictions.sql may run before or after
--- admin-premium-memberships.sql, and each administrator SQL may then be rerun.
+-- remain prerequisites. Do not reapply an older shared permission definition
+-- after notices.sql or support-inquiries.sql has extended that contract.
 
 begin;
 
@@ -84,6 +84,9 @@ do $preflight$
 declare
   v_config _commatch_premium_it_config%rowtype;
   v_ids uuid[];
+  v_admin_marker text;
+  v_access_definition text;
+  v_permission_definition text;
 begin
   select * into v_config from _commatch_premium_it_config;
   v_ids := array[
@@ -182,7 +185,55 @@ begin
     raise exception 'Priority recommendation pilot table is missing';
   end if;
 
-  raise notice 'PASS fixture and object preflight';
+  v_admin_marker := pg_catalog.obj_description(
+    'public.get_my_admin_access()'::pg_catalog.regprocedure,
+    'pg_proc'
+  );
+  if v_admin_marker is null
+     or v_admin_marker not in (
+       'commatch_admin_accounts_v1',
+       'commatch_admin_member_restrictions_v1',
+       'commatch_admin_premium_memberships_v1',
+       'commatch_notices_v1',
+       'commatch_support_inquiries_v1'
+     )
+     or pg_catalog.obj_description(
+       'public.has_admin_permission(text)'::pg_catalog.regprocedure,
+       'pg_proc'
+     ) is distinct from v_admin_marker then
+    raise exception 'Administrator permission marker compatibility regression';
+  end if;
+
+  v_access_definition := pg_catalog.pg_get_functiondef(
+    'public.get_my_admin_access()'::pg_catalog.regprocedure
+  );
+  v_permission_definition := pg_catalog.pg_get_functiondef(
+    'public.has_admin_permission(text)'::pg_catalog.regprocedure
+  );
+  if pg_catalog.strpos(v_access_definition, '''premium_memberships_view''') = 0
+     or pg_catalog.strpos(v_access_definition, '''premium_memberships_manage''') = 0
+     or pg_catalog.strpos(v_permission_definition, '''premium_memberships_view''') = 0
+     or pg_catalog.strpos(v_permission_definition, '''premium_memberships_manage''') = 0 then
+    raise exception 'Shared administrator functions lost Premium permissions';
+  end if;
+  if v_admin_marker in ('commatch_notices_v1', 'commatch_support_inquiries_v1')
+     and (
+       pg_catalog.strpos(v_access_definition, '''notices_manage''') = 0
+       or pg_catalog.strpos(v_permission_definition, '''notices_manage''') = 0
+     ) then
+    raise exception 'Shared administrator functions lost notices_manage';
+  end if;
+  if v_admin_marker = 'commatch_support_inquiries_v1'
+     and (
+       pg_catalog.strpos(v_access_definition, '''support_inquiries_view''') = 0
+       or pg_catalog.strpos(v_access_definition, '''support_inquiries_manage''') = 0
+       or pg_catalog.strpos(v_permission_definition, '''support_inquiries_view''') = 0
+       or pg_catalog.strpos(v_permission_definition, '''support_inquiries_manage''') = 0
+     ) then
+    raise exception 'Shared administrator functions lost support inquiry permissions';
+  end if;
+
+  raise notice 'PASS fixture, object, and shared administrator permission preflight';
 end;
 $preflight$;
 
@@ -549,20 +600,43 @@ declare
   v_config _commatch_premium_it_config%rowtype;
   v_access record;
   v_result record;
+  v_admin_marker text;
+  v_expected_permissions text[];
 begin
   select * into v_config from _commatch_premium_it_config;
   select * into v_access from public.get_my_admin_access();
+  v_admin_marker := pg_catalog.obj_description(
+    'public.get_my_admin_access()'::pg_catalog.regprocedure,
+    'pg_proc'
+  );
+  v_expected_permissions := array[
+    'admin_dashboard_view',
+    'reports_view',
+    'reports_manage',
+    'member_restrictions_view',
+    'member_restrictions_manage',
+    'premium_memberships_view',
+    'premium_memberships_manage'
+  ]::text[]
+  || case when v_admin_marker in ('commatch_notices_v1', 'commatch_support_inquiries_v1')
+       then array['notices_manage']::text[] else array[]::text[] end
+  || case when v_admin_marker = 'commatch_support_inquiries_v1'
+       then array['support_inquiries_view', 'support_inquiries_manage']::text[]
+       else array[]::text[] end;
   if not public.has_admin_permission('premium_memberships_view')
      or not public.has_admin_permission('premium_memberships_manage')
-     or v_access.permissions is distinct from array[
-       'admin_dashboard_view',
-       'reports_view',
-       'reports_manage',
-       'member_restrictions_view',
-       'member_restrictions_manage',
-       'premium_memberships_view',
-       'premium_memberships_manage'
-     ]::text[] then
+     or (
+       v_admin_marker in ('commatch_notices_v1', 'commatch_support_inquiries_v1')
+       and not public.has_admin_permission('notices_manage')
+     )
+     or (
+       v_admin_marker = 'commatch_support_inquiries_v1'
+       and (
+         not public.has_admin_permission('support_inquiries_view')
+         or not public.has_admin_permission('support_inquiries_manage')
+       )
+     )
+     or v_access.permissions is distinct from v_expected_permissions then
     raise exception 'FAIL active admin Premium permission matrix';
   end if;
 
@@ -828,6 +902,16 @@ select pg_temp._commatch_premium_it_expect_sqlstate(
   )
 );
 select pg_temp._commatch_premium_it_expect_sqlstate(
+  'five feature keys',
+  '22023',
+  format(
+    'select * from public.update_admin_premium_membership(%L,%L,''active'',pg_catalog.now(),null,array[''likes_received'',''received_likes'',''advanced_member_search'',''expanded_recommendations'',''received_likes'']::text[],''invalid'',%L)',
+    (select member_id from _commatch_premium_it_config),
+    (select updated_at from public.premium_memberships where user_id=(select member_id from _commatch_premium_it_config)),
+    pg_catalog.gen_random_uuid()
+  )
+);
+select pg_temp._commatch_premium_it_expect_sqlstate(
   'administrator target rejected',
   '22023',
   format(
@@ -1065,11 +1149,11 @@ begin
   select * into v_result from public.update_admin_premium_membership(
     v_config.member_id, v_membership.updated_at, 'active',
     pg_catalog.now(), null,
-    array['expanded_recommendations','likes_received','advanced_member_search'],
+    array['expanded_recommendations','likes_received','received_likes','advanced_member_search'],
     'active indefinite full features', v_config.active_request_id
   );
   if not v_result.is_available or v_result.expires_at is not null
-     or pg_catalog.cardinality(v_result.feature_keys) <> 3
+     or pg_catalog.cardinality(v_result.feature_keys) <> 4
      or v_result.action_type <> 'updated' then
     raise exception 'FAIL equality start or indefinite full-feature update';
   end if;
@@ -1167,13 +1251,14 @@ begin
 end;
 $$;
 
--- Existing member-facing functions still use the same three-feature membership.
+-- Existing member-facing functions use the same four-feature membership.
 select pg_temp._commatch_premium_it_set_user(member_id)
 from _commatch_premium_it_config;
 do $$
 declare v_access record;
 begin
   if not public.has_premium_feature('likes_received')
+     or not public.has_premium_feature('received_likes')
      or not public.has_premium_feature('advanced_member_search')
      or not public.has_premium_feature('expanded_recommendations')
      or public.has_premium_feature('priority_recommendation') then
@@ -1181,7 +1266,7 @@ begin
   end if;
   select * into v_access from public.get_my_premium_access();
   if not v_access.membership_exists or not v_access.is_available
-     or pg_catalog.cardinality(v_access.feature_keys) <> 3 then
+     or pg_catalog.cardinality(v_access.feature_keys) <> 4 then
     raise exception 'FAIL existing access snapshot regression';
   end if;
   raise notice 'PASS existing member Premium functions and priority separation';
@@ -1337,31 +1422,57 @@ declare
   v_config _commatch_premium_it_config%rowtype;
   v_access record;
   v_result record;
+  v_admin_marker text;
+  v_expected_permissions text[];
 begin
   select * into v_config from _commatch_premium_it_config;
   select * into v_access from public.get_my_admin_access();
+  v_admin_marker := pg_catalog.obj_description(
+    'public.get_my_admin_access()'::pg_catalog.regprocedure,
+    'pg_proc'
+  );
+  v_expected_permissions := array[
+    'admin_dashboard_view',
+    'reports_view',
+    'reports_manage',
+    'admin_accounts_manage',
+    'member_restrictions_view',
+    'member_restrictions_manage',
+    'premium_memberships_view',
+    'premium_memberships_manage'
+  ]::text[]
+  || case when v_admin_marker in ('commatch_notices_v1', 'commatch_support_inquiries_v1')
+       then array['notices_manage']::text[] else array[]::text[] end
+  || case when v_admin_marker = 'commatch_support_inquiries_v1'
+       then array['support_inquiries_view', 'support_inquiries_manage']::text[]
+       else array[]::text[] end;
   if not public.has_admin_permission('premium_memberships_view')
      or not public.has_admin_permission('premium_memberships_manage')
-     or v_access.permissions is distinct from array[
-       'admin_dashboard_view',
-       'reports_view',
-       'reports_manage',
-       'admin_accounts_manage',
-       'member_restrictions_view',
-       'member_restrictions_manage',
-       'premium_memberships_view',
-       'premium_memberships_manage'
-     ]::text[] then
+     or (
+       v_admin_marker in ('commatch_notices_v1', 'commatch_support_inquiries_v1')
+       and not public.has_admin_permission('notices_manage')
+     )
+     or (
+       v_admin_marker = 'commatch_support_inquiries_v1'
+       and (
+         not public.has_admin_permission('support_inquiries_view')
+         or not public.has_admin_permission('support_inquiries_manage')
+       )
+     )
+     or v_access.permissions is distinct from v_expected_permissions then
     raise exception 'FAIL super admin Premium permission matrix';
   end if;
   perform * from public.get_admin_premium_memberships(null, 'all', 10, 0, 'updated_at', 'desc');
   perform * from public.get_admin_premium_membership(v_config.second_member_id, 10);
   select * into v_result from public.update_admin_premium_membership(
     v_config.second_member_id, null, 'active', pg_catalog.now(), null,
-    array['likes_received'], 'super admin grant', v_config.super_grant_request_id
+    array['received_likes'], 'super admin grant', v_config.super_grant_request_id
   );
-  if v_result.action_type <> 'granted' then raise exception 'FAIL super admin grant'; end if;
-  raise notice 'PASS super admin view/manage and grant';
+  if v_result.action_type <> 'granted'
+     or v_result.feature_keys <> array['received_likes']::text[] then
+    raise exception 'FAIL super admin received_likes-only grant';
+  end if;
+  raise notice 'PASS super admin view/manage and received_likes-only grant';
 end;
 $$;
 reset role;
@@ -1484,6 +1595,9 @@ begin
   select * into v_access from public.get_my_admin_access();
   if not public.has_admin_permission('premium_memberships_view')
      or public.has_admin_permission('premium_memberships_manage')
+     or public.has_admin_permission('notices_manage')
+     or public.has_admin_permission('support_inquiries_view')
+     or public.has_admin_permission('support_inquiries_manage')
      or v_access.permissions is distinct from array[
        'admin_dashboard_view',
        'reports_view',

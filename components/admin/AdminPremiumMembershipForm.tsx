@@ -136,7 +136,7 @@ export default function AdminPremiumMembershipForm({
         return;
       }
     }
-    if (featureKeys.length < 1 || featureKeys.length > 3) {
+    if (featureKeys.length < 1 || featureKeys.length > 4) {
       setClientError('Premium 기능을 1개 이상 선택해 주세요.');
       return;
     }
@@ -249,7 +249,7 @@ export default function AdminPremiumMembershipForm({
       <fieldset disabled={pending}>
         <legend className="text-sm font-semibold text-gray-800">기능 권한</legend>
         <p className="mt-1 text-xs text-gray-500">최소 1개를 선택해 주세요.</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {PREMIUM_FEATURE_KEYS.map((featureKey) => (
             <label key={featureKey} className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800">
               <input

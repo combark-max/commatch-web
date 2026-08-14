@@ -1,16 +1,28 @@
 -- ComMatch administrator Premium membership management foundation.
 --
--- Prerequisites are admin-accounts.sql and premium-memberships.sql. The member
--- restriction SQL may run before or after this file; all three administrator
--- SQL files define the same final permission matrix and accept each other's
--- approved function markers. This file creates no Premium membership rows.
+-- Prerequisites are admin-accounts.sql and premium-memberships.sql. Shared
+-- administrator permission functions may have been extended by member
+-- restrictions, notices, or support inquiries; this file validates but never
+-- replaces that shared contract. Do not reapply an older permission-defining
+-- migration after a newer extension.
+-- This file creates no Premium membership rows.
 
 begin;
 
 do $preflight$
 declare
   v_marker constant text := 'commatch_admin_premium_memberships_v1';
+  v_approved_admin_markers constant text[] := array[
+    'commatch_admin_accounts_v1',
+    'commatch_admin_member_restrictions_v1',
+    'commatch_admin_premium_memberships_v1',
+    'commatch_notices_v1',
+    'commatch_support_inquiries_v1'
+  ]::text[];
   v_admin_marker text;
+  v_access_definition text;
+  v_permission_definition text;
+  v_permission_key text;
   v_function record;
 begin
   if pg_catalog.to_regclass('auth.users') is null
@@ -45,15 +57,80 @@ begin
     'pg_proc'
   ) into v_admin_marker;
 
-  if v_admin_marker is null or v_admin_marker not in (
-    'commatch_admin_accounts_v1',
-    'commatch_admin_member_restrictions_v1',
-    v_marker
-  ) or pg_catalog.obj_description(
+  if v_admin_marker is null
+     or not v_admin_marker = any(v_approved_admin_markers)
+     or pg_catalog.obj_description(
     'public.has_admin_permission(text)'::pg_catalog.regprocedure,
     'pg_proc'
   ) is distinct from v_admin_marker then
     raise exception 'Administrator permission functions have an unapproved definition marker';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_catalog.pg_proc as function_info
+    join pg_catalog.pg_language as language_info
+      on language_info.oid = function_info.prolang
+    join pg_catalog.pg_roles as owner_role
+      on owner_role.oid = function_info.proowner
+    where function_info.oid in (
+        'public.get_my_admin_access()'::pg_catalog.regprocedure,
+        'public.has_admin_permission(text)'::pg_catalog.regprocedure
+      )
+      and owner_role.rolname = 'postgres'
+      and language_info.lanname = 'sql'
+      and function_info.prosecdef
+      and function_info.provolatile = 's'
+      and exists (
+        select 1
+        from pg_catalog.unnest(function_info.proconfig) as function_config(setting)
+        where function_config.setting = 'search_path=""'
+      )
+    group by owner_role.rolname
+    having pg_catalog.count(*) = 2
+  ) then
+    raise exception 'Administrator permission function security contracts are incompatible';
+  end if;
+
+  v_access_definition := pg_catalog.pg_get_functiondef(
+    'public.get_my_admin_access()'::pg_catalog.regprocedure
+  );
+  v_permission_definition := pg_catalog.pg_get_functiondef(
+    'public.has_admin_permission(text)'::pg_catalog.regprocedure
+  );
+
+  foreach v_permission_key in array array[
+    'premium_memberships_view',
+    'premium_memberships_manage'
+  ]::text[]
+  loop
+    if pg_catalog.strpos(v_access_definition, pg_catalog.quote_literal(v_permission_key)) = 0
+       or pg_catalog.strpos(v_permission_definition, pg_catalog.quote_literal(v_permission_key)) = 0 then
+      raise exception 'Administrator permission functions do not support required Premium permission %',
+        v_permission_key;
+    end if;
+  end loop;
+
+  if v_admin_marker in ('commatch_notices_v1', 'commatch_support_inquiries_v1')
+     and (
+       pg_catalog.strpos(v_access_definition, '''notices_manage''') = 0
+       or pg_catalog.strpos(v_permission_definition, '''notices_manage''') = 0
+     ) then
+    raise exception 'Administrator permission marker requires notices_manage support';
+  end if;
+
+  if v_admin_marker = 'commatch_support_inquiries_v1' then
+    foreach v_permission_key in array array[
+      'support_inquiries_view',
+      'support_inquiries_manage'
+    ]::text[]
+    loop
+      if pg_catalog.strpos(v_access_definition, pg_catalog.quote_literal(v_permission_key)) = 0
+         or pg_catalog.strpos(v_permission_definition, pg_catalog.quote_literal(v_permission_key)) = 0 then
+        raise exception 'Administrator permission marker requires support for %',
+          v_permission_key;
+      end if;
+    end loop;
   end if;
 
   if pg_catalog.to_regclass('public.premium_membership_actions') is not null
@@ -144,30 +221,34 @@ create table if not exists public.premium_membership_actions (
     check (
       previous_feature_keys is null
       or (
-        pg_catalog.cardinality(previous_feature_keys) between 1 and 3
+        pg_catalog.cardinality(previous_feature_keys) between 1 and 4
         and pg_catalog.array_position(previous_feature_keys, null) is null
         and previous_feature_keys <@ array[
           'likes_received',
+          'received_likes',
           'advanced_member_search',
           'expanded_recommendations'
         ]::text[]
         and pg_catalog.cardinality(previous_feature_keys) =
           (case when 'likes_received' = any(previous_feature_keys) then 1 else 0 end)
+          + (case when 'received_likes' = any(previous_feature_keys) then 1 else 0 end)
           + (case when 'advanced_member_search' = any(previous_feature_keys) then 1 else 0 end)
           + (case when 'expanded_recommendations' = any(previous_feature_keys) then 1 else 0 end)
       )
     ),
   constraint premium_membership_actions_new_feature_keys_check
     check (
-      pg_catalog.cardinality(new_feature_keys) between 1 and 3
+      pg_catalog.cardinality(new_feature_keys) between 1 and 4
       and pg_catalog.array_position(new_feature_keys, null) is null
       and new_feature_keys <@ array[
         'likes_received',
+        'received_likes',
         'advanced_member_search',
         'expanded_recommendations'
       ]::text[]
       and pg_catalog.cardinality(new_feature_keys) =
         (case when 'likes_received' = any(new_feature_keys) then 1 else 0 end)
+        + (case when 'received_likes' = any(new_feature_keys) then 1 else 0 end)
         + (case when 'advanced_member_search' = any(new_feature_keys) then 1 else 0 end)
         + (case when 'expanded_recommendations' = any(new_feature_keys) then 1 else 0 end)
     ),
@@ -207,15 +288,17 @@ create table if not exists public.premium_membership_request_receipts (
     check (expires_at is null or expires_at > started_at),
   constraint premium_membership_request_receipts_feature_keys_check
     check (
-      pg_catalog.cardinality(feature_keys) between 1 and 3
+      pg_catalog.cardinality(feature_keys) between 1 and 4
       and pg_catalog.array_position(feature_keys, null) is null
       and feature_keys <@ array[
         'likes_received',
+        'received_likes',
         'advanced_member_search',
         'expanded_recommendations'
       ]::text[]
       and pg_catalog.cardinality(feature_keys) =
         (case when 'likes_received' = any(feature_keys) then 1 else 0 end)
+        + (case when 'received_likes' = any(feature_keys) then 1 else 0 end)
         + (case when 'advanced_member_search' = any(feature_keys) then 1 else 0 end)
         + (case when 'expanded_recommendations' = any(feature_keys) then 1 else 0 end)
     ),
@@ -437,98 +520,9 @@ begin
 end;
 $receipt_table_validation$;
 
--- Extend the current permission matrix without changing any existing permission.
-create or replace function public.get_my_admin_access()
-returns table (
-  is_admin boolean,
-  role text,
-  status text,
-  permissions text[]
-)
-language sql
-stable
-security definer
-set search_path = ''
-as $function$
-  select
-    coalesce(admin_account.status = 'active', false) as is_admin,
-    admin_account.role,
-    admin_account.status,
-    case
-      when admin_account.status is distinct from 'active'
-        then array[]::text[]
-      when admin_account.role = 'super_admin'
-        then array[
-          'admin_dashboard_view',
-          'reports_view',
-          'reports_manage',
-          'admin_accounts_manage',
-          'member_restrictions_view',
-          'member_restrictions_manage',
-          'premium_memberships_view',
-          'premium_memberships_manage'
-        ]::text[]
-      when admin_account.role = 'admin'
-        then array[
-          'admin_dashboard_view',
-          'reports_view',
-          'reports_manage',
-          'member_restrictions_view',
-          'member_restrictions_manage',
-          'premium_memberships_view',
-          'premium_memberships_manage'
-        ]::text[]
-      when admin_account.role = 'moderator'
-        then array[
-          'admin_dashboard_view',
-          'reports_view',
-          'reports_manage',
-          'member_restrictions_view',
-          'premium_memberships_view'
-        ]::text[]
-      else array[]::text[]
-    end as permissions
-  from (select auth.uid() as user_id) as auth_context
-  left join public.admin_accounts as admin_account
-    on admin_account.user_id = auth_context.user_id
-$function$;
-
-comment on function public.get_my_admin_access()
-  is 'commatch_admin_premium_memberships_v1';
-
-create or replace function public.has_admin_permission(p_permission_key text)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $function$
-  select case
-    when p_permission_key is null
-      or p_permission_key = ''
-      or p_permission_key not in (
-        'admin_dashboard_view',
-        'reports_view',
-        'reports_manage',
-        'admin_accounts_manage',
-        'member_restrictions_view',
-        'member_restrictions_manage',
-        'premium_memberships_view',
-        'premium_memberships_manage'
-      )
-    then false
-    else coalesce(
-      (
-        select p_permission_key = any(admin_access.permissions)
-        from public.get_my_admin_access() as admin_access
-      ),
-      false
-    )
-  end;
-$function$;
-
-comment on function public.has_admin_permission(text)
-  is 'commatch_admin_premium_memberships_v1';
+-- The administrator permission functions are shared infrastructure owned by
+-- the latest administrator feature migration. Premium validates their minimum
+-- contract in preflight and must not replace their permission matrix or marker.
 
 create or replace function public.lock_premium_membership_write(p_user_id uuid)
 returns void
@@ -930,10 +924,11 @@ begin
   end if;
   if p_feature_keys is null
      or pg_catalog.cardinality(p_feature_keys) < 1
-     or pg_catalog.cardinality(p_feature_keys) > 3
+     or pg_catalog.cardinality(p_feature_keys) > 4
      or pg_catalog.array_position(p_feature_keys, null) is not null
      or not p_feature_keys <@ array[
        'likes_received',
+       'received_likes',
        'advanced_member_search',
        'expanded_recommendations'
      ]::text[] then
@@ -1198,8 +1193,6 @@ comment on function public.update_admin_premium_membership(
   uuid, timestamptz, text, timestamptz, timestamptz, text[], text, uuid
 ) is 'commatch_admin_premium_memberships_v1';
 
-alter function public.get_my_admin_access() owner to postgres;
-alter function public.has_admin_permission(text) owner to postgres;
 alter function public.lock_premium_membership_write(uuid) owner to postgres;
 alter function public.get_admin_premium_memberships(text, text, integer, integer, text, text)
   owner to postgres;
@@ -1224,10 +1217,6 @@ grant select, insert, update, delete on table public.premium_membership_actions
 grant select, insert, update, delete on table public.premium_membership_request_receipts
   to service_role;
 
-revoke all on function public.get_my_admin_access()
-  from public, anon, authenticated, service_role;
-revoke all on function public.has_admin_permission(text)
-  from public, anon, authenticated, service_role;
 revoke all on function public.lock_premium_membership_write(uuid)
   from public, anon, authenticated, service_role;
 revoke all on function public.get_admin_premium_memberships(text, text, integer, integer, text, text)
@@ -1238,8 +1227,6 @@ revoke all on function public.update_admin_premium_membership(
   uuid, timestamptz, text, timestamptz, timestamptz, text[], text, uuid
 ) from public, anon, authenticated, service_role;
 
-grant execute on function public.get_my_admin_access() to authenticated;
-grant execute on function public.has_admin_permission(text) to authenticated;
 grant execute on function public.get_admin_premium_memberships(
   text, text, integer, integer, text, text
 ) to authenticated;
@@ -1252,6 +1239,17 @@ grant execute on function public.update_admin_premium_membership(
 do $installation_validation$
 declare
   v_marker constant text := 'commatch_admin_premium_memberships_v1';
+  v_approved_admin_markers constant text[] := array[
+    'commatch_admin_accounts_v1',
+    'commatch_admin_member_restrictions_v1',
+    'commatch_admin_premium_memberships_v1',
+    'commatch_notices_v1',
+    'commatch_support_inquiries_v1'
+  ]::text[];
+  v_admin_marker text;
+  v_access_definition text;
+  v_permission_definition text;
+  v_permission_key text;
   v_function record;
   v_count integer := 0;
 begin
@@ -1347,6 +1345,90 @@ begin
     raise exception 'Premium changed-request receipts and actions are inconsistent';
   end if;
 
+  select pg_catalog.obj_description(
+    'public.get_my_admin_access()'::pg_catalog.regprocedure,
+    'pg_proc'
+  ) into v_admin_marker;
+
+  if v_admin_marker is null
+     or not v_admin_marker = any(v_approved_admin_markers)
+     or pg_catalog.obj_description(
+       'public.has_admin_permission(text)'::pg_catalog.regprocedure,
+       'pg_proc'
+     ) is distinct from v_admin_marker then
+    raise exception 'Administrator permission functions have an unapproved final marker';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_catalog.pg_proc as function_info
+    join pg_catalog.pg_language as language_info
+      on language_info.oid = function_info.prolang
+    join pg_catalog.pg_roles as owner_role
+      on owner_role.oid = function_info.proowner
+    where function_info.oid in (
+        'public.get_my_admin_access()'::pg_catalog.regprocedure,
+        'public.has_admin_permission(text)'::pg_catalog.regprocedure
+      )
+      and owner_role.rolname = 'postgres'
+      and language_info.lanname = 'sql'
+      and function_info.prosecdef
+      and function_info.provolatile = 's'
+      and exists (
+        select 1
+        from pg_catalog.unnest(function_info.proconfig) as function_config(setting)
+        where function_config.setting = 'search_path=""'
+      )
+      and not pg_catalog.has_function_privilege('public', function_info.oid, 'EXECUTE')
+      and not pg_catalog.has_function_privilege('anon', function_info.oid, 'EXECUTE')
+      and pg_catalog.has_function_privilege('authenticated', function_info.oid, 'EXECUTE')
+      and not pg_catalog.has_function_privilege('service_role', function_info.oid, 'EXECUTE')
+    group by owner_role.rolname
+    having pg_catalog.count(*) = 2
+  ) then
+    raise exception 'Administrator permission function final security contracts are incompatible';
+  end if;
+
+  v_access_definition := pg_catalog.pg_get_functiondef(
+    'public.get_my_admin_access()'::pg_catalog.regprocedure
+  );
+  v_permission_definition := pg_catalog.pg_get_functiondef(
+    'public.has_admin_permission(text)'::pg_catalog.regprocedure
+  );
+
+  foreach v_permission_key in array array[
+    'premium_memberships_view',
+    'premium_memberships_manage'
+  ]::text[]
+  loop
+    if pg_catalog.strpos(v_access_definition, pg_catalog.quote_literal(v_permission_key)) = 0
+       or pg_catalog.strpos(v_permission_definition, pg_catalog.quote_literal(v_permission_key)) = 0 then
+      raise exception 'Administrator permission functions lost required Premium permission %',
+        v_permission_key;
+    end if;
+  end loop;
+
+  if v_admin_marker in ('commatch_notices_v1', 'commatch_support_inquiries_v1')
+     and (
+       pg_catalog.strpos(v_access_definition, '''notices_manage''') = 0
+       or pg_catalog.strpos(v_permission_definition, '''notices_manage''') = 0
+     ) then
+    raise exception 'Administrator permission functions lost notices_manage';
+  end if;
+
+  if v_admin_marker = 'commatch_support_inquiries_v1' then
+    foreach v_permission_key in array array[
+      'support_inquiries_view',
+      'support_inquiries_manage'
+    ]::text[]
+    loop
+      if pg_catalog.strpos(v_access_definition, pg_catalog.quote_literal(v_permission_key)) = 0
+         or pg_catalog.strpos(v_permission_definition, pg_catalog.quote_literal(v_permission_key)) = 0 then
+        raise exception 'Administrator permission functions lost %', v_permission_key;
+      end if;
+    end loop;
+  end if;
+
   for v_function in
     select
       function_info.oid,
@@ -1360,8 +1442,6 @@ begin
       on namespace_info.oid = function_info.pronamespace
     where namespace_info.nspname = 'public'
       and function_info.proname in (
-        'get_my_admin_access',
-        'has_admin_permission',
         'lock_premium_membership_write',
         'get_admin_premium_memberships',
         'get_admin_premium_membership',
@@ -1394,7 +1474,7 @@ begin
     end if;
   end loop;
 
-  if v_count <> 6 then
+  if v_count <> 4 then
     raise exception 'Premium administrator function count differs from the approved definition';
   end if;
 
@@ -1422,3 +1502,6 @@ end;
 $installation_validation$;
 
 commit;
+
+select 'PASS administrator Premium membership installation and contract validation'
+  as migration_result;

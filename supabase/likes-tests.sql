@@ -114,6 +114,10 @@ begin
 end
 $reciprocal_like$;
 
+-- Cross-user storage assertions run as the SQL Editor owner. The sent-only
+-- likes SELECT policy intentionally exposes only one direction to each member.
+reset role;
+
 do $assertions$
 declare v_config _commatch_likes_it_config%rowtype;
 begin

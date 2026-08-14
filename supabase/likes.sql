@@ -38,10 +38,11 @@ create index if not exists likes_liked_user_created_at_idx
 alter table public.likes enable row level security;
 
 drop policy if exists "Users can read own sent or received likes" on public.likes;
-create policy "Users can read own sent or received likes"
+drop policy if exists "Users can read own sent likes" on public.likes;
+create policy "Users can read own sent likes"
   on public.likes for select
   to authenticated
-  using ((select auth.uid()) = user_id or (select auth.uid()) = liked_user_id);
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "Users can delete own likes" on public.likes;
 create policy "Users can delete own likes"
@@ -182,10 +183,9 @@ begin
       select 1 from public.likes as sent_like
       where sent_like.user_id = v_user_id and sent_like.liked_user_id = target_profile.id
     ),
-    exists (
-      select 1 from public.likes as received_like
-      where received_like.user_id = target_profile.id and received_like.liked_user_id = v_user_id
-    ),
+    -- Keep the legacy response shape without exposing received-like data.
+    -- received_likes is discoverable only through its Premium RPC.
+    false,
     existing_match.id,
     existing_match.status,
     existing_match.matched_at

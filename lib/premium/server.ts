@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export type PremiumFeatureKey =
   | 'likes_received'
+  | 'received_likes'
   | 'advanced_member_search'
   | 'expanded_recommendations';
 

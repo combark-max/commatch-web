@@ -93,15 +93,17 @@ create table if not exists public.premium_memberships (
     check (expires_at is null or expires_at > started_at),
   constraint premium_memberships_feature_keys_check
     check (
-      pg_catalog.cardinality(feature_keys) between 1 and 3
+      pg_catalog.cardinality(feature_keys) between 1 and 4
       and pg_catalog.array_position(feature_keys, null) is null
       and feature_keys <@ array[
         'likes_received',
+        'received_likes',
         'advanced_member_search',
         'expanded_recommendations'
       ]::text[]
       and pg_catalog.cardinality(feature_keys) =
         (case when 'likes_received' = any(feature_keys) then 1 else 0 end)
+        + (case when 'received_likes' = any(feature_keys) then 1 else 0 end)
         + (case when 'advanced_member_search' = any(feature_keys) then 1 else 0 end)
         + (case when 'expanded_recommendations' = any(feature_keys) then 1 else 0 end)
     )
@@ -350,6 +352,7 @@ begin
           when p_feature_key is null
             or p_feature_key not in (
               'likes_received',
+              'received_likes',
               'advanced_member_search',
               'expanded_recommendations'
             )
@@ -578,7 +581,7 @@ commit;
 --   granted_by, granted_reason, status_changed_by, status_reason
 -- ) values (
 --   :target_user_id, 'active', :started_at, :expires_at,
---   array['likes_received', 'advanced_member_search', 'expanded_recommendations'],
+--   array['likes_received', 'received_likes', 'advanced_member_search', 'expanded_recommendations'],
 --   null, :grant_reason, null, :status_reason
 -- );
 -- -- Verify exactly one target row, then commit. Otherwise rollback.

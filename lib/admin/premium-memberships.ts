@@ -25,6 +25,7 @@ export const PREMIUM_MEMBERSHIP_SORT_DIRECTIONS = ['asc', 'desc'] as const;
 
 export const PREMIUM_FEATURE_KEYS = [
   'likes_received',
+  'received_likes',
   'advanced_member_search',
   'expanded_recommendations',
 ] as const;
@@ -141,6 +142,7 @@ export type PremiumPeriodState =
 
 export const PREMIUM_FEATURE_LABELS: Record<PremiumFeatureKey, string> = {
   likes_received: '받은 관심 회원',
+  received_likes: '나에게 좋아요를 보낸 회원',
   advanced_member_search: '고급 회원 검색',
   expanded_recommendations: '추천 인원 확대',
 };
@@ -317,7 +319,7 @@ export const parsePremiumMembershipUpdateResult = (
     || !(entry.expires_at === null || isTimestamptzString(entry.expires_at))
     || featureKeys === null
     || featureKeys.length < 1
-    || featureKeys.length > 3
+    || featureKeys.length > 4
     || !isTimestamptzString(entry.membership_updated_at)
     || actionId === undefined
     || actionType === undefined
@@ -371,7 +373,7 @@ const parsePremiumMembershipActions = (
       || previousFeatureKeys === null && entry.previous_feature_keys !== null
       || newFeatureKeys === null
       || newFeatureKeys.length < 1
-      || newFeatureKeys.length > 3
+      || newFeatureKeys.length > 4
       || typeof entry.reason !== 'string'
       || entry.reason.trim() !== entry.reason
       || entry.reason.length < 1
@@ -391,7 +393,7 @@ const parsePremiumMembershipActions = (
           || !isDateString(entry.previous_started_at)
           || previousFeatureKeys === null
           || previousFeatureKeys.length < 1
-          || previousFeatureKeys.length > 3
+          || previousFeatureKeys.length > 4
     ) return null;
 
     actions.push({
@@ -448,7 +450,7 @@ export const parseAdminPremiumMembershipDetail = (
         || !isPremiumMembershipStatus(entry.stored_status)
         || !isDateString(entry.started_at)
         || featureKeys.length < 1
-        || featureKeys.length > 3
+        || featureKeys.length > 4
         || !isDateString(entry.membership_updated_at)
       : entry.membership_id !== null
         || entry.stored_status !== null
@@ -516,7 +518,7 @@ export const parseAdminPremiumMembershipList = (
           || !isPremiumMembershipStatus(entry.stored_status)
           || !isDateString(entry.started_at)
           || featureKeys.length < 1
-          || featureKeys.length > 3
+          || featureKeys.length > 4
           || !isDateString(entry.membership_updated_at)
         : entry.membership_id !== null
           || entry.stored_status !== null

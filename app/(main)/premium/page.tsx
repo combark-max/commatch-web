@@ -34,11 +34,18 @@ const premiumBenefits = [
     href: '/ai-match?analysis=1',
   },
   {
-    title: '나에게 관심을 보낸 회원 확인',
-    description: '나를 관심회원으로 등록한 회원을 확인하고 서로의 관심을 더 빠르게 연결해 보세요.',
+    title: '받은 관심',
+    description: '나를 관심목록에 저장한 회원을 확인할 수 있습니다. 관심목록 저장은 좋아요와 다른 기능입니다.',
     status: '테스트 제공 중',
     icon: Heart,
     href: '/premium/likes-received?advanced=1',
+  },
+  {
+    title: '나에게 좋아요를 보낸 회원 확인',
+    description: '나에게 실제 좋아요를 보낸 회원을 확인하고, 마음에 들면 좋아요로 답해 매칭으로 이어갈 수 있습니다.',
+    status: '테스트 제공 중',
+    icon: Heart,
+    href: '/premium/received-likes',
   },
   {
     title: '고급 회원 검색',

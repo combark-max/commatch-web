@@ -163,9 +163,9 @@ function getRelationshipStatus(favorite: ReceivedFavorite) {
     return { label: '매칭 종료', className: 'bg-gray-100 text-gray-600' };
   }
   if (favorite.isMutual) {
-    return { label: '서로 관심', className: 'bg-amber-50 text-[#806B26]' };
+    return { label: '서로 관심목록에 저장', className: 'bg-amber-50 text-[#806B26]' };
   }
-  return { label: '나에게 관심', className: 'bg-green-50 text-green-700' };
+  return { label: '나를 관심목록에 저장', className: 'bg-green-50 text-green-700' };
 }
 
 export default function LikesReceivedPage() {
@@ -336,13 +336,13 @@ export default function LikesReceivedPage() {
         <header className="mt-6 rounded-[2rem] border border-green-100 bg-white p-7 shadow-sm sm:p-9">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">나에게 관심을 보낸 회원</h1>
+              <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">나를 관심목록에 저장한 회원</h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-gray-600 sm:text-base">
-                Premium 기능 도입에 앞서 받은 관심 목록을 테스트 형태로 제공하고 있습니다. 현재는 별도의 Premium 등급이나 결제 없이 로그인 회원이 이용할 수 있습니다.
+                나를 관심목록에 저장한 회원을 확인하는 Premium 기능입니다. 관심목록 저장은 좋아요와 다르며, 서로 저장해도 매칭이 생성되지는 않습니다.
               </p>
             </div>
             <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-[#806B26]">
-              Premium 도입 전 테스트 제공
+              Premium 기능
             </span>
           </div>
         </header>
@@ -366,8 +366,8 @@ export default function LikesReceivedPage() {
                     className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
                   >
                     <option value="all">전체</option>
-                    <option value="mutual">서로 관심</option>
-                    <option value="not-mutual">아직 상호 관심 아님</option>
+                    <option value="mutual">서로 관심목록에 저장</option>
+                    <option value="not-mutual">나만 아직 저장하지 않음</option>
                     <option value="active-match">진행 중인 매칭</option>
                     <option value="ended-match">종료된 매칭</option>
                   </select>
@@ -398,7 +398,7 @@ export default function LikesReceivedPage() {
         {favorites.length === 0 ? (
           <section className="mt-8 rounded-[2rem] border border-gray-100 bg-white p-10 text-center shadow-sm sm:p-16">
             <Heart className="mx-auto h-12 w-12 text-gray-300" />
-            <h2 className="mt-5 text-xl font-bold text-gray-800">아직 나에게 관심을 보낸 회원이 없습니다.</h2>
+            <h2 className="mt-5 text-xl font-bold text-gray-800">아직 나를 관심목록에 저장한 회원이 없습니다.</h2>
             <p className="mt-2 text-sm leading-6 text-gray-500">
               프로필을 충실하게 작성하고 회원 활동을 이어가면 새로운 관심을 받을 수 있습니다.
             </p>
@@ -410,7 +410,7 @@ export default function LikesReceivedPage() {
             <p className="mt-2 text-sm leading-6 text-gray-500">다른 보기 조건을 선택해 보세요.</p>
           </section>
         ) : (
-          <section className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3" aria-label="나에게 관심을 보낸 회원 목록">
+          <section className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3" aria-label="나를 관심목록에 저장한 회원 목록">
             {visibleFavorites.map((favorite) => {
               const age = calculateAge(favorite.birthDate);
               const relationship = getRelationshipStatus(favorite);
@@ -465,7 +465,7 @@ export default function LikesReceivedPage() {
                         </p>
                         <p className="flex items-center gap-2">
                           <CalendarDays size={15} className="text-gray-400" />
-                          {receivedAtFormatter.format(new Date(favorite.createdAt))} 관심을 보냄
+                          {receivedAtFormatter.format(new Date(favorite.createdAt))} 관심목록에 저장
                         </p>
                       </div>
 
@@ -483,5 +483,4 @@ export default function LikesReceivedPage() {
     </div>
   );
 }
-
 

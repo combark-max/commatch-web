@@ -21,17 +21,17 @@ import { createClient } from '@/lib/supabase/client';
 const premiumBenefits = [
   {
     title: '추천 인원 확대',
-    description: '기본 추천보다 더 많은 회원을 확인하고 다양한 인연을 탐색할 수 있습니다.',
+    description: '일반 추천 최대 10명에서 Premium 최대 20명까지 더 많은 회원을 확인할 수 있습니다.',
     status: '테스트 제공 중',
     icon: Users,
-    href: '/ai-match?expanded=1&analysis=1',
+    href: '/ai-match?expanded=1',
   },
   {
     title: 'AI 추천 분석',
-    description: '프로필과 이상형 조건을 비교하여 잘 맞는 조건과 직접 확인할 내용을 보여드립니다.',
+    description: '추천 상대와의 조건 일치, 공통점, 차이점 등을 상세하게 확인할 수 있습니다.',
     status: '테스트 제공 중',
     icon: BrainCircuit,
-    href: '/ai-match?analysis=1',
+    href: '/ai-match?expanded=1',
   },
   {
     title: '받은 관심',

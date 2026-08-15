@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { STANDARD_JOB_VALUES } from '@/constants/jobs';
+import {
+  BASE_RECOMMENDATION_LIMIT,
+  parseRecommendationApiSearchParams,
+  PREMIUM_RECOMMENDATION_LIMIT,
+  type BaseRecommendedMember,
+  type PreferenceMatchResult,
+  type PremiumRecommendedMember,
+  type RecommendationApiResponse,
+} from '@/lib/ai-match/recommendation-contract';
 import { getPremiumFeatureAccess } from '@/lib/premium/server';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -34,54 +43,6 @@ type Preference = {
   preferred_job: string | null;
 };
 
-type PreferenceMatchStatus = 'match' | 'mismatch' | 'preference-missing' | 'member-missing';
-
-type PreferenceMatchResult = {
-  label: '희망 연령' | '희망 키' | '선호 지역' | '선호 직업';
-  status: PreferenceMatchStatus;
-  detail: string;
-};
-
-type RecommendedMember = {
-  id: string;
-  nickname: string | null;
-  birth_date: string | null;
-  gender: string | null;
-  height: number | null;
-  region: string | null;
-  job: string | null;
-  introduction: string | null;
-  profile_image: string | null;
-  age: number | null;
-  score: number;
-  reasons: string[];
-  preferenceMatches: PreferenceMatchResult[];
-  preferenceMatchRate: number | null;
-  matchedPreferenceCount: number;
-  enteredPreferenceCount: number;
-  commonPoints: string[];
-  recommendationReason: string | null;
-  considerations: string[];
-  dataNote?: string;
-  completeness: number;
-};
-
-type SetupTarget = 'profile' | 'profile-incomplete' | 'preference';
-
-type RecommendationResponse = {
-  status: 'ready';
-  currentUserId: string;
-  hasEnteredPreference: boolean;
-  recommendations: RecommendedMember[];
-} | {
-  status: 'setup';
-  currentUserId: string;
-  hasEnteredPreference: boolean;
-  setupTarget: SetupTarget;
-};
-
-const DEFAULT_RECOMMENDATION_LIMIT = 10;
-const EXPANDED_RECOMMENDATION_LIMIT = 20;
 const NO_STORE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' };
 
 const UNAVAILABLE_COMPARISON_VALUES = new Set([
@@ -317,18 +278,16 @@ const getAdvancedRecommendationAnalysis = (
   };
 };
 
-const jsonResponse = (body: RecommendationResponse | { error: string }, status = 200) => (
+const jsonResponse = (body: RecommendationApiResponse | { error: string }, status = 200) => (
   NextResponse.json(body, { status, headers: NO_STORE_HEADERS })
 );
 
 export async function GET(request: NextRequest) {
-  const expandedValues = request.nextUrl.searchParams.getAll('expanded');
-
-  if (expandedValues.length > 1 || (expandedValues.length === 1 && expandedValues[0] !== '1')) {
+  const recommendationRequest = parseRecommendationApiSearchParams(request.nextUrl.searchParams);
+  if (!recommendationRequest) {
     return jsonResponse({ error: 'Invalid request.' }, 400);
   }
-
-  const expandedRequested = expandedValues.length === 1;
+  const { expandedRequested, mode } = recommendationRequest;
 
   try {
     const supabase = await createServerSupabaseClient();
@@ -397,6 +356,7 @@ export async function GET(request: NextRequest) {
     if (!currentProfile?.gender || !['남성', '여성'].includes(currentProfile.gender)) {
       return jsonResponse({
         status: 'setup',
+        mode,
         currentUserId: user.id,
         hasEnteredPreference,
         setupTarget: 'profile',
@@ -406,6 +366,7 @@ export async function GET(request: NextRequest) {
     if (calculateProfileCompleteness(currentProfile) < 80) {
       return jsonResponse({
         status: 'setup',
+        mode,
         currentUserId: user.id,
         hasEnteredPreference,
         setupTarget: 'profile-incomplete',
@@ -415,6 +376,7 @@ export async function GET(request: NextRequest) {
     if (!preference) {
       return jsonResponse({
         status: 'setup',
+        mode,
         currentUserId: user.id,
         hasEnteredPreference,
         setupTarget: 'preference',
@@ -426,9 +388,9 @@ export async function GET(request: NextRequest) {
     if (membersError) throw membersError;
 
     const recommendationLimit = expandedRequested
-      ? EXPANDED_RECOMMENDATION_LIMIT
-      : DEFAULT_RECOMMENDATION_LIMIT;
-    const recommendations: RecommendedMember[] = ((data as Profile[]) ?? [])
+      ? PREMIUM_RECOMMENDATION_LIMIT
+      : BASE_RECOMMENDATION_LIMIT;
+    const selectedCandidates = ((data as Profile[]) ?? [])
       .map((member) => {
         const age = calculateAge(member.birth_date);
         let score = 0;
@@ -454,20 +416,12 @@ export async function GET(request: NextRequest) {
         }
 
         const reasons = getRecommendationReasons(member, preference, age);
-        const analysis = getAdvancedRecommendationAnalysis(
-          currentProfile,
-          member,
-          preference,
-          age,
-        );
-
         return {
           ...member,
           age,
           score,
           isPriorityRecommendation: member.is_priority_recommendation === true,
           reasons,
-          ...analysis,
           completeness: calculateProfileCompleteness(member),
           profile_image: resolveProfileImageUrl(member.profile_image),
         };
@@ -478,33 +432,44 @@ export async function GET(request: NextRequest) {
         || Number(b.isPriorityRecommendation) - Number(a.isPriorityRecommendation)
         || a.id.localeCompare(b.id)
       ))
-      .slice(0, recommendationLimit)
-      .map((member) => ({
-        id: member.id,
-        nickname: member.nickname,
-        birth_date: member.birth_date,
-        gender: member.gender,
-        height: member.height,
-        region: member.region,
-        job: member.job,
-        introduction: member.introduction,
-        profile_image: member.profile_image,
-        age: member.age,
-        score: member.score,
-        reasons: member.reasons,
-        preferenceMatches: member.preferenceMatches,
-        preferenceMatchRate: member.preferenceMatchRate,
-        matchedPreferenceCount: member.matchedPreferenceCount,
-        enteredPreferenceCount: member.enteredPreferenceCount,
-        commonPoints: member.commonPoints,
-        recommendationReason: member.recommendationReason,
-        considerations: member.considerations,
-        dataNote: member.dataNote,
-        completeness: member.completeness,
+      .slice(0, recommendationLimit);
+
+    const toBaseRecommendation = (member: typeof selectedCandidates[number]): BaseRecommendedMember => ({
+      id: member.id,
+      nickname: member.nickname,
+      birth_date: member.birth_date,
+      gender: member.gender,
+      height: member.height,
+      region: member.region,
+      job: member.job,
+      introduction: member.introduction,
+      profile_image: member.profile_image,
+      age: member.age,
+      score: member.score,
+      reasons: member.reasons,
+      completeness: member.completeness,
+    });
+
+    if (expandedRequested) {
+      const recommendations: PremiumRecommendedMember[] = selectedCandidates.map((member) => ({
+        ...toBaseRecommendation(member),
+        ...getAdvancedRecommendationAnalysis(currentProfile, member, preference, member.age),
       }));
+
+      return jsonResponse({
+        status: 'ready',
+        mode: 'premium-expanded',
+        currentUserId: user.id,
+        hasEnteredPreference,
+        recommendations,
+      });
+    }
+
+    const recommendations = selectedCandidates.map(toBaseRecommendation);
 
     return jsonResponse({
       status: 'ready',
+      mode: 'base',
       currentUserId: user.id,
       hasEnteredPreference,
       recommendations,

@@ -15,71 +15,32 @@ import {
   User,
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import {
+  getRecommendationApiUrlForPage,
+  parseRecommendationApiResponse,
+  type BaseRecommendedMember,
+  type PremiumRecommendedMember,
+} from '@/lib/ai-match/recommendation-contract';
 import { createClient } from '@/lib/supabase/client';
 
-type Profile = {
-  id: string;
-  nickname: string | null;
-  birth_date: string | null;
-  gender: string | null;
-  height: number | null;
-  region: string | null;
-  job: string | null;
-  introduction: string | null;
-  profile_image: string | null;
-};
-
-type PreferenceMatchStatus = 'match' | 'mismatch' | 'preference-missing' | 'member-missing';
-
-type PreferenceMatchResult = {
-  label: '희망 연령' | '희망 키' | '선호 지역' | '선호 직업';
-  status: PreferenceMatchStatus;
-  detail: string;
-};
-
-type RecommendedMember = Profile & {
-  age: number | null;
-  score: number;
-  reasons: string[];
-  preferenceMatches: PreferenceMatchResult[];
-  preferenceMatchRate: number | null;
-  matchedPreferenceCount: number;
-  enteredPreferenceCount: number;
-  commonPoints: string[];
-  recommendationReason: string | null;
-  considerations: string[];
-  dataNote?: string;
-  completeness: number;
-};
+type RecommendedMember = BaseRecommendedMember | PremiumRecommendedMember;
 
 type SetupTarget = 'profile' | 'profile-incomplete' | 'preference' | null;
 type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
 
-type RecommendationApiResponse = {
-  status: 'ready';
-  currentUserId: string;
-  hasEnteredPreference: boolean;
-  recommendations: RecommendedMember[];
-} | {
-  status: 'setup';
-  currentUserId: string;
-  hasEnteredPreference: boolean;
-  setupTarget: Exclude<SetupTarget, null>;
-};
-
-const PREFERENCE_STATUS_LABELS: Record<PreferenceMatchStatus, string> = {
+const PREFERENCE_STATUS_LABELS = {
   match: '일치',
   mismatch: '조건과 다름',
   'preference-missing': '선호조건 미입력',
   'member-missing': '상대방 정보 부족',
-};
+} as const;
 
-const PREFERENCE_STATUS_CLASSES: Record<PreferenceMatchStatus, string> = {
+const PREFERENCE_STATUS_CLASSES = {
   match: 'bg-green-100 text-green-700',
   mismatch: 'bg-amber-100 text-amber-700',
   'preference-missing': 'bg-gray-100 text-gray-500',
   'member-missing': 'bg-gray-100 text-gray-500',
-};
+} as const;
 
 export default function AiMatchPage() {
   const router = useRouter();
@@ -95,7 +56,6 @@ export default function AiMatchPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [isExpandedMode, setIsExpandedMode] = useState(false);
-  const [isAnalysisMode, setIsAnalysisMode] = useState(false);
   const [hasEnteredPreference, setHasEnteredPreference] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
@@ -105,21 +65,21 @@ export default function AiMatchPage() {
 
     const loadRecommendations = async () => {
       const searchParams = new URLSearchParams(window.location.search);
-      const expandedValues = searchParams.getAll('expanded');
-      const expandedMode = expandedValues.length === 1 && expandedValues[0] === '1';
-      const analysisMode = searchParams.get('analysis') === '1';
-      const apiSearchParams = new URLSearchParams();
-      expandedValues.forEach((value) => apiSearchParams.append('expanded', value));
-      const recommendationApiUrl = apiSearchParams.size > 0
-        ? `/api/ai-match/recommendations?${apiSearchParams.toString()}`
-        : '/api/ai-match/recommendations';
+      const recommendationApiUrl = getRecommendationApiUrlForPage(searchParams);
+
+      if (searchParams.has('analysis')) {
+        searchParams.delete('analysis');
+        const normalizedUrl = searchParams.size > 0
+          ? `/ai-match?${searchParams.toString()}`
+          : '/ai-match';
+        window.history.replaceState(null, '', normalizedUrl);
+      }
 
       setIsLoading(true);
       setError(null);
       setNotice(null);
       setCurrentIndex(0);
-      setIsExpandedMode(expandedMode);
-      setIsAnalysisMode(analysisMode);
+      setIsExpandedMode(false);
       setHasEnteredPreference(false);
 
       try {
@@ -145,21 +105,15 @@ export default function AiMatchPage() {
         }
 
         const payload: unknown = await response.json();
-
-        if (!payload || typeof payload !== 'object' || !('status' in payload)) {
-          throw new Error('Recommendation response has an invalid format');
-        }
-
-        const apiResult = payload as RecommendationApiResponse;
-
-        if (typeof apiResult.currentUserId !== 'string'
-          || typeof apiResult.hasEnteredPreference !== 'boolean') {
+        const apiResult = parseRecommendationApiResponse(payload);
+        if (!apiResult) {
           throw new Error('Recommendation response has an invalid format');
         }
 
         if (isMounted) {
           setCurrentUserId(apiResult.currentUserId);
           setHasEnteredPreference(apiResult.hasEnteredPreference);
+          setIsExpandedMode(apiResult.mode === 'premium-expanded');
         }
 
         if (apiResult.status === 'setup') {
@@ -168,10 +122,6 @@ export default function AiMatchPage() {
             setSetupTarget(apiResult.setupTarget);
           }
           return;
-        }
-
-        if (apiResult.status !== 'ready' || !Array.isArray(apiResult.recommendations)) {
-          throw new Error('Recommendation response has an invalid format');
         }
 
         const scoredMembers = apiResult.recommendations;
@@ -238,6 +188,11 @@ export default function AiMatchPage() {
   }, [retryKey, router, supabase]);
 
   const currentMember = recommendations[currentIndex];
+  const currentPremiumMember = isExpandedMode
+    && currentMember
+    && 'preferenceMatches' in currentMember
+    ? currentMember
+    : null;
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex < recommendations.length - 1;
 
@@ -357,9 +312,9 @@ export default function AiMatchPage() {
           </section>
         ) : null}
 
-        {isAnalysisMode ? (
-          <section className="mb-5 rounded-2xl border border-green-100 bg-green-50 p-5" aria-label="AI 추천 분석 테스트 안내">
-            <p className="font-bold text-green-800">Premium 도입 전 테스트 제공 기능입니다.</p>
+        {isExpandedMode ? (
+          <section className="mb-5 rounded-2xl border border-green-100 bg-green-50 p-5" aria-label="Premium AI 추천 분석 안내">
+            <p className="font-bold text-green-800">Premium 상세 추천 분석</p>
             <p className="mt-2 text-sm leading-6 text-gray-700">
               입력된 프로필과 이상형 조건을 기준으로 잘 맞는 점과 확인할 점을 분석합니다.
             </p>
@@ -414,11 +369,11 @@ export default function AiMatchPage() {
           <div className="rounded-[2rem] border border-gray-100 bg-white p-8 text-center shadow-sm sm:p-12">
             <User className="mx-auto mb-4 h-12 w-12 text-gray-300" />
             <h2 className="text-xl font-bold text-gray-900">
-              {isAnalysisMode && !hasEnteredPreference
+              {isExpandedMode && !hasEnteredPreference
                 ? '선호조건을 입력하면 일치 결과를 확인할 수 있습니다.'
                 : '현재 조건에 맞는 추천 회원을 준비 중입니다.'}
             </h2>
-            {isAnalysisMode && !hasEnteredPreference ? (
+            {isExpandedMode && !hasEnteredPreference ? (
               <p className="mt-3 text-sm leading-6 text-gray-500">
                 희망 연령, 희망 키, 선호 지역, 선호 직업 중 한 가지 이상을 설정해 주세요.
               </p>
@@ -484,18 +439,18 @@ export default function AiMatchPage() {
                 </div>
 
                 <section className="mt-6 rounded-2xl border border-green-100 bg-green-50 p-5">
-                  {isAnalysisMode ? (
+                  {currentPremiumMember ? (
                     <>
                       <h3 className="flex items-center gap-2 text-base font-bold text-green-900">
                         <Sparkles size={18} /> 맞춤 분석 요약
                       </h3>
-                      {currentMember.preferenceMatchRate !== null ? (
+                      {currentPremiumMember.preferenceMatchRate !== null ? (
                         <div className="mt-4 rounded-xl border border-green-200 bg-white/80 p-4">
                           <p className="text-sm font-black text-green-800">
-                            선호조건 일치율 {currentMember.preferenceMatchRate}%
+                            선호조건 일치율 {currentPremiumMember.preferenceMatchRate}%
                           </p>
                           <p className="mt-1 text-xs text-gray-600">
-                            입력한 선호조건 {currentMember.enteredPreferenceCount}개 중 {currentMember.matchedPreferenceCount}개 일치
+                            입력한 선호조건 {currentPremiumMember.enteredPreferenceCount}개 중 {currentPremiumMember.matchedPreferenceCount}개 일치
                           </p>
                         </div>
                       ) : (
@@ -511,7 +466,7 @@ export default function AiMatchPage() {
 
                       <h4 className="mt-5 text-sm font-bold text-green-800">선호조건 비교</h4>
                       <div className="mt-3 grid gap-2">
-                        {currentMember.preferenceMatches.map((result) => (
+                        {currentPremiumMember.preferenceMatches.map((result) => (
                           <div key={result.label} className="rounded-xl border border-green-100 bg-white/80 p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <span className="text-sm font-bold text-gray-800">{result.label}</span>
@@ -527,16 +482,16 @@ export default function AiMatchPage() {
                       <div className="mt-5 border-t border-green-200 pt-4">
                         <h4 className="text-sm font-bold text-gray-800">추천 이유</h4>
                         <p className="mt-2 text-sm font-medium leading-6 text-gray-700">
-                          {currentMember.recommendationReason
+                          {currentPremiumMember.recommendationReason
                             ?? '현재 표시할 수 있는 일치 조건으로는 추천 이유 문장을 생성할 수 없습니다.'}
                         </p>
                       </div>
 
                       <div className="mt-5 border-t border-green-200 pt-4">
                         <h4 className="text-sm font-bold text-gray-800">공통점</h4>
-                        {currentMember.commonPoints.length > 0 ? (
+                        {currentPremiumMember.commonPoints.length > 0 ? (
                           <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
-                            {currentMember.commonPoints.map((commonPoint) => (
+                            {currentPremiumMember.commonPoints.map((commonPoint) => (
                               <li key={commonPoint} className="flex items-start gap-2">
                                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#16a34a]" />
                                 {commonPoint}
@@ -550,11 +505,11 @@ export default function AiMatchPage() {
                         )}
                       </div>
 
-                      {currentMember.considerations.length > 0 ? (
+                      {currentPremiumMember.considerations.length > 0 ? (
                         <div className="mt-5 border-t border-green-200 pt-4">
                           <h4 className="text-sm font-bold text-gray-800">확인할 점</h4>
                           <ul className="mt-3 space-y-2 text-sm font-medium text-gray-700">
-                            {currentMember.considerations.map((consideration) => (
+                            {currentPremiumMember.considerations.map((consideration) => (
                               <li key={consideration} className="flex items-start gap-2">
                                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
                                 {consideration}
@@ -563,8 +518,8 @@ export default function AiMatchPage() {
                           </ul>
                         </div>
                       ) : null}
-                      {currentMember.dataNote ? (
-                        <p className="mt-4 text-xs leading-5 text-gray-500">{currentMember.dataNote}</p>
+                      {currentPremiumMember.dataNote ? (
+                        <p className="mt-4 text-xs leading-5 text-gray-500">{currentPremiumMember.dataNote}</p>
                       ) : null}
                       <p className="mt-4 rounded-xl border border-gray-200 bg-white/80 p-3 text-xs leading-5 text-gray-600">
                         자기소개와 결혼 가치관은 자유롭게 작성한 내용이므로 현재 테스트 분석 점수에는 포함하지 않습니다. 회원 상세 화면에서 직접 확인해 주세요.

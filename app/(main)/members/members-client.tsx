@@ -4,22 +4,25 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
+import {
+  parseAdvancedSearchMembers,
+  type AdvancedSearchMember,
+} from '@/lib/member/advanced-search-parser';
 import { REGIONS } from '@/constants/regions';
 import { JOBS, STANDARD_JOB_VALUES } from '@/constants/jobs';
 import { User, MapPin, Briefcase, ChevronDown, Heart, Loader2, Search } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 
-type Member = {
-  id: string;
-  nickname: string | null;
-  birth_date: string | null;
-  gender: string | null;
-  region: string | null;
-  job: string | null;
-  introduction: string | null;
-  profile_image?: string | null;
-};
+type Member = AdvancedSearchMember;
+
+type AdvancedSearchState =
+  | { status: 'idle'; requestKey: null; members: null }
+  | { status: 'loading'; requestKey: string; members: null }
+  | { status: 'success'; requestKey: string; members: Member[] }
+  | { status: 'error'; requestKey: string; members: null; message: string };
+
+const EMPTY_MEMBERS: Member[] = [];
 
 const EDUCATION_OPTIONS = ['전체', '고졸', '전문대졸', '대졸', '석사', '박사'] as const;
 const DRINKING_OPTIONS = ['전체', '전혀 안 함', '가끔 함', '자주 함'] as const;
@@ -38,7 +41,12 @@ export default function MembersClient({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
-  const [advancedMembers, setAdvancedMembers] = useState<Member[] | null>(null);
+  const [advancedSearchState, setAdvancedSearchState] = useState<AdvancedSearchState>({
+    status: 'idle',
+    requestKey: null,
+    members: null,
+  });
+  const [advancedRetryToken, setAdvancedRetryToken] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [togglingFavoriteIds, setTogglingFavoriteIds] = useState<Set<string>>(new Set());
@@ -252,17 +260,49 @@ export default function MembersClient({
     || selectedDrinking !== '전체'
     || hobbySearch.trim() !== '';
 
+  const shouldRunAdvancedSearch = canUseAdvancedSearch
+    && hasAdvancedFilters
+    && !heightFilterError;
+  const advancedRequestKey = useMemo(() => JSON.stringify([
+    heightMin,
+    heightMax,
+    selectedEducation,
+    selectedDrinking,
+    hobbySearch.trim(),
+    advancedRetryToken,
+  ]), [
+    heightMin,
+    heightMax,
+    selectedEducation,
+    selectedDrinking,
+    hobbySearch,
+    advancedRetryToken,
+  ]);
+
+  const currentAdvancedSearchState: AdvancedSearchState = !shouldRunAdvancedSearch
+    ? { status: 'idle', requestKey: null, members: null }
+    : advancedSearchState.requestKey === advancedRequestKey
+      ? advancedSearchState
+      : { status: 'loading', requestKey: advancedRequestKey, members: null };
+
   useEffect(() => {
     const requestId = advancedSearchRequestRef.current + 1;
     advancedSearchRequestRef.current = requestId;
 
-    if (!canUseAdvancedSearch || !hasAdvancedFilters || heightFilterError) {
+    if (!shouldRunAdvancedSearch) {
       return;
     }
 
     let isCancelled = false;
     const timeoutId = window.setTimeout(() => {
       const fetchAdvancedMembers = async () => {
+        if (isCancelled || advancedSearchRequestRef.current !== requestId) return;
+        setAdvancedSearchState({
+          status: 'loading',
+          requestKey: advancedRequestKey,
+          members: null,
+        });
+
         try {
           const { data, error: advancedSearchError } = await supabase.rpc('search_members_advanced', {
             p_height_min: heightMin === '' ? null : Number(heightMin),
@@ -275,40 +315,53 @@ export default function MembersClient({
           if (isCancelled || advancedSearchRequestRef.current !== requestId) return;
 
           if (advancedSearchError) {
-            if (advancedSearchError.code === '42501') {
-              router.replace('/premium');
-              return;
-            }
-
             console.error('고급 회원 검색 실패:', {
               code: advancedSearchError.code ?? null,
               message: advancedSearchError.message ?? null,
               details: advancedSearchError.details ?? null,
               hint: advancedSearchError.hint ?? null,
             });
-            setAdvancedMembers(null);
-            setToast({ message: '회원 목록을 불러오는 중 오류가 발생했습니다.', type: 'error' });
+            setAdvancedSearchState({
+              status: 'error',
+              requestKey: advancedRequestKey,
+              members: null,
+              message: '고급 검색 결과를 불러오지 못했습니다.',
+            });
+            setToast({ message: '고급 검색 결과를 불러오지 못했습니다.', type: 'error' });
             return;
           }
 
-          if (!Array.isArray(data)) {
+          const parsedMembers = parseAdvancedSearchMembers(data);
+          if (parsedMembers === null) {
             console.error('고급 회원 검색 응답 형식이 올바르지 않습니다.');
-            setAdvancedMembers(null);
-            setToast({ message: '회원 목록을 불러오는 중 오류가 발생했습니다.', type: 'error' });
+            setAdvancedSearchState({
+              status: 'error',
+              requestKey: advancedRequestKey,
+              members: null,
+              message: '고급 검색 결과를 불러오지 못했습니다.',
+            });
+            setToast({ message: '고급 검색 결과를 불러오지 못했습니다.', type: 'error' });
             return;
           }
 
-          setAdvancedMembers(
-            (data as Member[]).map((member) => ({
+          setAdvancedSearchState({
+            status: 'success',
+            requestKey: advancedRequestKey,
+            members: parsedMembers.map((member) => ({
               ...member,
               profile_image: resolveProfileImageUrl(member.profile_image ?? null),
             })),
-          );
+          });
         } catch (advancedSearchError: unknown) {
           if (isCancelled || advancedSearchRequestRef.current !== requestId) return;
           console.error('고급 회원 검색 중 예기치 않은 오류가 발생했습니다.', advancedSearchError);
-          setAdvancedMembers(null);
-          setToast({ message: '회원 목록을 불러오는 중 오류가 발생했습니다.', type: 'error' });
+          setAdvancedSearchState({
+            status: 'error',
+            requestKey: advancedRequestKey,
+            members: null,
+            message: '고급 검색 결과를 불러오지 못했습니다.',
+          });
+          setToast({ message: '고급 검색 결과를 불러오지 못했습니다.', type: 'error' });
         }
       };
 
@@ -320,24 +373,21 @@ export default function MembersClient({
       window.clearTimeout(timeoutId);
     };
   }, [
-    canUseAdvancedSearch,
-    hasAdvancedFilters,
-    heightFilterError,
+    shouldRunAdvancedSearch,
+    advancedRequestKey,
     heightMin,
     heightMax,
     selectedEducation,
     selectedDrinking,
     hobbySearch,
-    router,
     supabase,
   ]);
 
-  const searchableMembers = canUseAdvancedSearch
-    && hasAdvancedFilters
-    && !heightFilterError
-    && advancedMembers !== null
-    ? advancedMembers
-    : members;
+  const searchableMembers = currentAdvancedSearchState.status === 'success'
+    ? currentAdvancedSearchState.members
+    : shouldRunAdvancedSearch
+      ? EMPTY_MEMBERS
+      : members;
 
   const filteredMembers = useMemo(() => {
     return searchableMembers.filter((member) => {
@@ -386,7 +436,8 @@ export default function MembersClient({
     setSelectedEducation('전체');
     setSelectedDrinking('전체');
     setHobbySearch('');
-    setAdvancedMembers(null);
+    setAdvancedSearchState({ status: 'idle', requestKey: null, members: null });
+    setAdvancedRetryToken(0);
   };
 
   if (isLoading) {
@@ -590,6 +641,25 @@ export default function MembersClient({
           <div className="rounded-3xl border border-gray-100 bg-white py-20 text-center shadow-sm">
             <Search className="mx-auto mb-4 h-12 w-12 text-gray-300" />
             <p className="text-lg font-medium text-gray-500">{error}</p>
+          </div>
+        ) : currentAdvancedSearchState.status === 'loading' ? (
+          <div className="rounded-3xl border border-gray-100 bg-white py-20 text-center shadow-sm">
+            <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-[#16a34a]" />
+            <p className="text-lg font-medium text-gray-500">고급 검색 결과를 불러오는 중...</p>
+          </div>
+        ) : currentAdvancedSearchState.status === 'error' ? (
+          <div className="rounded-3xl border border-red-100 bg-white py-20 text-center shadow-sm">
+            <Search className="mx-auto mb-4 h-12 w-12 text-red-200" />
+            <p className="text-lg font-medium text-gray-700">{currentAdvancedSearchState.message}</p>
+            <p className="mt-2 text-sm text-gray-500">조건을 변경하거나 다시 시도해주세요.</p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAdvancedRetryToken((current) => current + 1)}
+              className="mt-5 rounded-2xl px-5 py-2.5 text-sm font-bold"
+            >
+              다시 시도
+            </Button>
           </div>
         ) : members.length === 0 ? (
           <div className="rounded-3xl border border-gray-100 bg-white py-20 text-center shadow-sm">

@@ -36,6 +36,7 @@ insert into _commatch_priority_it_config values (
   pg_catalog.gen_random_uuid(),
   pg_catalog.gen_random_uuid(),
   pg_catalog.gen_random_uuid(),
+  pg_catalog.gen_random_uuid(),
   pg_catalog.gen_random_uuid()
 );
 
@@ -52,6 +53,9 @@ begin
   if v_config.fixture_confirmation is distinct from
        'CONFIRMED_DISPOSABLE_NON_PRODUCTION_ADMIN' then
     raise exception 'Replace PASTE_TEST_FIXTURE_CONFIRMATION with the required token';
+  end if;
+  if v_config.grant_request_id = v_config.revoke_request_id then
+    raise exception 'Grant and revoke request UUIDs must be distinct';
   end if;
   if not exists (
     select 1

@@ -162,31 +162,31 @@ cross join lateral (
 insert into public.premium_memberships (
   user_id, status, started_at, expires_at, feature_keys
 )
-select active_without_priority_id, 'active', pg_catalog.now() - interval '1 hour', null,
+select active_without_priority_id, 'active'::text, pg_catalog.now() - interval '1 hour', null::timestamptz,
   array['likes_received','received_likes','advanced_member_search','expanded_recommendations']::text[]
 from _commatch_priority_it_config
 union all
-select active_priority_id, 'active', pg_catalog.now() - interval '1 hour', null,
+select active_priority_id, 'active'::text, pg_catalog.now() - interval '1 hour', null::timestamptz,
   array['likes_received','received_likes','advanced_member_search','expanded_recommendations','priority_recommendation']::text[]
 from _commatch_priority_it_config
 union all
-select expired_priority_id, 'active', pg_catalog.now() - interval '2 days', pg_catalog.now() - interval '1 day',
+select expired_priority_id, 'active'::text, pg_catalog.now() - interval '2 days', pg_catalog.now() - interval '1 day',
   array['priority_recommendation']::text[]
 from _commatch_priority_it_config
 union all
-select suspended_priority_id, 'suspended', pg_catalog.now() - interval '1 hour', null,
+select suspended_priority_id, 'suspended'::text, pg_catalog.now() - interval '1 hour', null::timestamptz,
   array['priority_recommendation']::text[]
 from _commatch_priority_it_config
 union all
-select revoked_priority_id, 'revoked', pg_catalog.now() - interval '1 hour', null,
+select revoked_priority_id, 'revoked'::text, pg_catalog.now() - interval '1 hour', null::timestamptz,
   array['priority_recommendation']::text[]
 from _commatch_priority_it_config
 union all
-select future_priority_id, 'active', pg_catalog.now() + interval '1 day', pg_catalog.now() + interval '2 days',
+select future_priority_id, 'active'::text, pg_catalog.now() + interval '1 day', pg_catalog.now() + interval '2 days',
   array['priority_recommendation']::text[]
 from _commatch_priority_it_config
 union all
-select service_suspended_priority_id, 'active', pg_catalog.now() - interval '1 hour', null,
+select service_suspended_priority_id, 'active'::text, pg_catalog.now() - interval '1 hour', null::timestamptz,
   array['priority_recommendation']::text[]
 from _commatch_priority_it_config;
 

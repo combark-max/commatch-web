@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
+  ArrowRight,
   BadgeCheck,
+  BookmarkCheck,
   BrainCircuit,
   Heart,
   HelpCircle,
@@ -21,43 +23,41 @@ import { createClient } from '@/lib/supabase/client';
 const premiumBenefits = [
   {
     title: 'AI Match Premium',
-    description: '추천 회원을 최대 20명까지 확인하고, 조건별 적합도와 공통점·차이점을 상세하게 분석합니다.',
-    status: '테스트 제공 중',
+    description: '일반 추천보다 더 넓게 최대 20명의 회원을 확인하고, 선호조건 일치율과 추천 이유·공통점·확인할 점을 함께 살펴보세요.',
+    status: '이용 가능',
     icon: BrainCircuit,
     href: '/ai-match?expanded=1',
+    cta: 'AI Match 이용하기',
   },
   {
-    title: '받은 관심',
-    description: '나를 관심목록에 저장한 회원을 확인할 수 있습니다. 관심목록 저장은 좋아요와 다른 기능입니다.',
-    status: '테스트 제공 중',
-    icon: Heart,
-    href: '/premium/likes-received?advanced=1',
-  },
-  {
-    title: '나에게 좋아요를 보낸 회원 확인',
-    description: '나에게 실제 좋아요를 보낸 회원을 확인하고, 마음에 들면 좋아요로 답해 매칭으로 이어갈 수 있습니다.',
-    status: '테스트 제공 중',
+    title: '나에게 좋아요를 보낸 회원',
+    description: '나에게 실제 좋아요를 보낸 회원을 확인하고, 마음이 있다면 좋아요로 답해 매칭으로 이어가세요.',
+    status: '이용 가능',
     icon: Heart,
     href: '/premium/received-likes',
+    cta: '받은 좋아요 보기',
   },
   {
     title: '고급 회원 검색',
-    description: '키, 학력, 음주 여부와 취미 조건으로 회원을 더 세밀하게 찾아보세요.',
-    status: '테스트 제공 중',
+    description: '기본 검색 조건에 더해 키·학력·음주·취미까지 설정하고 원하는 회원을 더 세밀하게 찾아보세요.',
+    status: '이용 가능',
     icon: Users,
     href: '/members?advanced=1',
+    cta: '고급 검색 이용하기',
   },
   {
-    title: '우선 추천 노출',
-    description: 'AI Match에서 추천 점수가 같은 후보 중 Premium 회원이 우선적으로 노출될 수 있습니다.',
-    status: '테스트 제공 중',
+    title: '나를 관심목록에 저장한 회원',
+    description: '나를 관심목록에 저장해 둔 회원을 확인해 보세요.',
+    status: '이용 가능',
+    icon: BookmarkCheck,
+    href: '/premium/likes-received?advanced=1',
+    cta: '받은 관심 보기',
+  },
+  {
+    title: '추천에서 먼저 발견될 기회',
+    description: 'AI Match의 적합도 기준은 그대로 유지하면서, 비슷하게 잘 맞는 후보들 사이에서 내 프로필이 먼저 소개될 수 있습니다.',
+    status: '이용 가능',
     icon: Sparkles,
-  },
-  {
-    title: 'Premium 전용 배지',
-    description: '프로필에 Premium 회원임을 알 수 있는 전용 표시가 제공될 예정입니다.',
-    status: '도입 예정',
-    icon: BadgeCheck,
   },
 ];
 
@@ -163,36 +163,42 @@ export default function PremiumPage() {
             <div>
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-black tracking-tight text-gray-900 sm:text-4xl">Premium</h1>
-                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-[#806B26]">도입 예정</span>
+                <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700">무료 제공 중</span>
               </div>
-              <p className="mt-2 text-lg font-bold text-green-700">더 좋은 인연을 위한 추가 기능</p>
+              <p className="mt-2 text-lg font-bold text-green-700">더 많이 보고, 더 자세히 살펴보고, 나에게 온 인연을 놓치지 마세요.</p>
             </div>
           </div>
           <p className="mt-6 max-w-3xl text-sm leading-7 text-gray-600 sm:text-base">
-            기본 매칭과 채팅은 일반 회원도 이용할 수 있습니다. Premium은 더 다양한 추천과 편리한 회원 탐색 기능을 제공하기 위해 준비 중입니다.
+            AI Match 확대 추천과 상세 분석, 받은 반응 확인, 고급 검색, 우선 추천 노출을 Premium 혜택으로 이용할 수 있습니다.
           </p>
         </header>
 
         <section id="premium-benefits" className="scroll-mt-24" aria-labelledby="premium-benefits-heading">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="premium-benefits-heading" className="text-2xl font-bold text-gray-900">Premium 혜택</h2>
-            <span className="text-sm font-medium text-gray-500">일부 기능은 Premium 도입 전 테스트로 제공 중이며, 나머지 기능은 준비 중 또는 도입 예정입니다.</span>
+            <span className="text-sm font-medium text-gray-500">현재 무료로 이용할 수 있는 Premium 핵심 혜택입니다.</span>
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {premiumBenefits.map((benefit) => {
               const { title, description, status, icon: Icon } = benefit;
               const href = 'href' in benefit && typeof benefit.href === 'string' ? benefit.href : null;
+              const cta = 'cta' in benefit && typeof benefit.cta === 'string' ? benefit.cta : null;
               const content = (
-                <>
-                <div className="flex items-start justify-between gap-4">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-600">
-                    <Icon size={21} />
-                  </span>
-                  <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-[#806B26]">{status}</span>
+                <div className="flex h-full flex-col">
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-600">
+                      <Icon size={21} />
+                    </span>
+                    <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">{status}</span>
+                  </div>
+                  <h3 className="mt-5 text-lg font-bold text-gray-900">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-gray-600">{description}</p>
+                  {cta ? (
+                    <span className="mt-auto inline-flex items-center gap-1.5 pt-5 text-sm font-bold text-green-700">
+                      {cta} <ArrowRight size={16} aria-hidden="true" />
+                    </span>
+                  ) : null}
                 </div>
-                <h3 className="mt-5 text-lg font-bold text-gray-900">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-gray-600">{description}</p>
-                </>
               );
 
               return href ? (
@@ -216,49 +222,44 @@ export default function PremiumPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 id="passes-heading" className="flex items-center gap-2 text-2xl font-bold text-gray-900">
-                <Ticket className="text-green-600" size={23} /> Premium 이용권
+                <Ticket className="text-green-600" size={23} /> Premium 무료 제공
               </h2>
-              <p className="mt-2 text-sm leading-6 text-gray-600">이용 기간과 가격은 Premium 기능 및 운영 정책이 확정된 후 안내됩니다.</p>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600">
+                현재 Premium의 주요 혜택을 무료로 이용할 수 있습니다. 정식 이용권과 가격은 추후 안내할 예정입니다.
+              </p>
+              <p className="mt-1 text-sm font-medium text-gray-500">현재 자동 결제는 없습니다.</p>
             </div>
-            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-[#806B26]">준비 중</span>
+            <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700">무료 제공 중</span>
           </div>
-
-          <div className="mt-6 grid gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-6 sm:grid-cols-2">
-            {[
-              ['이용요금', '추후 안내'],
-              ['이용 기간', '추후 안내'],
-              ['결제 방식', '준비 중'],
-              ['자동 갱신 여부', '추후 안내'],
-            ].map(([label, value]) => (
-              <div key={label} className="flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3">
-                <span className="text-sm font-semibold text-gray-700">{label}</span>
-                <span className="text-sm font-bold text-gray-500">{value}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-7 rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-5 text-center">
-            <button
-              type="button"
-              disabled
-              className="w-full max-w-sm cursor-not-allowed rounded-xl bg-gray-200 px-6 py-3.5 text-sm font-bold text-gray-400"
+          <div className="mt-6">
+            <Link
+              href="#premium-benefits"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-green-700"
             >
-              Premium 도입 예정
-            </button>
+              Premium 혜택 살펴보기 <ArrowRight size={17} aria-hidden="true" />
+            </Link>
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-green-100 bg-green-50 p-6 sm:p-7" aria-label="현재 이용 가능한 기능 안내">
-          <div className="flex items-start gap-3">
-            <Sparkles className="mt-0.5 shrink-0 text-green-600" size={21} />
-            <p className="text-sm font-semibold leading-6 text-green-900">
-              Premium 도입 전에도 현재 제공되는 추천, 회원 둘러보기, 관심목록 기능은 계속 이용할 수 있습니다.
-            </p>
+        <section aria-labelledby="upcoming-premium-heading">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="upcoming-premium-heading" className="text-2xl font-bold text-gray-900">도입 예정</h2>
+            <span className="text-sm font-medium text-gray-500">앞으로 추가될 Premium 혜택입니다.</span>
+          </div>
+          <div className="mt-5 max-w-md rounded-[1.75rem] border border-gray-100 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-500">
+                <BadgeCheck size={21} />
+              </span>
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-[#806B26]">도입 예정</span>
+            </div>
+            <h3 className="mt-5 text-lg font-bold text-gray-900">Premium 전용 배지</h3>
+            <p className="mt-2 text-sm leading-6 text-gray-600">프로필에 Premium 회원임을 알 수 있는 전용 표시가 제공될 예정입니다.</p>
           </div>
         </section>
 
         <section aria-labelledby="premium-support-heading">
-          <h2 id="premium-support-heading" className="text-2xl font-bold text-gray-900">고객지원</h2>
+          <h2 id="premium-support-heading" className="text-2xl font-bold text-gray-900">이용 안내</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             {supportItems.map((item) => {
               const { label, description, status, icon: Icon } = item;

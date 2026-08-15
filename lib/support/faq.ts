@@ -43,7 +43,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     category: 'Premium',
     question: 'Premium은 지금 가입할 수 있나요?',
-    answer: 'Premium 정식 이용권과 결제 기능은 아직 도입 전입니다. 화면에서 테스트 제공 중으로 표시된 일부 기능은 정식 도입 전에도 이용할 수 있습니다.',
+    answer: '현재 Premium 주요 기능은 무료로 제공 중입니다. 정식 이용권과 가격은 추후 안내할 예정이며, 현재 자동 결제는 없습니다.',
   },
   {
     category: '계정',

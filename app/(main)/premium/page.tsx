@@ -232,12 +232,12 @@ export default function PremiumPage() {
             <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700">무료 제공 중</span>
           </div>
           <div className="mt-6">
-            <Link
+            <a
               href="#premium-benefits"
               className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-green-700"
             >
               Premium 혜택 살펴보기 <ArrowRight size={17} aria-hidden="true" />
-            </Link>
+            </a>
           </div>
         </section>
 

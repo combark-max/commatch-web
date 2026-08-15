@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { STANDARD_JOB_VALUES } from '@/constants/jobs';
 import {
-  BASE_RECOMMENDATION_LIMIT,
   parseRecommendationApiSearchParams,
-  PREMIUM_RECOMMENDATION_LIMIT,
+  selectRecommendationCandidates,
   type BaseRecommendedMember,
   type PreferenceMatchResult,
   type PremiumRecommendedMember,
@@ -387,10 +386,7 @@ export async function GET(request: NextRequest) {
 
     if (membersError) throw membersError;
 
-    const recommendationLimit = expandedRequested
-      ? PREMIUM_RECOMMENDATION_LIMIT
-      : BASE_RECOMMENDATION_LIMIT;
-    const selectedCandidates = ((data as Profile[]) ?? [])
+    const scoredCandidates = ((data as Profile[]) ?? [])
       .map((member) => {
         const age = calculateAge(member.birth_date);
         let score = 0;
@@ -426,13 +422,7 @@ export async function GET(request: NextRequest) {
           profile_image: resolveProfileImageUrl(member.profile_image),
         };
       })
-      .filter((member) => member.score > 0)
-      .sort((a, b) => (
-        b.score - a.score
-        || Number(b.isPriorityRecommendation) - Number(a.isPriorityRecommendation)
-        || a.id.localeCompare(b.id)
-      ))
-      .slice(0, recommendationLimit);
+    const selectedCandidates = selectRecommendationCandidates(scoredCandidates, mode);
 
     const toBaseRecommendation = (member: typeof selectedCandidates[number]): BaseRecommendedMember => ({
       id: member.id,

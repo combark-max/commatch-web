@@ -7,6 +7,7 @@ import Button from '@/components/ui/Button';
 import {
   isUuid,
   parseSeoulDateTimeLocal,
+  PREMIUM_FEATURE_DESCRIPTIONS,
   PREMIUM_FEATURE_KEYS,
   PREMIUM_FEATURE_LABELS,
   PREMIUM_STATUS_LABELS,
@@ -136,7 +137,7 @@ export default function AdminPremiumMembershipForm({
         return;
       }
     }
-    if (featureKeys.length < 1 || featureKeys.length > 4) {
+    if (featureKeys.length < 1 || featureKeys.length > PREMIUM_FEATURE_KEYS.length) {
       setClientError('Premium 기능을 1개 이상 선택해 주세요.');
       return;
     }
@@ -249,7 +250,7 @@ export default function AdminPremiumMembershipForm({
       <fieldset disabled={pending}>
         <legend className="text-sm font-semibold text-gray-800">기능 권한</legend>
         <p className="mt-1 text-xs text-gray-500">최소 1개를 선택해 주세요.</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {PREMIUM_FEATURE_KEYS.map((featureKey) => (
             <label key={featureKey} className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800">
               <input
@@ -260,7 +261,14 @@ export default function AdminPremiumMembershipForm({
                 onChange={(event) => toggleFeature(featureKey, event.target.checked)}
                 className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
               />
-              {PREMIUM_FEATURE_LABELS[featureKey]}
+              <span>
+                <span className="block">{PREMIUM_FEATURE_LABELS[featureKey]}</span>
+                {PREMIUM_FEATURE_DESCRIPTIONS[featureKey] ? (
+                  <span className="mt-1 block text-xs font-medium leading-5 text-gray-500">
+                    {PREMIUM_FEATURE_DESCRIPTIONS[featureKey]}
+                  </span>
+                ) : null}
+              </span>
             </label>
           ))}
         </div>

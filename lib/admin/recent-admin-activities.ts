@@ -10,6 +10,7 @@ import {
 import {
   isPremiumFeatureKey,
   isPremiumMembershipStatus,
+  PREMIUM_FEATURE_KEYS,
   PREMIUM_MEMBERSHIP_ACTION_TYPES,
   type PremiumFeatureKey,
   type PremiumMembershipActionType,
@@ -179,7 +180,7 @@ export const parseRecentPremiumMembershipActions = (
       || (previousFeatureKeys === null && entry.previous_feature_keys !== null)
       || newFeatureKeys === null
       || newFeatureKeys.length < 1
-      || newFeatureKeys.length > 4
+      || newFeatureKeys.length > PREMIUM_FEATURE_KEYS.length
       || typeof entry.reason !== 'string'
       || entry.reason.trim() !== entry.reason
       || entry.reason.length < 1
@@ -197,7 +198,7 @@ export const parseRecentPremiumMembershipActions = (
           || !isDateString(entry.previous_started_at)
           || previousFeatureKeys === null
           || previousFeatureKeys.length < 1
-          || previousFeatureKeys.length > 4
+          || previousFeatureKeys.length > PREMIUM_FEATURE_KEYS.length
     ) return null;
     actions.push({
       actionId: entry.action_id,

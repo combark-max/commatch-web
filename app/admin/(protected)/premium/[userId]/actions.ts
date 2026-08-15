@@ -9,6 +9,7 @@ import {
   isUuid,
   parsePremiumMembershipUpdateResult,
   parseSeoulDateTimeLocal,
+  PREMIUM_FEATURE_KEYS,
   type PremiumMembershipActionType,
   type PremiumMembershipUpdateActionState,
 } from '@/lib/admin/premium-memberships';
@@ -119,7 +120,7 @@ export async function updateAdminPremiumMembershipAction(
 
   if (
     featureKeyValues.length < 1
-    || featureKeyValues.length > 4
+    || featureKeyValues.length > PREMIUM_FEATURE_KEYS.length
     || !featureKeyValues.every(isPremiumFeatureKey)
     || new Set(featureKeyValues).size !== featureKeyValues.length
   ) return errorState('Premium 기능을 1개 이상 선택해 주세요.', requestId);

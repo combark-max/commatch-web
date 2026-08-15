@@ -77,6 +77,26 @@ export type RecommendationRequest =
   | { mode: 'base'; expandedRequested: false }
   | { mode: 'premium-expanded'; expandedRequested: true };
 
+type ScoredRecommendationCandidate = {
+  id: string;
+  score: number;
+  isPriorityRecommendation: boolean;
+};
+
+export const selectRecommendationCandidates = <Candidate extends ScoredRecommendationCandidate>(
+  candidates: Candidate[],
+  mode: RecommendationMode,
+): Candidate[] => [...candidates]
+  .filter((candidate) => candidate.score > 0)
+  .sort((a, b) => (
+    b.score - a.score
+    || Number(b.isPriorityRecommendation) - Number(a.isPriorityRecommendation)
+    || a.id.localeCompare(b.id)
+  ))
+  .slice(0, mode === 'premium-expanded'
+    ? PREMIUM_RECOMMENDATION_LIMIT
+    : BASE_RECOMMENDATION_LIMIT);
+
 const PREMIUM_ANALYSIS_FIELDS = [
   'preferenceMatches',
   'preferenceMatchRate',

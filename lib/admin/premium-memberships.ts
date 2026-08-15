@@ -28,6 +28,7 @@ export const PREMIUM_FEATURE_KEYS = [
   'received_likes',
   'advanced_member_search',
   'expanded_recommendations',
+  'priority_recommendation',
 ] as const;
 
 export const PREMIUM_MEMBERSHIP_ACTION_TYPES = [
@@ -145,6 +146,11 @@ export const PREMIUM_FEATURE_LABELS: Record<PremiumFeatureKey, string> = {
   received_likes: '나에게 좋아요를 보낸 회원',
   advanced_member_search: '고급 회원 검색',
   expanded_recommendations: '추천 인원 확대',
+  priority_recommendation: '우선 추천 노출',
+};
+
+export const PREMIUM_FEATURE_DESCRIPTIONS: Partial<Record<PremiumFeatureKey, string>> = {
+  priority_recommendation: 'AI Match에서 추천 점수가 같은 후보 중 우선적으로 노출될 수 있습니다.',
 };
 
 export const PREMIUM_MEMBERSHIP_ACTION_LABELS: Record<PremiumMembershipActionType, string> = {
@@ -319,7 +325,7 @@ export const parsePremiumMembershipUpdateResult = (
     || !(entry.expires_at === null || isTimestamptzString(entry.expires_at))
     || featureKeys === null
     || featureKeys.length < 1
-    || featureKeys.length > 4
+    || featureKeys.length > PREMIUM_FEATURE_KEYS.length
     || !isTimestamptzString(entry.membership_updated_at)
     || actionId === undefined
     || actionType === undefined
@@ -373,7 +379,7 @@ const parsePremiumMembershipActions = (
       || previousFeatureKeys === null && entry.previous_feature_keys !== null
       || newFeatureKeys === null
       || newFeatureKeys.length < 1
-      || newFeatureKeys.length > 4
+      || newFeatureKeys.length > PREMIUM_FEATURE_KEYS.length
       || typeof entry.reason !== 'string'
       || entry.reason.trim() !== entry.reason
       || entry.reason.length < 1
@@ -393,7 +399,7 @@ const parsePremiumMembershipActions = (
           || !isDateString(entry.previous_started_at)
           || previousFeatureKeys === null
           || previousFeatureKeys.length < 1
-          || previousFeatureKeys.length > 4
+          || previousFeatureKeys.length > PREMIUM_FEATURE_KEYS.length
     ) return null;
 
     actions.push({
@@ -450,7 +456,7 @@ export const parseAdminPremiumMembershipDetail = (
         || !isPremiumMembershipStatus(entry.stored_status)
         || !isDateString(entry.started_at)
         || featureKeys.length < 1
-        || featureKeys.length > 4
+        || featureKeys.length > PREMIUM_FEATURE_KEYS.length
         || !isDateString(entry.membership_updated_at)
       : entry.membership_id !== null
         || entry.stored_status !== null
@@ -518,7 +524,7 @@ export const parseAdminPremiumMembershipList = (
           || !isPremiumMembershipStatus(entry.stored_status)
           || !isDateString(entry.started_at)
           || featureKeys.length < 1
-          || featureKeys.length > 4
+          || featureKeys.length > PREMIUM_FEATURE_KEYS.length
           || !isDateString(entry.membership_updated_at)
         : entry.membership_id !== null
           || entry.stored_status !== null

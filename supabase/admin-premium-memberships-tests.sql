@@ -9,7 +9,8 @@
 -- identifier-only disposable Auth fixtures inside the transaction; all changes
 -- end with ROLLBACK.
 --
--- Apply admin-premium-memberships.sql before running this test.
+-- Apply admin-premium-memberships.sql and then
+-- priority-recommendation-premium-migration.sql before running this test.
 -- Repeat the permission section after each supported reinstall sequence when
 -- validating deployment order. admin-accounts.sql and premium-memberships.sql
 -- remain prerequisites. Do not reapply an older shared permission definition
@@ -882,10 +883,10 @@ select pg_temp._commatch_premium_it_expect_sqlstate(
   )
 );
 select pg_temp._commatch_premium_it_expect_sqlstate(
-  'unknown and priority feature keys',
+  'unknown feature key',
   '22023',
   format(
-    'select * from public.update_admin_premium_membership(%L,%L,''active'',pg_catalog.now(),null,array[''priority_recommendation'']::text[],''invalid'',%L)',
+    'select * from public.update_admin_premium_membership(%L,%L,''active'',pg_catalog.now(),null,array[''not_a_feature'']::text[],''invalid'',%L)',
     (select member_id from _commatch_premium_it_config),
     (select updated_at from public.premium_memberships where user_id=(select member_id from _commatch_premium_it_config)),
     pg_catalog.gen_random_uuid()
@@ -902,10 +903,10 @@ select pg_temp._commatch_premium_it_expect_sqlstate(
   )
 );
 select pg_temp._commatch_premium_it_expect_sqlstate(
-  'five feature keys',
+  'six feature keys including unknown',
   '22023',
   format(
-    'select * from public.update_admin_premium_membership(%L,%L,''active'',pg_catalog.now(),null,array[''likes_received'',''received_likes'',''advanced_member_search'',''expanded_recommendations'',''received_likes'']::text[],''invalid'',%L)',
+    'select * from public.update_admin_premium_membership(%L,%L,''active'',pg_catalog.now(),null,array[''likes_received'',''received_likes'',''advanced_member_search'',''expanded_recommendations'',''priority_recommendation'',''not_a_feature'']::text[],''invalid'',%L)',
     (select member_id from _commatch_premium_it_config),
     (select updated_at from public.premium_memberships where user_id=(select member_id from _commatch_premium_it_config)),
     pg_catalog.gen_random_uuid()
@@ -1149,11 +1150,11 @@ begin
   select * into v_result from public.update_admin_premium_membership(
     v_config.member_id, v_membership.updated_at, 'active',
     pg_catalog.now(), null,
-    array['expanded_recommendations','likes_received','received_likes','advanced_member_search'],
+    array['expanded_recommendations','likes_received','received_likes','advanced_member_search','priority_recommendation'],
     'active indefinite full features', v_config.active_request_id
   );
   if not v_result.is_available or v_result.expires_at is not null
-     or pg_catalog.cardinality(v_result.feature_keys) <> 4
+     or pg_catalog.cardinality(v_result.feature_keys) <> 5
      or v_result.action_type <> 'updated' then
     raise exception 'FAIL equality start or indefinite full-feature update';
   end if;
@@ -1251,7 +1252,7 @@ begin
 end;
 $$;
 
--- Existing member-facing functions use the same four-feature membership.
+-- Existing member-facing functions use the same five-feature membership.
 select pg_temp._commatch_premium_it_set_user(member_id)
 from _commatch_premium_it_config;
 do $$
@@ -1261,15 +1262,15 @@ begin
      or not public.has_premium_feature('received_likes')
      or not public.has_premium_feature('advanced_member_search')
      or not public.has_premium_feature('expanded_recommendations')
-     or public.has_premium_feature('priority_recommendation') then
+     or not public.has_premium_feature('priority_recommendation') then
     raise exception 'FAIL existing feature function regression';
   end if;
   select * into v_access from public.get_my_premium_access();
   if not v_access.membership_exists or not v_access.is_available
-     or pg_catalog.cardinality(v_access.feature_keys) <> 4 then
+     or pg_catalog.cardinality(v_access.feature_keys) <> 5 then
     raise exception 'FAIL existing access snapshot regression';
   end if;
-  raise notice 'PASS existing member Premium functions and priority separation';
+  raise notice 'PASS existing member Premium functions with five feature keys';
 end;
 $$;
 
@@ -1747,13 +1748,7 @@ begin
        <> 'commatch_premium_memberships_v1' then
     raise exception 'FAIL existing Premium objects changed';
   end if;
-  if exists (
-    select 1 from public.premium_memberships
-    where 'priority_recommendation'=any(feature_keys)
-  ) then
-    raise exception 'FAIL priority pilot key entered Premium memberships';
-  end if;
-  raise notice 'PASS ACL, RLS, existing object markers, and priority separation';
+  raise notice 'PASS ACL, RLS, and existing object markers';
 end;
 $$;
 

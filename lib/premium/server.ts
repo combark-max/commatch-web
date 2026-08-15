@@ -7,7 +7,8 @@ export type PremiumFeatureKey =
   | 'likes_received'
   | 'received_likes'
   | 'advanced_member_search'
-  | 'expanded_recommendations';
+  | 'expanded_recommendations'
+  | 'priority_recommendation';
 
 export type PremiumAccessResult =
   | {

@@ -7,7 +7,8 @@ declare
 begin
   if pg_catalog.to_regclass('auth.users') is null
      or pg_catalog.to_regclass('public.profiles') is null
-     or pg_catalog.to_regclass('public.admin_accounts') is null then
+     or pg_catalog.to_regclass('public.admin_accounts') is null
+     or pg_catalog.to_regclass('public.premium_memberships') is null then
     raise exception 'Required member statistics tables must exist before installation';
   end if;
 
@@ -24,7 +25,11 @@ begin
       ('public', 'profiles', 'birth_date', 'date', false),
       ('public', 'profiles', 'region', 'text', false),
       ('public', 'profiles', 'marriage_history', 'text', false),
-      ('public', 'admin_accounts', 'user_id', 'uuid', true)
+      ('public', 'admin_accounts', 'user_id', 'uuid', true),
+      ('public', 'premium_memberships', 'user_id', 'uuid', true),
+      ('public', 'premium_memberships', 'status', 'text', true),
+      ('public', 'premium_memberships', 'started_at', 'timestamp with time zone', true),
+      ('public', 'premium_memberships', 'expires_at', 'timestamp with time zone', false)
     ) as required(table_schema, table_name, column_name, data_type, is_not_null)
     where not exists (
       select 1
@@ -50,6 +55,20 @@ begin
     raise exception 'public.profiles must retain the approved marriage history CHECK constraint';
   end if;
 
+  if (
+    select pg_catalog.count(*)
+    from pg_catalog.pg_constraint as constraint_info
+    where constraint_info.conrelid = 'public.premium_memberships'::pg_catalog.regclass
+      and constraint_info.conname in (
+        'premium_memberships_user_id_unique',
+        'premium_memberships_status_check',
+        'premium_memberships_valid_period_check'
+      )
+      and constraint_info.convalidated
+  ) <> 3 then
+    raise exception 'public.premium_memberships must retain the approved uniqueness, status, and period constraints';
+  end if;
+
   for v_function in
     select function_info.oid,
       pg_catalog.pg_get_function_identity_arguments(function_info.oid) as identity_arguments
@@ -71,6 +90,7 @@ $preflight$;
 create or replace function public.get_admin_member_statistics()
 returns table (
   total_members bigint,
+  membership_tiers jsonb,
   gender jsonb,
   age_groups jsonb,
   regions jsonb,
@@ -81,6 +101,8 @@ stable
 security definer
 set search_path = ''
 as $function$
+declare
+  v_now timestamptz := pg_catalog.now();
 begin
   if auth.uid() is null
      or not coalesce(public.has_admin_permission('admin_dashboard_view'), false) then
@@ -111,9 +133,17 @@ begin
         when profile.marriage_history = 'first_marriage' then 'first_marriage'
         when profile.marriage_history = 'remarriage' then 'remarriage'
         else 'unspecified'
-      end as marriage_category
+      end as marriage_category,
+      case
+        when membership.status = 'active'
+          and membership.started_at <= v_now
+          and (membership.expires_at is null or membership.expires_at > v_now)
+          then 'premium'
+        else 'general'
+      end as membership_tier_category
     from auth.users as auth_user
     left join public.profiles as profile on profile.id = auth_user.id
+    left join public.premium_memberships as membership on membership.user_id = auth_user.id
     where not exists (
       select 1
       from public.admin_accounts as admin_account
@@ -122,6 +152,21 @@ begin
   ),
   total_summary as (
     select pg_catalog.count(*) as total_members from member_population
+  ),
+  membership_tier_categories(category, sort_order) as (
+    values ('general', 1), ('premium', 2)
+  ),
+  membership_tier_counts as (
+    select member.membership_tier_category as category, pg_catalog.count(*) as count
+    from member_population as member group by member.membership_tier_category
+  ),
+  membership_tier_summary as (
+    select pg_catalog.jsonb_agg(
+      pg_catalog.jsonb_build_object('category', category.category, 'count', coalesce(counts.count, 0))
+      order by category.sort_order
+    ) as membership_tiers
+    from membership_tier_categories as category
+    left join membership_tier_counts as counts on counts.category = category.category
   ),
   gender_categories(category, sort_order) as (
     values ('male', 1), ('female', 2), ('other_or_unspecified', 3)
@@ -183,9 +228,11 @@ begin
     from marriage_categories as category
     left join marriage_counts as counts on counts.category = category.category
   )
-  select total_summary.total_members, gender_summary.gender, age_summary.age_groups,
+  select total_summary.total_members, membership_tier_summary.membership_tiers,
+    gender_summary.gender, age_summary.age_groups,
     region_summary.regions, marriage_summary.marriage_history
   from total_summary
+  cross join membership_tier_summary
   cross join gender_summary
   cross join age_summary
   cross join region_summary
@@ -221,7 +268,7 @@ begin
     raise exception 'Administrator member statistics function must have exactly one signature';
   end if;
   if pg_catalog.pg_get_function_result(v_function_oid) <>
-    'TABLE(total_members bigint, gender jsonb, age_groups jsonb, regions jsonb, marriage_history jsonb)' then
+    'TABLE(total_members bigint, membership_tiers jsonb, gender jsonb, age_groups jsonb, regions jsonb, marriage_history jsonb)' then
     raise exception 'Administrator member statistics return type differs from the approved definition';
   end if;
   if not exists (

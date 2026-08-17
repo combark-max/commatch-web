@@ -17,6 +17,9 @@ type DataResult<T> = { kind: 'success'; data: T } | { kind: 'forbidden' | 'error
 const GENDER_LABELS: Record<string, string> = {
   male: '남성', female: '여성', other_or_unspecified: '미입력/기타',
 };
+const MEMBERSHIP_TIER_LABELS: Record<string, string> = {
+  general: '일반 회원', premium: 'Premium 회원',
+};
 const AGE_LABELS: Record<string, string> = {
   under_20: '20대 미만', '20s': '20대', '30s': '30대', '40s': '40대',
   '50s': '50대', '60_plus': '60대 이상', unspecified: '미입력',
@@ -126,9 +129,10 @@ export default async function AdminStatisticsPage() {
 
   const memberSummaryCards: AdminMetric[] = memberResult.kind === 'success' ? [
     { label: '전체 회원', count: memberResult.data.totalMembers },
+    { label: '일반 회원', count: memberResult.data.membershipTiers.find((entry) => entry.category === 'general')!.count },
+    { label: 'Premium 회원', count: memberResult.data.membershipTiers.find((entry) => entry.category === 'premium')!.count },
     { label: '남성', count: memberResult.data.gender.find((entry) => entry.category === 'male')!.count },
     { label: '여성', count: memberResult.data.gender.find((entry) => entry.category === 'female')!.count },
-    { label: '성별 미입력/기타', count: memberResult.data.gender.find((entry) => entry.category === 'other_or_unspecified')!.count },
   ] : [];
 
   return (
@@ -162,13 +166,14 @@ export default async function AdminStatisticsPage() {
         </div>
         {memberResult.kind === 'success' ? (
           <>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
               {memberSummaryCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}
             </div>
             {memberResult.data.totalMembers === 0 ? (
               <p className="rounded-2xl border border-gray-200 bg-white px-5 py-8 text-center text-sm font-semibold text-gray-500">집계할 회원이 없습니다.</p>
             ) : null}
             <div className="grid gap-5 lg:grid-cols-2">
+              <DistributionChart title="회원 등급 분포" description="현재 시각에 실제 이용 가능한 Premium 멤버십을 기준으로 구분합니다." entries={memberResult.data.membershipTiers} total={memberResult.data.totalMembers} labels={MEMBERSHIP_TIER_LABELS} />
               <DistributionChart title="성별 분포" description="남성·여성과 미입력 또는 기타 값을 구분합니다." entries={memberResult.data.gender} total={memberResult.data.totalMembers} labels={GENDER_LABELS} />
               <DistributionChart title="연령대별 분포" description="오늘 날짜의 만 나이를 생년월일로 계산합니다." entries={memberResult.data.ageGroups} total={memberResult.data.totalMembers} labels={AGE_LABELS} />
               <DistributionChart title="초혼/재혼 분포" description="프로필의 결혼 이력 계약에 따라 초혼·재혼을 구분합니다." entries={memberResult.data.marriageHistory} total={memberResult.data.totalMembers} labels={MARRIAGE_LABELS} />

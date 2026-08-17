@@ -1,4 +1,5 @@
 export const ADMIN_GENDER_CATEGORIES = ['male', 'female', 'other_or_unspecified'] as const;
+export const ADMIN_MEMBERSHIP_TIER_CATEGORIES = ['general', 'premium'] as const;
 export const ADMIN_AGE_GROUP_CATEGORIES = [
   'under_20',
   '20s',
@@ -15,6 +16,7 @@ export const ADMIN_MARRIAGE_CATEGORIES = [
 ] as const;
 
 export type AdminGenderCategory = (typeof ADMIN_GENDER_CATEGORIES)[number];
+export type AdminMembershipTierCategory = (typeof ADMIN_MEMBERSHIP_TIER_CATEGORIES)[number];
 export type AdminAgeGroupCategory = (typeof ADMIN_AGE_GROUP_CATEGORIES)[number];
 export type AdminMarriageCategory = (typeof ADMIN_MARRIAGE_CATEGORIES)[number];
 
@@ -25,6 +27,7 @@ export type AdminStatisticsEntry<Category extends string = string> = {
 
 export type AdminMemberStatistics = {
   totalMembers: number;
+  membershipTiers: AdminStatisticsEntry<AdminMembershipTierCategory>[];
   gender: AdminStatisticsEntry<AdminGenderCategory>[];
   ageGroups: AdminStatisticsEntry<AdminAgeGroupCategory>[];
   regions: AdminStatisticsEntry[];
@@ -103,6 +106,10 @@ export const parseAdminMemberStatistics = (value: unknown): AdminMemberStatistic
 
   const row = value[0];
   const totalMembers = parseCount(row.total_members);
+  const membershipTiers = parseFixedEntries(
+    row.membership_tiers,
+    ADMIN_MEMBERSHIP_TIER_CATEGORIES,
+  );
   const gender = parseFixedEntries(row.gender, ADMIN_GENDER_CATEGORIES);
   const ageGroups = parseFixedEntries(row.age_groups, ADMIN_AGE_GROUP_CATEGORIES);
   const regions = parseRegions(row.regions);
@@ -110,10 +117,12 @@ export const parseAdminMemberStatistics = (value: unknown): AdminMemberStatistic
 
   if (
     totalMembers === null
+    || !membershipTiers
     || !gender
     || !ageGroups
     || !regions
     || !marriageHistory
+    || sumCounts(membershipTiers) !== totalMembers
     || sumCounts(gender) !== totalMembers
     || sumCounts(ageGroups) !== totalMembers
     || sumCounts(regions) !== totalMembers
@@ -124,5 +133,5 @@ export const parseAdminMemberStatistics = (value: unknown): AdminMemberStatistic
     throw new Error('Invalid administrator member statistics response');
   }
 
-  return { totalMembers, gender, ageGroups, regions, marriageHistory };
+  return { totalMembers, membershipTiers, gender, ageGroups, regions, marriageHistory };
 };

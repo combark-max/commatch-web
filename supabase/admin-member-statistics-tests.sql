@@ -29,6 +29,7 @@ grant select on pg_temp._commatch_member_stats_it_config to anon, authenticated,
 
 create temp table _commatch_member_stats_it_baseline (
   total_members bigint not null,
+  membership_tiers jsonb not null,
   gender jsonb not null,
   age_groups jsonb not null,
   regions jsonb not null,
@@ -78,6 +79,37 @@ grant execute on function pg_temp._commatch_member_stats_it_set_user(uuid)
 grant execute on function pg_temp._commatch_member_stats_it_expect_error(text, text, text)
   to anon, authenticated, service_role;
 
+create function pg_temp._commatch_member_stats_it_assert_tiers(
+  p_label text,
+  p_total_delta bigint,
+  p_general_delta bigint,
+  p_premium_delta bigint
+) returns void language plpgsql as $function$
+declare
+  v_baseline pg_temp._commatch_member_stats_it_baseline%rowtype;
+  v_current record;
+  v_general bigint;
+  v_premium bigint;
+begin
+  select * into strict v_baseline from pg_temp._commatch_member_stats_it_baseline;
+  select * into strict v_current from public.get_admin_member_statistics();
+  v_general := pg_temp._commatch_member_stats_it_count(v_current.membership_tiers, 'general');
+  v_premium := pg_temp._commatch_member_stats_it_count(v_current.membership_tiers, 'premium');
+
+  if v_current.total_members <> v_baseline.total_members + p_total_delta
+    or v_general <> pg_temp._commatch_member_stats_it_count(v_baseline.membership_tiers, 'general') + p_general_delta
+    or v_premium <> pg_temp._commatch_member_stats_it_count(v_baseline.membership_tiers, 'premium') + p_premium_delta
+    or v_general + v_premium <> v_current.total_members then
+    raise exception 'FAIL %: baseline %, current %',
+      p_label, pg_catalog.row_to_json(v_baseline), pg_catalog.row_to_json(v_current);
+  end if;
+  raise notice 'PASS %', p_label;
+end;
+$function$;
+
+grant execute on function pg_temp._commatch_member_stats_it_assert_tiers(text, bigint, bigint, bigint)
+  to authenticated;
+
 do $preflight$
 declare
   v_config _commatch_member_stats_it_config%rowtype;
@@ -118,7 +150,7 @@ declare
   v_oid oid := pg_catalog.to_regprocedure('public.get_admin_member_statistics()');
 begin
   if pg_catalog.pg_get_function_result(v_oid) <>
-    'TABLE(total_members bigint, gender jsonb, age_groups jsonb, regions jsonb, marriage_history jsonb)' then
+    'TABLE(total_members bigint, membership_tiers jsonb, gender jsonb, age_groups jsonb, regions jsonb, marriage_history jsonb)' then
     raise exception 'FAIL return contract';
   end if;
   if not exists (
@@ -210,6 +242,22 @@ insert into public.member_restrictions (
 select age_50_id, 'suspended', 'visible', pg_catalog.now() - interval '1 day', null::timestamptz
 from pg_temp._commatch_member_stats_it_config;
 
+insert into public.premium_memberships (
+  user_id, status, started_at, expires_at, feature_keys, granted_by
+)
+select fixture.user_id, fixture.status, fixture.started_at, fixture.expires_at,
+  array['likes_received']::text[], config.super_admin_id
+from pg_temp._commatch_member_stats_it_config as config
+cross join lateral (
+  values
+    (config.role_test_user_id, 'active', pg_catalog.now() - interval '1 day', null::timestamptz),
+    (config.age_29_id, 'active', pg_catalog.now() - interval '1 day', pg_catalog.now() + interval '1 day'),
+    (config.age_30_id, 'active', pg_catalog.now() + interval '1 day', pg_catalog.now() + interval '2 days'),
+    (config.age_39_id, 'active', pg_catalog.now() - interval '10 days', pg_catalog.now() - interval '1 day'),
+    (config.age_40_id, 'suspended', pg_catalog.now() - interval '1 day', null::timestamptz),
+    (config.age_49_id, 'revoked', pg_catalog.now() - interval '1 day', null::timestamptz)
+) as fixture(user_id, status, started_at, expires_at);
+
 set local role authenticated;
 select pg_temp._commatch_member_stats_it_set_user(super_admin_id)
 from pg_temp._commatch_member_stats_it_config;
@@ -222,6 +270,10 @@ begin
   select * into strict b from pg_temp._commatch_member_stats_it_baseline;
   select * into strict c from public.get_admin_member_statistics();
   if c.total_members <> b.total_members + 8
+    or pg_temp._commatch_member_stats_it_count(c.membership_tiers, 'general') <> pg_temp._commatch_member_stats_it_count(b.membership_tiers, 'general') + 6
+    or pg_temp._commatch_member_stats_it_count(c.membership_tiers, 'premium') <> pg_temp._commatch_member_stats_it_count(b.membership_tiers, 'premium') + 2
+    or pg_temp._commatch_member_stats_it_count(c.membership_tiers, 'general')
+      + pg_temp._commatch_member_stats_it_count(c.membership_tiers, 'premium') <> c.total_members
     or pg_temp._commatch_member_stats_it_count(c.gender, 'male') <> pg_temp._commatch_member_stats_it_count(b.gender, 'male') + 3
     or pg_temp._commatch_member_stats_it_count(c.gender, 'female') <> pg_temp._commatch_member_stats_it_count(b.gender, 'female') + 3
     or pg_temp._commatch_member_stats_it_count(c.gender, 'other_or_unspecified') <> pg_temp._commatch_member_stats_it_count(b.gender, 'other_or_unspecified') + 2
@@ -239,9 +291,82 @@ begin
     or pg_temp._commatch_member_stats_it_count(c.marriage_history, 'unspecified') <> pg_temp._commatch_member_stats_it_count(b.marriage_history, 'unspecified') + 2 then
     raise exception 'FAIL member fixture deltas: baseline %, current %', pg_catalog.row_to_json(b), pg_catalog.row_to_json(c);
   end if;
-  raise notice 'PASS total, gender, age boundaries, region/null, marriage/null, hidden and suspended inclusion';
+  raise notice 'PASS total, membership tiers, gender, age boundaries, region/null, marriage/null, hidden and suspended inclusion';
 end;
 $fixture_deltas$;
+
+select pg_temp._commatch_member_stats_it_assert_tiers(
+  'active Premium, non-Premium states, and membership absence', 8, 6, 2
+);
+
+reset role;
+update public.premium_memberships
+set started_at = pg_catalog.now() - interval '1 day',
+    expires_at = pg_catalog.now() + interval '1 day'
+where user_id = (select age_30_id from pg_temp._commatch_member_stats_it_config);
+set local role authenticated;
+select pg_temp._commatch_member_stats_it_assert_tiers(
+  'future-start membership becomes Premium only after its start', 8, 5, 3
+);
+reset role;
+update public.premium_memberships
+set started_at = pg_catalog.now() + interval '1 day',
+    expires_at = pg_catalog.now() + interval '2 days'
+where user_id = (select age_30_id from pg_temp._commatch_member_stats_it_config);
+
+update public.premium_memberships
+set expires_at = pg_catalog.now() + interval '1 day'
+where user_id = (select age_39_id from pg_temp._commatch_member_stats_it_config);
+set local role authenticated;
+select pg_temp._commatch_member_stats_it_assert_tiers(
+  'expired membership becomes Premium only before expiration', 8, 5, 3
+);
+reset role;
+update public.premium_memberships
+set expires_at = pg_catalog.now() - interval '1 day'
+where user_id = (select age_39_id from pg_temp._commatch_member_stats_it_config);
+
+update public.premium_memberships
+set status = 'active'
+where user_id = (select age_40_id from pg_temp._commatch_member_stats_it_config);
+set local role authenticated;
+select pg_temp._commatch_member_stats_it_assert_tiers(
+  'suspended membership becomes Premium only while active', 8, 5, 3
+);
+reset role;
+update public.premium_memberships
+set status = 'suspended'
+where user_id = (select age_40_id from pg_temp._commatch_member_stats_it_config);
+
+update public.premium_memberships
+set status = 'active'
+where user_id = (select age_49_id from pg_temp._commatch_member_stats_it_config);
+set local role authenticated;
+select pg_temp._commatch_member_stats_it_assert_tiers(
+  'revoked membership becomes Premium only while active', 8, 5, 3
+);
+reset role;
+update public.premium_memberships
+set status = 'revoked'
+where user_id = (select age_49_id from pg_temp._commatch_member_stats_it_config);
+
+insert into public.premium_memberships (
+  user_id, status, started_at, expires_at, feature_keys, granted_by
+)
+select age_50_id, 'active', pg_catalog.now() - interval '1 day', null,
+  array['likes_received']::text[], super_admin_id
+from pg_temp._commatch_member_stats_it_config;
+set local role authenticated;
+select pg_temp._commatch_member_stats_it_assert_tiers(
+  'member without a membership is general until an active membership exists', 8, 5, 3
+);
+reset role;
+delete from public.premium_memberships
+where user_id = (select age_50_id from pg_temp._commatch_member_stats_it_config);
+
+set local role authenticated;
+select pg_temp._commatch_member_stats_it_set_user(super_admin_id)
+from pg_temp._commatch_member_stats_it_config;
 
 select pg_temp._commatch_member_stats_it_set_user(role_test_user_id)
 from pg_temp._commatch_member_stats_it_config;
@@ -272,6 +397,9 @@ begin
   raise notice 'PASS active admin access';
 end;
 $all_active_roles$;
+select pg_temp._commatch_member_stats_it_assert_tiers(
+  'Premium administrator excluded from the member population', 7, 6, 1
+);
 reset role;
 
 update public.admin_accounts set role = 'moderator'
@@ -320,7 +448,8 @@ begin
     or exists (
       select 1
       from pg_catalog.jsonb_array_elements(
-        v_result.gender || v_result.age_groups || v_result.marriage_history
+        v_result.membership_tiers || v_result.gender || v_result.age_groups
+          || v_result.marriage_history
       ) as entry(value)
       where (entry.value ->> 'count')::bigint <> 0
     ) then

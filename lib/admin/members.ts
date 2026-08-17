@@ -1,6 +1,13 @@
 export const ADMIN_MEMBER_ACCOUNT_FILTERS = ['all', 'active', 'suspended'] as const;
 export const ADMIN_MEMBER_PROFILE_FILTERS = ['all', 'missing', 'in_progress', 'completed'] as const;
 export const ADMIN_MEMBER_VISIBILITY_FILTERS = ['all', 'visible', 'hidden'] as const;
+export const ADMIN_MEMBER_GENDER_FILTERS = ['all', 'male', 'female', 'unspecified'] as const;
+export const ADMIN_MEMBER_AGE_GROUP_FILTERS = [
+  'all', 'under_20', '20s', '30s', '40s', '50s', '60_plus', 'unspecified',
+] as const;
+export const ADMIN_MEMBER_MARRIAGE_FILTERS = [
+  'all', 'first_marriage', 'remarriage', 'unspecified',
+] as const;
 export const ADMIN_MEMBER_SORT_KEYS = ['joined_at', 'nickname'] as const;
 export const ADMIN_MEMBER_SORT_DIRECTIONS = ['asc', 'desc'] as const;
 export const ADMIN_MEMBER_PROFILE_STATUSES = ['missing', 'in_progress', 'completed'] as const;
@@ -19,6 +26,13 @@ export const ADMIN_MEMBER_PREMIUM_PERIOD_STATES = [
 export type AdminMemberAccountFilter = (typeof ADMIN_MEMBER_ACCOUNT_FILTERS)[number];
 export type AdminMemberProfileFilter = (typeof ADMIN_MEMBER_PROFILE_FILTERS)[number];
 export type AdminMemberVisibilityFilter = (typeof ADMIN_MEMBER_VISIBILITY_FILTERS)[number];
+export type AdminMemberGenderFilter = (typeof ADMIN_MEMBER_GENDER_FILTERS)[number];
+export type AdminMemberAgeGroupFilter = (typeof ADMIN_MEMBER_AGE_GROUP_FILTERS)[number];
+export type AdminMemberRegionFilter = 'all' | 'unspecified'
+  | (typeof import('../../constants/regions').PROFILE_REGIONS)[number];
+export type AdminMemberJobFilter = 'all' | 'other' | 'unspecified'
+  | (typeof import('../../constants/jobs').STANDARD_JOB_VALUES)[number];
+export type AdminMemberMarriageFilter = (typeof ADMIN_MEMBER_MARRIAGE_FILTERS)[number];
 export type AdminMemberSortKey = (typeof ADMIN_MEMBER_SORT_KEYS)[number];
 export type AdminMemberSortDirection = (typeof ADMIN_MEMBER_SORT_DIRECTIONS)[number];
 export type AdminMemberProfileStatus = (typeof ADMIN_MEMBER_PROFILE_STATUSES)[number];
@@ -180,6 +194,41 @@ export const isAdminMemberVisibilityFilter = (
   value: unknown,
 ): value is AdminMemberVisibilityFilter => (
   isOneOf(value, ADMIN_MEMBER_VISIBILITY_FILTERS)
+);
+
+export const isAdminMemberGenderFilter = (value: unknown): value is AdminMemberGenderFilter => (
+  isOneOf(value, ADMIN_MEMBER_GENDER_FILTERS)
+);
+
+export const isAdminMemberAgeGroupFilter = (
+  value: unknown,
+): value is AdminMemberAgeGroupFilter => (
+  isOneOf(value, ADMIN_MEMBER_AGE_GROUP_FILTERS)
+);
+
+export const isAdminMemberRegionFilter = (
+  value: unknown,
+  canonicalRegions: readonly Exclude<AdminMemberRegionFilter, 'all' | 'unspecified'>[],
+): value is AdminMemberRegionFilter => (
+  value === 'all'
+  || value === 'unspecified'
+  || typeof value === 'string' && (canonicalRegions as readonly string[]).includes(value)
+);
+
+export const isAdminMemberJobFilter = (
+  value: unknown,
+  standardJobs: readonly Exclude<AdminMemberJobFilter, 'all' | 'other' | 'unspecified'>[],
+): value is AdminMemberJobFilter => (
+  value === 'all'
+  || value === 'other'
+  || value === 'unspecified'
+  || typeof value === 'string' && (standardJobs as readonly string[]).includes(value)
+);
+
+export const isAdminMemberMarriageFilter = (
+  value: unknown,
+): value is AdminMemberMarriageFilter => (
+  isOneOf(value, ADMIN_MEMBER_MARRIAGE_FILTERS)
 );
 
 export const isAdminMemberSortKey = (value: unknown): value is AdminMemberSortKey => (

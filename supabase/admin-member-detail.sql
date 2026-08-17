@@ -6,7 +6,7 @@ declare
   v_function record;
   v_function_oid oid;
   v_list_function_oid oid := pg_catalog.to_regprocedure(
-    'public.get_admin_members(text,text,text,text,integer,integer,text,text)'
+    'public.get_admin_members(text,text,text,text,integer,integer,text,text,text,text,text,text,text)'
   );
 begin
   if pg_catalog.to_regclass('auth.users') is null

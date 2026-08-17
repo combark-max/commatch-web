@@ -1,18 +1,30 @@
 import Link from 'next/link';
 import { AlertCircle, ChevronLeft, ChevronRight, RotateCcw, Search } from 'lucide-react';
+import { PROFILE_JOBS, STANDARD_JOB_VALUES } from '@/constants/jobs';
+import { PROFILE_REGIONS } from '@/constants/regions';
 import { requireAdminAccess } from '@/lib/admin/access';
 import {
   ADMIN_MEMBER_PREMIUM_PERIOD_STATE_LABELS,
   ADMIN_MEMBER_PREMIUM_STATUS_LABELS,
   getAdminMemberPremiumPeriodStateClassName,
+  isAdminMemberAgeGroupFilter,
   isAdminMemberAccountFilter,
+  isAdminMemberGenderFilter,
+  isAdminMemberJobFilter,
+  isAdminMemberMarriageFilter,
   isAdminMemberProfileFilter,
+  isAdminMemberRegionFilter,
   isAdminMemberSortDirection,
   isAdminMemberSortKey,
   isAdminMemberVisibilityFilter,
   parseAdminMemberList,
   type AdminMemberAccountFilter,
+  type AdminMemberAgeGroupFilter,
+  type AdminMemberGenderFilter,
+  type AdminMemberJobFilter,
+  type AdminMemberMarriageFilter,
   type AdminMemberProfileFilter,
+  type AdminMemberRegionFilter,
   type AdminMemberSortDirection,
   type AdminMemberSortKey,
   type AdminMemberVisibilityFilter,
@@ -24,6 +36,11 @@ type MemberSearchParams = {
   account?: string | string[];
   profile?: string | string[];
   visibility?: string | string[];
+  gender?: string | string[];
+  age?: string | string[];
+  region?: string | string[];
+  job?: string | string[];
+  marriage?: string | string[];
   sort?: string | string[];
   direction?: string | string[];
   page?: string | string[];
@@ -73,6 +90,11 @@ const buildListHref = ({
   account,
   profile,
   visibility,
+  gender,
+  ageGroup,
+  region,
+  job,
+  marriage,
   sort,
   direction,
   page,
@@ -81,6 +103,11 @@ const buildListHref = ({
   account: AdminMemberAccountFilter;
   profile: AdminMemberProfileFilter;
   visibility: AdminMemberVisibilityFilter;
+  gender: AdminMemberGenderFilter;
+  ageGroup: AdminMemberAgeGroupFilter;
+  region: AdminMemberRegionFilter;
+  job: AdminMemberJobFilter;
+  marriage: AdminMemberMarriageFilter;
   sort: AdminMemberSortKey;
   direction: AdminMemberSortDirection;
   page: number;
@@ -90,6 +117,11 @@ const buildListHref = ({
   if (account !== 'all') query.set('account', account);
   if (profile !== 'all') query.set('profile', profile);
   if (visibility !== 'all') query.set('visibility', visibility);
+  if (gender !== 'all') query.set('gender', gender);
+  if (ageGroup !== 'all') query.set('age', ageGroup);
+  if (region !== 'all') query.set('region', region);
+  if (job !== 'all') query.set('job', job);
+  if (marriage !== 'all') query.set('marriage', marriage);
   if (sort !== 'joined_at') query.set('sort', sort);
   if (direction !== 'desc') query.set('direction', direction);
   if (page > 1) query.set('page', String(page));
@@ -118,11 +150,21 @@ export default async function AdminMembersPage({
   const rawAccount = firstValue(query.account);
   const rawProfile = firstValue(query.profile);
   const rawVisibility = firstValue(query.visibility);
+  const rawGender = firstValue(query.gender);
+  const rawAgeGroup = firstValue(query.age);
+  const rawRegion = firstValue(query.region);
+  const rawJob = firstValue(query.job);
+  const rawMarriage = firstValue(query.marriage);
   const rawSort = firstValue(query.sort);
   const rawDirection = firstValue(query.direction);
   const account = isAdminMemberAccountFilter(rawAccount) ? rawAccount : 'all';
   const profile = isAdminMemberProfileFilter(rawProfile) ? rawProfile : 'all';
   const visibility = isAdminMemberVisibilityFilter(rawVisibility) ? rawVisibility : 'all';
+  const gender = isAdminMemberGenderFilter(rawGender) ? rawGender : 'all';
+  const ageGroup = isAdminMemberAgeGroupFilter(rawAgeGroup) ? rawAgeGroup : 'all';
+  const region = isAdminMemberRegionFilter(rawRegion, PROFILE_REGIONS) ? rawRegion : 'all';
+  const job = isAdminMemberJobFilter(rawJob, STANDARD_JOB_VALUES) ? rawJob : 'all';
+  const marriage = isAdminMemberMarriageFilter(rawMarriage) ? rawMarriage : 'all';
   const sort = isAdminMemberSortKey(rawSort) ? rawSort : 'joined_at';
   const direction = isAdminMemberSortDirection(rawDirection) ? rawDirection : 'desc';
   const page = normalizePage(firstValue(query.page));
@@ -138,6 +180,11 @@ export default async function AdminMembersPage({
     p_offset: offset,
     p_sort_key: sort,
     p_sort_direction: direction,
+    p_gender: gender,
+    p_age_group: ageGroup,
+    p_region: region,
+    p_job: job,
+    p_marriage_history: marriage,
   });
   const members = rpcError ? null : parseAdminMemberList(data);
   const error: MemberListError | null = rpcError
@@ -150,12 +197,22 @@ export default async function AdminMembersPage({
   const hasResultFilters = search !== ''
     || account !== 'all'
     || profile !== 'all'
-    || visibility !== 'all';
+    || visibility !== 'all'
+    || gender !== 'all'
+    || ageGroup !== 'all'
+    || region !== 'all'
+    || job !== 'all'
+    || marriage !== 'all';
   const currentHref = buildListHref({
     search,
     account,
     profile,
     visibility,
+    gender,
+    ageGroup,
+    region,
+    job,
+    marriage,
     sort,
     direction,
     page,
@@ -175,8 +232,8 @@ export default async function AdminMembersPage({
         </p>
       </section>
 
-      <form method="get" action="/admin/members" className="grid gap-4 rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6 lg:grid-cols-8 lg:items-end">
-        <div className="lg:col-span-2">
+      <form method="get" action="/admin/members" className="grid gap-4 rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:grid-cols-2 sm:p-6 lg:grid-cols-6 lg:items-end xl:grid-cols-12">
+        <div className="sm:col-span-2 xl:col-span-3">
           <label htmlFor="member-search" className="mb-2 block text-sm font-semibold text-gray-700">회원 검색</label>
           <input
             id="member-search"
@@ -188,7 +245,58 @@ export default async function AdminMembersPage({
             className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20"
           />
         </div>
-        <div>
+        <div className="xl:col-span-1">
+          <label htmlFor="member-gender-filter" className="mb-2 block text-sm font-semibold text-gray-700">성별</label>
+          <select id="member-gender-filter" name="gender" defaultValue={gender} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
+            <option value="all">전체</option>
+            <option value="male">남성</option>
+            <option value="female">여성</option>
+            <option value="unspecified">미입력</option>
+          </select>
+        </div>
+        <div className="xl:col-span-2">
+          <label htmlFor="member-age-filter" className="mb-2 block text-sm font-semibold text-gray-700">나이</label>
+          <select id="member-age-filter" name="age" defaultValue={ageGroup} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
+            <option value="all">전체</option>
+            <option value="under_20">20대 미만</option>
+            <option value="20s">20대</option>
+            <option value="30s">30대</option>
+            <option value="40s">40대</option>
+            <option value="50s">50대</option>
+            <option value="60_plus">60대 이상</option>
+            <option value="unspecified">미입력</option>
+          </select>
+        </div>
+        <div className="xl:col-span-2">
+          <label htmlFor="member-region-filter" className="mb-2 block text-sm font-semibold text-gray-700">지역</label>
+          <select id="member-region-filter" name="region" defaultValue={region} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
+            <option value="all">전체</option>
+            {PROFILE_REGIONS.map((regionOption) => (
+              <option key={regionOption} value={regionOption}>{regionOption}</option>
+            ))}
+            <option value="unspecified">미입력</option>
+          </select>
+        </div>
+        <div className="xl:col-span-2">
+          <label htmlFor="member-job-filter" className="mb-2 block text-sm font-semibold text-gray-700">직업</label>
+          <select id="member-job-filter" name="job" defaultValue={job} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
+            <option value="all">전체</option>
+            {PROFILE_JOBS.map((jobOption) => (
+              <option key={jobOption} value={jobOption === '기타' ? 'other' : jobOption}>{jobOption}</option>
+            ))}
+            <option value="unspecified">미입력</option>
+          </select>
+        </div>
+        <div className="xl:col-span-2">
+          <label htmlFor="member-marriage-filter" className="mb-2 block text-sm font-semibold text-gray-700">결혼이력</label>
+          <select id="member-marriage-filter" name="marriage" defaultValue={marriage} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
+            <option value="all">전체</option>
+            <option value="first_marriage">초혼</option>
+            <option value="remarriage">재혼</option>
+            <option value="unspecified">미입력</option>
+          </select>
+        </div>
+        <div className="xl:col-span-2">
           <label htmlFor="member-account-filter" className="mb-2 block text-sm font-semibold text-gray-700">계정 상태</label>
           <select id="member-account-filter" name="account" defaultValue={account} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
             <option value="all">전체</option>
@@ -196,7 +304,7 @@ export default async function AdminMembersPage({
             <option value="suspended">정지</option>
           </select>
         </div>
-        <div>
+        <div className="xl:col-span-2">
           <label htmlFor="member-profile-filter" className="mb-2 block text-sm font-semibold text-gray-700">프로필 상태</label>
           <select id="member-profile-filter" name="profile" defaultValue={profile} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
             <option value="all">전체</option>
@@ -205,7 +313,7 @@ export default async function AdminMembersPage({
             <option value="completed">작성 완료</option>
           </select>
         </div>
-        <div>
+        <div className="xl:col-span-2">
           <label htmlFor="member-visibility-filter" className="mb-2 block text-sm font-semibold text-gray-700">프로필 공개</label>
           <select id="member-visibility-filter" name="visibility" defaultValue={visibility} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
             <option value="all">전체</option>
@@ -213,21 +321,21 @@ export default async function AdminMembersPage({
             <option value="hidden">숨김</option>
           </select>
         </div>
-        <div>
+        <div className="xl:col-span-2">
           <label htmlFor="member-sort" className="mb-2 block text-sm font-semibold text-gray-700">정렬</label>
           <select id="member-sort" name="sort" defaultValue={sort} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
             <option value="joined_at">가입일</option>
             <option value="nickname">닉네임</option>
           </select>
         </div>
-        <div>
+        <div className="xl:col-span-2">
           <label htmlFor="member-direction" className="mb-2 block text-sm font-semibold text-gray-700">방향</label>
           <select id="member-direction" name="direction" defaultValue={direction} className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20">
             <option value="desc">내림차순</option>
             <option value="asc">오름차순</option>
           </select>
         </div>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-1 xl:col-span-2">
           <button type="submit" className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-green-600 px-5 text-sm font-semibold text-white shadow-lg shadow-green-200 transition hover:bg-green-700">
             <Search className="shrink-0" size={16} aria-hidden="true" /> 조회
           </button>
@@ -263,16 +371,16 @@ export default async function AdminMembersPage({
       ) : members ? (
         <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1360px] table-fixed text-left text-sm">
+            <table className="w-full min-w-[1120px] table-fixed text-left text-sm">
               <colgroup>
                 <col className="w-[17%]" />
+                <col className="w-[6%]" />
                 <col className="w-[7%]" />
-                <col className="w-[8%]" />
-                <col className="w-[12%]" />
-                <col className="w-[15%]" />
-                <col className="w-[10%]" />
                 <col className="w-[11%]" />
-                <col className="w-[20%]" />
+                <col className="w-[14%]" />
+                <col className="w-[9%]" />
+                <col className="w-[11%]" />
+                <col className="w-[25%]" />
               </colgroup>
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
@@ -308,18 +416,18 @@ export default async function AdminMembersPage({
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getAdminMemberPremiumPeriodStateClassName(member.premiumPeriodState)}`}>
+                          <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${getAdminMemberPremiumPeriodStateClassName(member.premiumPeriodState)}`}>
                             {ADMIN_MEMBER_PREMIUM_PERIOD_STATE_LABELS[member.premiumPeriodState]}
                           </span>
                           {member.premiumStoredStatus ? (
-                            <span className="text-xs text-gray-500">저장 {ADMIN_MEMBER_PREMIUM_STATUS_LABELS[member.premiumStoredStatus]}</span>
+                            <span className="whitespace-nowrap text-xs text-gray-500">저장 {ADMIN_MEMBER_PREMIUM_STATUS_LABELS[member.premiumStoredStatus]}</span>
                           ) : null}
                         </div>
                         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                          <Link href={`/admin/members/${member.memberUserId}`} className="text-sm font-bold text-green-700 hover:text-green-800 hover:underline">
+                          <Link href={`/admin/members/${member.memberUserId}`} className="whitespace-nowrap text-sm font-bold text-green-700 hover:text-green-800 hover:underline">
                             회원 상세
                           </Link>
-                          <Link href={`/admin/premium/${member.memberUserId}`} className="text-sm font-bold text-green-700 hover:text-green-800 hover:underline">
+                          <Link href={`/admin/premium/${member.memberUserId}`} className="whitespace-nowrap text-sm font-bold text-green-700 hover:text-green-800 hover:underline">
                             Premium 상세
                           </Link>
                         </div>
@@ -335,7 +443,7 @@ export default async function AdminMembersPage({
       {!error && members && (members.length > 0 || page > 1) ? (
         <nav aria-label="관리자 회원 목록 페이지" className="flex items-center justify-center gap-3">
           {page > 1 ? (
-            <Link href={buildListHref({ search, account, profile, visibility, sort, direction, page: page - 1 })} className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"><ChevronLeft size={16} aria-hidden="true" />이전</Link>
+            <Link href={buildListHref({ search, account, profile, visibility, gender, ageGroup, region, job, marriage, sort, direction, page: page - 1 })} className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"><ChevronLeft size={16} aria-hidden="true" />이전</Link>
           ) : (
             <span aria-disabled="true" className="inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400"><ChevronLeft size={16} aria-hidden="true" />이전</span>
           )}
@@ -343,7 +451,7 @@ export default async function AdminMembersPage({
             {totalPages === null ? `${page}페이지` : `${page} / ${totalPages}`}
           </span>
           {totalPages !== null && page < totalPages ? (
-            <Link href={buildListHref({ search, account, profile, visibility, sort, direction, page: page + 1 })} className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">다음<ChevronRight size={16} aria-hidden="true" /></Link>
+            <Link href={buildListHref({ search, account, profile, visibility, gender, ageGroup, region, job, marriage, sort, direction, page: page + 1 })} className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">다음<ChevronRight size={16} aria-hidden="true" /></Link>
           ) : (
             <span aria-disabled="true" className="inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400">다음<ChevronRight size={16} aria-hidden="true" /></span>
           )}

@@ -4,7 +4,6 @@ do $preflight$
 declare
   v_marker constant text := 'commatch_admin_members_v1';
   v_function record;
-  v_function_oid oid;
 begin
   if pg_catalog.to_regclass('auth.users') is null
      or pg_catalog.to_regclass('public.profiles') is null
@@ -74,23 +73,23 @@ begin
     where namespace_info.nspname = 'public'
       and function_info.proname = 'get_admin_members'
   loop
-    if v_function.identity_arguments <>
-      'p_search text, p_account text, p_profile text, p_visibility text, p_limit integer, p_offset integer, p_sort_key text, p_sort_direction text' then
+    if v_function.identity_arguments not in (
+      'p_search text, p_account text, p_profile text, p_visibility text, p_limit integer, p_offset integer, p_sort_key text, p_sort_direction text',
+      'p_search text, p_account text, p_profile text, p_visibility text, p_limit integer, p_offset integer, p_sort_key text, p_sort_direction text, p_gender text, p_age_group text, p_region text, p_job text, p_marriage_history text'
+    ) then
       raise exception 'public.get_admin_members already exists with an incompatible signature';
+    end if;
+    if pg_catalog.obj_description(v_function.oid, 'pg_proc') is distinct from v_marker then
+      raise exception 'public.get_admin_members differs from the approved replacement source';
     end if;
   end loop;
 
-  v_function_oid := pg_catalog.to_regprocedure(
-    'public.get_admin_members(text,text,text,text,integer,integer,text,text)'
-  );
-
-  if v_function_oid is not null
-     and pg_catalog.obj_description(v_function_oid, 'pg_proc') is distinct from v_marker then
-    raise exception 'public.get_admin_members differs from the approved replacement source';
-  end if;
 end
 $preflight$;
 
+drop function if exists public.get_admin_members(
+  text, text, text, text, integer, integer, text, text, text, text, text, text, text
+);
 drop function if exists public.get_admin_members(text, text, text, text, integer, integer, text, text);
 
 create function public.get_admin_members(
@@ -101,7 +100,12 @@ create function public.get_admin_members(
   p_limit integer default 20,
   p_offset integer default 0,
   p_sort_key text default 'joined_at',
-  p_sort_direction text default 'desc'
+  p_sort_direction text default 'desc',
+  p_gender text default 'all',
+  p_age_group text default 'all',
+  p_region text default 'all',
+  p_job text default 'all',
+  p_marriage_history text default 'all'
 )
 returns table (
   member_user_id uuid,
@@ -138,6 +142,11 @@ declare
   v_visibility text := coalesce(nullif(pg_catalog.btrim(p_visibility), ''), 'all');
   v_sort_key text := coalesce(nullif(pg_catalog.btrim(p_sort_key), ''), 'joined_at');
   v_sort_direction text := coalesce(nullif(pg_catalog.btrim(p_sort_direction), ''), 'desc');
+  v_gender text := coalesce(nullif(pg_catalog.btrim(p_gender), ''), 'all');
+  v_age_group text := coalesce(nullif(pg_catalog.btrim(p_age_group), ''), 'all');
+  v_region text := coalesce(nullif(pg_catalog.btrim(p_region), ''), 'all');
+  v_job text := coalesce(nullif(pg_catalog.btrim(p_job), ''), 'all');
+  v_marriage_history text := coalesce(nullif(pg_catalog.btrim(p_marriage_history), ''), 'all');
 begin
   if auth.uid() is null
      or not coalesce(public.has_admin_permission('member_restrictions_view'), false) then
@@ -155,6 +164,20 @@ begin
      or v_visibility not in ('all', 'visible', 'hidden')
      or v_sort_key not in ('joined_at', 'nickname')
      or v_sort_direction not in ('asc', 'desc')
+     or v_gender not in ('all', 'male', 'female', 'unspecified')
+     or v_age_group not in ('all', 'under_20', '20s', '30s', '40s', '50s', '60_plus', 'unspecified')
+     or v_region not in (
+       'all', 'unspecified', '서울특별시', '부산광역시', '대구광역시', '인천광역시',
+       '광주광역시', '대전광역시', '울산광역시', '세종특별자치시', '경기도',
+       '강원특별자치도', '충청북도', '충청남도', '전북특별자치도', '전라남도',
+       '경상북도', '경상남도', '제주특별자치도'
+     )
+     or v_job not in (
+       'all', 'other', 'unspecified', '회사원', '공무원', '교직원', '전문직', '의료인',
+       '금융직', '연구직', 'IT·개발', '교육직', '자영업', '프리랜서', '예술·문화',
+       '서비스직', '생산·기술직', '학생', '취업준비'
+     )
+     or v_marriage_history not in ('all', 'first_marriage', 'remarriage', 'unspecified')
      or p_limit is null or p_limit < 1 or p_limit > 100
      or p_offset is null or p_offset < 0 then
     raise exception using errcode = '22023', message = 'Invalid administrator member list parameters';
@@ -205,6 +228,26 @@ begin
         else pg_catalog.date_part('year', pg_catalog.age(current_date, profile.birth_date))::integer
       end as age,
       nullif(pg_catalog.btrim(profile.region), '') as region,
+      case nullif(pg_catalog.btrim(profile.region), '')
+        when '서울' then '서울특별시'
+        when '부산' then '부산광역시'
+        when '대구' then '대구광역시'
+        when '인천' then '인천광역시'
+        when '광주' then '광주광역시'
+        when '대전' then '대전광역시'
+        when '울산' then '울산광역시'
+        when '세종' then '세종특별자치시'
+        when '경기' then '경기도'
+        when '강원' then '강원특별자치도'
+        when '충북' then '충청북도'
+        when '충남' then '충청남도'
+        when '전북' then '전북특별자치도'
+        when '전남' then '전라남도'
+        when '경북' then '경상북도'
+        when '경남' then '경상남도'
+        when '제주' then '제주특별자치도'
+        else nullif(pg_catalog.btrim(profile.region), '')
+      end as normalized_region,
       nullif(pg_catalog.btrim(profile.job), '') as job,
       nullif(pg_catalog.btrim(profile.marriage_history), '') as marriage_history,
       coalesce(restriction.account_status, 'active') as stored_account_status,
@@ -257,6 +300,46 @@ begin
       and (v_account = 'all' or member.current_account_status = v_account)
       and (v_profile = 'all' or member.profile_status = v_profile)
       and (v_visibility = 'all' or member.profile_visibility = v_visibility)
+      and (
+        v_gender = 'all'
+        or v_gender = 'male' and member.gender in ('남성', 'male')
+        or v_gender = 'female' and member.gender in ('여성', 'female')
+        or v_gender = 'unspecified'
+          and (member.gender is null or member.gender not in ('남성', 'male', '여성', 'female'))
+      )
+      and (
+        v_age_group = 'all'
+        or v_age_group = 'under_20' and member.age < 20
+        or v_age_group = '20s' and member.age between 20 and 29
+        or v_age_group = '30s' and member.age between 30 and 39
+        or v_age_group = '40s' and member.age between 40 and 49
+        or v_age_group = '50s' and member.age between 50 and 59
+        or v_age_group = '60_plus' and member.age >= 60
+        or v_age_group = 'unspecified' and member.age is null
+      )
+      and (
+        v_region = 'all'
+        or v_region = 'unspecified' and member.region is null
+        or member.normalized_region = v_region
+      )
+      and (
+        v_job = 'all'
+        or v_job = 'unspecified' and member.job is null
+        or v_job = 'other' and member.job is not null and member.job not in (
+          '회사원', '공무원', '교직원', '전문직', '의료인', '금융직', '연구직',
+          'IT·개발', '교육직', '자영업', '프리랜서', '예술·문화', '서비스직',
+          '생산·기술직', '학생', '취업준비'
+        )
+        or v_job not in ('all', 'other', 'unspecified') and member.job = v_job
+      )
+      and (
+        v_marriage_history = 'all'
+        or v_marriage_history = 'first_marriage' and member.marriage_history = 'first_marriage'
+        or v_marriage_history = 'remarriage' and member.marriage_history = 'remarriage'
+        or v_marriage_history = 'unspecified'
+          and (member.marriage_history is null
+            or member.marriage_history not in ('first_marriage', 'remarriage'))
+      )
   )
   select
     member.member_user_id,
@@ -294,22 +377,30 @@ begin
 end
 $function$;
 
-alter function public.get_admin_members(text, text, text, text, integer, integer, text, text)
+alter function public.get_admin_members(
+  text, text, text, text, integer, integer, text, text, text, text, text, text, text
+)
   owner to postgres;
 
-comment on function public.get_admin_members(text, text, text, text, integer, integer, text, text)
+comment on function public.get_admin_members(
+  text, text, text, text, integer, integer, text, text, text, text, text, text, text
+)
   is 'commatch_admin_members_v1';
 
-revoke all on function public.get_admin_members(text, text, text, text, integer, integer, text, text)
+revoke all on function public.get_admin_members(
+  text, text, text, text, integer, integer, text, text, text, text, text, text, text
+)
   from public, anon, authenticated, service_role;
-grant execute on function public.get_admin_members(text, text, text, text, integer, integer, text, text)
+grant execute on function public.get_admin_members(
+  text, text, text, text, integer, integer, text, text, text, text, text, text, text
+)
   to authenticated;
 
 do $installation_validation$
 declare
   v_marker constant text := 'commatch_admin_members_v1';
   v_function_oid oid := pg_catalog.to_regprocedure(
-    'public.get_admin_members(text,text,text,text,integer,integer,text,text)'
+    'public.get_admin_members(text,text,text,text,integer,integer,text,text,text,text,text,text,text)'
   );
 begin
   if v_function_oid is null then
@@ -342,8 +433,8 @@ begin
       and language_info.lanname = 'plpgsql'
       and function_info.prosecdef
       and function_info.provolatile = 's'
-      and function_info.pronargs = 8
-      and function_info.pronargdefaults = 8
+      and function_info.pronargs = 13
+      and function_info.pronargdefaults = 13
       and pg_catalog.obj_description(function_info.oid, 'pg_proc') = v_marker
       and exists (
         select 1
@@ -376,6 +467,6 @@ commit;
 
 -- Read-only post-install checks:
 -- select pg_catalog.pg_get_functiondef(
---   'public.get_admin_members(text,text,text,text,integer,integer,text,text)'::pg_catalog.regprocedure
+--   'public.get_admin_members(text,text,text,text,integer,integer,text,text,text,text,text,text,text)'::pg_catalog.regprocedure
 -- );
 -- select * from public.get_admin_members(null, 'all', 'all', 'all', 20, 0, 'joined_at', 'desc');

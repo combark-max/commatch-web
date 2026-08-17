@@ -89,12 +89,12 @@ begin
     raise exception 'Disposable users must start without administrator, profile, restriction, or Premium rows';
   end if;
   if pg_catalog.to_regprocedure(
-       'public.get_admin_members(text,text,text,text,integer,integer,text,text)'
+       'public.get_admin_members(text,text,text,text,integer,integer,text,text,text,text,text,text,text)'
      ) is null then
     raise exception 'Administrator member list SQL is not installed';
   end if;
   if pg_catalog.pg_get_function_result(
-       'public.get_admin_members(text,text,text,text,integer,integer,text,text)'::regprocedure
+       'public.get_admin_members(text,text,text,text,integer,integer,text,text,text,text,text,text,text)'::regprocedure
      ) is distinct from
        'TABLE(member_user_id uuid, nickname text, joined_at timestamp with time zone, profile_exists boolean, profile_status text, profile_visibility text, gender text, age integer, region text, job text, marriage_history text, stored_account_status text, current_account_status text, suspended_at timestamp with time zone, suspended_until timestamp with time zone, premium_membership_exists boolean, premium_stored_status text, premium_is_available boolean, premium_period_state text, total_count bigint)' then
     raise exception 'Administrator member list return signature is not current';
@@ -389,6 +389,35 @@ select pg_temp._commatch_members_it_assert(
    where member_user_id = (select completed_user_id from _commatch_members_it_config))
 );
 select pg_temp._commatch_members_it_assert(
+  'canonical female, legacy region, custom job, and first marriage filters',
+  exists (
+    select 1
+    from public.get_admin_members(
+      p_gender => 'female',
+      p_region => '서울특별시',
+      p_job => 'other',
+      p_marriage_history => 'first_marriage',
+      p_limit => 100
+    )
+    where member_user_id = (select completed_user_id from _commatch_members_it_config)
+  )
+);
+select pg_temp._commatch_members_it_assert(
+  'missing profile matches every unspecified demographic filter',
+  exists (
+    select 1
+    from public.get_admin_members(
+      p_gender => 'unspecified',
+      p_age_group => 'unspecified',
+      p_region => 'unspecified',
+      p_job => 'unspecified',
+      p_marriage_history => 'unspecified',
+      p_limit => 100
+    )
+    where member_user_id = (select missing_user_id from _commatch_members_it_config)
+  )
+);
+select pg_temp._commatch_members_it_assert(
   'hidden filter requires an existing hidden profile',
   (select profile_exists and profile_visibility = 'hidden'
    from public.get_admin_members(null, 'all', 'all', 'hidden', 100, 0, 'joined_at', 'desc')
@@ -465,6 +494,26 @@ select pg_temp._commatch_members_it_expect_sqlstate(
   $$select * from public.get_admin_members(null, 'all', 'all', 'all', 20, 0, 'joined_at', 'sideways')$$
 );
 select pg_temp._commatch_members_it_expect_sqlstate(
+  'invalid gender filter rejected', '22023',
+  $$select * from public.get_admin_members(p_gender => 'invalid')$$
+);
+select pg_temp._commatch_members_it_expect_sqlstate(
+  'invalid age group filter rejected', '22023',
+  $$select * from public.get_admin_members(p_age_group => 'invalid')$$
+);
+select pg_temp._commatch_members_it_expect_sqlstate(
+  'invalid region filter rejected', '22023',
+  $$select * from public.get_admin_members(p_region => '서울')$$
+);
+select pg_temp._commatch_members_it_expect_sqlstate(
+  'invalid job filter rejected', '22023',
+  $$select * from public.get_admin_members(p_job => '개발자')$$
+);
+select pg_temp._commatch_members_it_expect_sqlstate(
+  'invalid marriage filter rejected', '22023',
+  $$select * from public.get_admin_members(p_marriage_history => 'invalid')$$
+);
+select pg_temp._commatch_members_it_expect_sqlstate(
   'invalid limit rejected', '22023',
   $$select * from public.get_admin_members(null, 'all', 'all', 'all', 0, 0)$$
 );
@@ -505,6 +554,16 @@ select pg_temp._commatch_members_it_assert(
    from public.get_admin_members(null, 'all', 'all', 'all', 100, 0)
    where member_user_id = (select completed_user_id from _commatch_members_it_config))
 );
+select pg_temp._commatch_members_it_assert(
+  'new filter is applied before pagination and total_count',
+  (with first_page as (
+     select * from public.get_admin_members(p_gender => 'unspecified', p_limit => 1, p_offset => 0)
+   ), all_filtered as (
+     select * from public.get_admin_members(p_gender => 'unspecified', p_limit => 100, p_offset => 0)
+   )
+   select (select pg_catalog.count(*) from first_page) = 1
+      and (select total_count from first_page) = (select pg_catalog.count(*) from all_filtered))
+);
 reset role;
 
 update public.profiles
@@ -530,6 +589,117 @@ select pg_temp._commatch_members_it_assert(
   (select age = 30
    from public.get_admin_members(null, 'all', 'all', 'all', 100, 0)
    where member_user_id = (select completed_user_id from _commatch_members_it_config))
+);
+reset role;
+
+update public.profiles
+set gender = '남성',
+    birth_date = (current_date - interval '19 years')::date,
+    region = '서울특별시',
+    job = '회사원',
+    marriage_history = 'remarriage'
+where id = (select completed_user_id from _commatch_members_it_config);
+set local role authenticated;
+select pg_temp._commatch_members_it_set_user(super_admin_id) from _commatch_members_it_config;
+select pg_temp._commatch_members_it_assert(
+  'canonical filters compose with AND and keep filtered total_count',
+  (select pg_catalog.count(*) = 1 and pg_catalog.bool_and(total_count = 1)
+   from public.get_admin_members(
+     p_search => 'members_completed',
+     p_profile => 'completed',
+     p_visibility => 'hidden',
+     p_gender => 'male',
+     p_age_group => 'under_20',
+     p_region => '서울특별시',
+     p_job => '회사원',
+     p_marriage_history => 'remarriage',
+     p_limit => 1
+   )
+   where member_user_id = (select completed_user_id from _commatch_members_it_config))
+);
+reset role;
+
+update public.profiles
+set gender = 'male',
+    birth_date = (current_date - interval '25 years')::date,
+    region = '서울',
+    job = '개발자',
+    marriage_history = null
+where id = (select completed_user_id from _commatch_members_it_config);
+set local role authenticated;
+select pg_temp._commatch_members_it_set_user(super_admin_id) from _commatch_members_it_config;
+select pg_temp._commatch_members_it_assert(
+  'legacy male, twenties, region alias, custom job, and unspecified marriage filters',
+  exists (
+    select 1 from public.get_admin_members(
+      p_gender => 'male', p_age_group => '20s', p_region => '서울특별시',
+      p_job => 'other', p_marriage_history => 'unspecified', p_limit => 100
+    )
+    where member_user_id = (select completed_user_id from _commatch_members_it_config)
+  )
+);
+reset role;
+
+update public.profiles
+set gender = 'female',
+    birth_date = (current_date - interval '35 years')::date,
+    region = null,
+    job = null,
+    marriage_history = 'first_marriage'
+where id = (select completed_user_id from _commatch_members_it_config);
+set local role authenticated;
+select pg_temp._commatch_members_it_set_user(super_admin_id) from _commatch_members_it_config;
+select pg_temp._commatch_members_it_assert(
+  'legacy female, thirties, unspecified region and job, and first marriage filters',
+  exists (
+    select 1 from public.get_admin_members(
+      p_gender => 'female', p_age_group => '30s', p_region => 'unspecified',
+      p_job => 'unspecified', p_marriage_history => 'first_marriage', p_limit => 100
+    )
+    where member_user_id = (select completed_user_id from _commatch_members_it_config)
+  )
+);
+reset role;
+
+update public.profiles
+set gender = 'legacy_unknown', birth_date = (current_date - interval '45 years')::date
+where id = (select completed_user_id from _commatch_members_it_config);
+set local role authenticated;
+select pg_temp._commatch_members_it_set_user(super_admin_id) from _commatch_members_it_config;
+select pg_temp._commatch_members_it_assert(
+  'unknown gender and forties filters',
+  exists (
+    select 1 from public.get_admin_members(p_gender => 'unspecified', p_age_group => '40s', p_limit => 100)
+    where member_user_id = (select completed_user_id from _commatch_members_it_config)
+  )
+);
+reset role;
+
+update public.profiles
+set gender = '여성', birth_date = (current_date - interval '55 years')::date
+where id = (select completed_user_id from _commatch_members_it_config);
+set local role authenticated;
+select pg_temp._commatch_members_it_set_user(super_admin_id) from _commatch_members_it_config;
+select pg_temp._commatch_members_it_assert(
+  'fifties filter',
+  exists (
+    select 1 from public.get_admin_members(p_age_group => '50s', p_limit => 100)
+    where member_user_id = (select completed_user_id from _commatch_members_it_config)
+  )
+);
+reset role;
+
+update public.profiles
+set birth_date = (current_date - interval '65 years')::date
+where id = (select completed_user_id from _commatch_members_it_config);
+set local role authenticated;
+select pg_temp._commatch_members_it_set_user(super_admin_id) from _commatch_members_it_config;
+select pg_temp._commatch_members_it_assert(
+  'sixties and older filter',
+  exists (
+    select 1 from public.get_admin_members(p_age_group => '60_plus', p_limit => 100)
+    where member_user_id = (select completed_user_id from _commatch_members_it_config)
+  )
 );
 reset role;
 

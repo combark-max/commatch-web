@@ -1,6 +1,16 @@
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, Crown, Images, ShieldCheck, UserRound } from 'lucide-react';
-import { requireAdminAccess } from '@/lib/admin/access';
+import AdminMemberRestrictionForm from '@/components/admin/AdminMemberRestrictionForm';
+import { type AdminRole, requireAdminAccess } from '@/lib/admin/access';
+import {
+  MEMBER_ACCOUNT_STATUS_LABELS,
+  MEMBER_PROFILE_VISIBILITY_LABELS,
+  MEMBER_RESTRICTION_ACTION_LABELS,
+  parseAdminMemberRestriction,
+  parseAdminMemberRestrictionActions,
+  type AdminMemberRestrictionAction,
+  type MemberAccountStatus,
+} from '@/lib/admin/member-restrictions';
 import {
   ADMIN_MEMBER_ACCOUNT_STATUS_LABELS,
   ADMIN_MEMBER_PREMIUM_PERIOD_STATE_LABELS,
@@ -14,6 +24,7 @@ import {
   parseAdminMemberDetail,
   type AdminMemberDetail,
 } from '@/lib/admin/members';
+import { getAdminRoleLabel } from '@/lib/admin/presentation';
 import { normalizeProfileImagePath } from '@/lib/profile-image';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -39,6 +50,14 @@ const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
 const formatDateTime = (value: string | null, emptyLabel = '해당 없음'): string => (
   value ? dateTimeFormatter.format(new Date(value)) : emptyLabel
 );
+
+const formatSuspensionEnd = (
+  accountStatus: MemberAccountStatus,
+  suspendedUntil: string | null,
+): string => {
+  if (suspendedUntil) return dateTimeFormatter.format(new Date(suspendedUntil));
+  return accountStatus === 'suspended' ? '무기한' : '정지 없음';
+};
 
 const formatBirthDate = (value: string | null): string => (
   value ? dateFormatter.format(new Date(`${value}T00:00:00+09:00`)) : '미입력'
@@ -75,6 +94,10 @@ const getMarriageHistoryLabel = (value: string | null): string => {
 };
 
 const displayText = (value: string | null): string => value?.trim() || '미입력';
+
+const isAdminRole = (value: string | null): value is AdminRole => (
+  value === 'super_admin' || value === 'admin' || value === 'moderator'
+);
 
 const getErrorMessage = (error: MemberDetailError): string => {
   if (error === 'invalid_uuid') return '올바르지 않은 회원 UUID입니다.';
@@ -115,14 +138,17 @@ export default async function AdminMemberDetailPage({
 }: {
   params: Promise<{ userId: string }>;
 }) {
-  await requireAdminAccess('member_restrictions_view');
+  const adminAccess = await requireAdminAccess('member_restrictions_view');
   const { userId } = await params;
   if (!isAdminMemberUuid(userId)) return <ErrorPanel error="invalid_uuid" />;
 
   const supabase = await createServerSupabaseClient();
-  const { data, error: rpcError } = await supabase.rpc('get_admin_member_detail', {
-    p_target_user_id: userId,
-  });
+  const [memberResult, restrictionResult, restrictionActionsResult] = await Promise.all([
+    supabase.rpc('get_admin_member_detail', { p_target_user_id: userId }),
+    supabase.rpc('get_admin_member_restriction', { p_target_user_id: userId }),
+    supabase.rpc('get_admin_member_restriction_actions', { p_target_user_id: userId }),
+  ]);
+  const { data, error: rpcError } = memberResult;
   if (rpcError) {
     const error: MemberDetailError = rpcError.code === 'P0002'
       ? 'not_found'
@@ -139,6 +165,15 @@ export default async function AdminMemberDetailPage({
     return <ErrorPanel error="parse" />;
   }
 
+  const restriction = restrictionResult.error
+    ? null
+    : parseAdminMemberRestriction(restrictionResult.data);
+  const restrictionActions: AdminMemberRestrictionAction[] | null = restrictionActionsResult.error
+    ? null
+    : parseAdminMemberRestrictionActions(restrictionActionsResult.data);
+  const restrictionLoadFailed = restriction === null
+    || restriction.userId.toLowerCase() !== userId.toLowerCase();
+  const canManageRestrictions = adminAccess.permissions.includes('member_restrictions_manage');
   const imageUrls = getProfileImageUrls(member);
 
   return (
@@ -196,6 +231,32 @@ export default async function AdminMemberDetailPage({
           <InformationItem label="정지 시작" value={formatDateTime(member.suspendedAt)} />
           <InformationItem label="정지 종료" value={formatDateTime(member.suspendedUntil, member.suspendedAt ? '무기한' : '해당 없음')} />
         </dl>
+      </section>
+
+      <section aria-labelledby="member-restriction-management" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="text-green-700" size={22} aria-hidden="true" />
+          <h2 id="member-restriction-management" className="text-xl font-black text-gray-900">회원 제재 관리</h2>
+        </div>
+        <p className="mt-2 text-sm text-gray-500">
+          신고 연결 없이 이 회원의 이용 상태와 프로필 노출 상태를 직접 변경합니다. 모든 변경은 회원 제재 이력에 기록됩니다.
+        </p>
+        {restrictionLoadFailed || !restriction ? (
+          <p className="mt-5 rounded-2xl bg-red-50 p-5 text-sm font-semibold text-red-700">
+            회원 제재 정보를 불러오지 못했습니다.
+          </p>
+        ) : (
+          <div className="mt-6 border-t border-gray-100 pt-6">
+            <AdminMemberRestrictionForm
+              reportId={null}
+              targetUserId={member.memberUserId}
+              targetLabel={member.nickname ?? '닉네임 정보 없음'}
+              restriction={restriction}
+              canManage={canManageRestrictions}
+              canApply
+            />
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="member-profile-detail" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -263,6 +324,89 @@ export default async function AdminMemberDetailPage({
           <InformationItem label="시작일" value={formatDateTime(member.premiumStartedAt)} />
           <InformationItem label="만료일" value={formatDateTime(member.premiumExpiresAt, member.premiumMembershipExists ? '무기한' : '해당 없음')} />
         </dl>
+      </section>
+
+      <section aria-labelledby="member-restriction-history" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="text-gray-500" size={22} aria-hidden="true" />
+          <h2 id="member-restriction-history" className="text-xl font-black text-gray-900">회원 제재 이력</h2>
+        </div>
+        {restrictionActions === null ? (
+          <p className="mt-5 rounded-2xl bg-red-50 p-5 text-sm font-semibold text-red-700">
+            회원 제재 이력을 불러오지 못했습니다.
+          </p>
+        ) : restrictionActions.length === 0 ? (
+          <p className="mt-5 rounded-2xl bg-gray-50 p-5 text-sm font-semibold text-gray-500">
+            아직 회원 제재 이력이 없습니다.
+          </p>
+        ) : (
+          <ol className="mt-5 space-y-4">
+            {restrictionActions.map((action) => (
+              <li key={action.actionId} className="rounded-2xl border border-gray-100 p-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="font-bold text-gray-900">{MEMBER_RESTRICTION_ACTION_LABELS[action.actionType]}</p>
+                  <time className="text-xs font-medium text-gray-500" dateTime={action.createdAt}>
+                    {dateTimeFormatter.format(new Date(action.createdAt))}
+                  </time>
+                </div>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                  <div>
+                    <dt className="font-semibold text-gray-500">이용 상태</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {MEMBER_ACCOUNT_STATUS_LABELS[action.previousAccountStatus]} → {MEMBER_ACCOUNT_STATUS_LABELS[action.newAccountStatus]}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-gray-500">프로필 상태</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {MEMBER_PROFILE_VISIBILITY_LABELS[action.previousProfileVisibility]} → {MEMBER_PROFILE_VISIBILITY_LABELS[action.newProfileVisibility]}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-gray-500">정지 종료</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {formatSuspensionEnd(action.previousAccountStatus, action.previousSuspendedUntil)}
+                      {' → '}
+                      {formatSuspensionEnd(action.newAccountStatus, action.newSuspendedUntil)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-gray-500">처리 관리자 UUID</dt>
+                    <dd className="mt-1 break-all font-mono text-xs text-gray-900">
+                      {action.adminUserId ?? '처리 관리자 정보 없음'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-gray-500">관리자 역할</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {isAdminRole(action.adminRole) ? getAdminRoleLabel(action.adminRole) : '처리 관리자 정보 없음'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-gray-500">관련 신고</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {action.reportId ? (
+                        <Link href={`/admin/reports/${action.reportId}`} className="font-bold text-green-700 hover:underline">
+                          신고 {action.reportId.slice(0, 8)}
+                        </Link>
+                      ) : '관련 신고 없음'}
+                    </dd>
+                  </div>
+                </dl>
+                {action.reason ? (
+                  <p className="mt-4 whitespace-pre-wrap break-words text-sm text-gray-700">
+                    <strong className="text-gray-900">제재 사유:</strong> {action.reason}
+                  </p>
+                ) : null}
+                {action.note ? (
+                  <p className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700">
+                    <strong className="text-gray-900">관리자 메모:</strong> {action.note}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        )}
       </section>
     </div>
   );

@@ -40,7 +40,7 @@ const mapRestrictionError = (code: string | undefined, message: string | undefin
 };
 
 export async function updateAdminMemberRestrictionAction(
-  reportId: string,
+  reportId: string | null,
   targetUserId: string,
   _previousState: MemberRestrictionActionState,
   formData: FormData,
@@ -63,7 +63,7 @@ export async function updateAdminMemberRestrictionAction(
   const reasonValue = formData.get('reason');
   const adminNoteValue = formData.get('adminNote');
   if (
-    !isUuid(reportId)
+    (reportId !== null && !isUuid(reportId))
     || !isUuid(targetUserId)
     || !isMemberAccountMode(accountMode)
     || !isMemberProfileVisibility(profileVisibility)
@@ -86,21 +86,23 @@ export async function updateAdminMemberRestrictionAction(
   }
 
   const supabase = await createServerSupabaseClient();
-  const detailResult = await supabase.rpc('get_admin_report_detail', { p_report_id: reportId });
-  const detail = detailResult.error ? null : parseAdminReportDetail(detailResult.data);
-  if (!detail) return errorState('현재 신고와 제재 대상 회원 정보를 확인하지 못했습니다.');
-  if (detail.reportedUserId !== targetUserId) {
-    return errorState('현재 신고와 제재 대상 회원 정보가 일치하지 않습니다.');
-  }
-  if (
-    detail.targetType === 'message'
-    && detail.message.senderId !== detail.reportedUserId
-  ) {
-    return errorState('신고 대상 회원과 메시지 작성자 정보가 일치하지 않아 제재를 적용할 수 없습니다.');
+  if (reportId !== null) {
+    const detailResult = await supabase.rpc('get_admin_report_detail', { p_report_id: reportId });
+    const detail = detailResult.error ? null : parseAdminReportDetail(detailResult.data);
+    if (!detail) return errorState('현재 신고와 제재 대상 회원 정보를 확인하지 못했습니다.');
+    if (detail.reportedUserId !== targetUserId) {
+      return errorState('현재 신고와 제재 대상 회원 정보가 일치하지 않습니다.');
+    }
+    if (
+      detail.targetType === 'message'
+      && detail.message.senderId !== detail.reportedUserId
+    ) {
+      return errorState('신고 대상 회원과 메시지 작성자 정보가 일치하지 않아 제재를 적용할 수 없습니다.');
+    }
   }
 
   const currentResult = await supabase.rpc('get_admin_member_restriction', {
-    p_target_user_id: detail.reportedUserId,
+    p_target_user_id: targetUserId,
   });
   const current = currentResult.error ? null : parseAdminMemberRestriction(currentResult.data);
   if (!current) return errorState('회원 제재 정보를 불러오지 못했습니다.');
@@ -118,7 +120,7 @@ export async function updateAdminMemberRestrictionAction(
   ) return errorState('변경된 내용이 없습니다.');
 
   const { data, error } = await supabase.rpc('update_admin_member_restriction', {
-    p_target_user_id: detail.reportedUserId,
+    p_target_user_id: targetUserId,
     p_new_account_status: accountMode === 'active' ? 'active' : 'suspended',
     p_new_profile_visibility: profileVisibility,
     p_new_suspended_until: suspendedUntil,
@@ -132,7 +134,12 @@ export async function updateAdminMemberRestrictionAction(
   }
 
   revalidatePath('/admin');
-  revalidatePath('/admin/reports');
-  revalidatePath(`/admin/reports/${reportId}`);
+  if (reportId === null) {
+    revalidatePath('/admin/members');
+    revalidatePath(`/admin/members/${targetUserId}`);
+  } else {
+    revalidatePath('/admin/reports');
+    revalidatePath(`/admin/reports/${reportId}`);
+  }
   return { kind: 'success', message: '회원 제재 상태가 변경되었습니다.' };
 }

@@ -18,7 +18,7 @@ import {
 } from '@/lib/admin/member-restrictions';
 
 type AdminMemberRestrictionFormProps = {
-  reportId: string;
+  reportId: string | null;
   targetUserId: string;
   targetLabel: string;
   restriction: AdminMemberRestriction;
@@ -36,6 +36,7 @@ export default function AdminMemberRestrictionForm({
   canManage,
   canApply,
 }: AdminMemberRestrictionFormProps) {
+  const isReportContext = reportId !== null;
   const initialMode = getMemberAccountMode(
     restriction.accountStatus,
     restriction.suspendedUntil,
@@ -256,7 +257,9 @@ export default function AdminMemberRestrictionForm({
             </div>
             <div>
               <dt className="font-semibold text-green-800">관련 신고</dt>
-              <dd className="mt-1 text-gray-900">현재 신고</dd>
+              <dd className="mt-1 text-gray-900">
+                {isReportContext ? '현재 신고' : '관리자 직접 처리'}
+              </dd>
             </div>
           </dl>
           <div className="mt-5 flex flex-wrap gap-3">

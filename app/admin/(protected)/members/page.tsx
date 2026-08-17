@@ -2,14 +2,9 @@ import Link from 'next/link';
 import { AlertCircle, ChevronLeft, ChevronRight, RotateCcw, Search } from 'lucide-react';
 import { requireAdminAccess } from '@/lib/admin/access';
 import {
-  ADMIN_MEMBER_ACCOUNT_STATUS_LABELS,
   ADMIN_MEMBER_PREMIUM_PERIOD_STATE_LABELS,
   ADMIN_MEMBER_PREMIUM_STATUS_LABELS,
-  ADMIN_MEMBER_PROFILE_STATUS_LABELS,
-  ADMIN_MEMBER_PROFILE_VISIBILITY_LABELS,
-  getAdminMemberAccountStatusClassName,
   getAdminMemberPremiumPeriodStateClassName,
-  getAdminMemberProfileStatusClassName,
   isAdminMemberAccountFilter,
   isAdminMemberProfileFilter,
   isAdminMemberSortDirection,
@@ -38,6 +33,20 @@ type MemberListError = 'forbidden' | 'rpc' | 'parse';
 
 const PAGE_SIZE = 20;
 const MAX_PAGE = Math.floor(2_147_483_647 / PAGE_SIZE) + 1;
+
+const displayProfileValue = (value: string | null): string => value?.trim() || '미입력';
+
+const getGenderLabel = (value: string | null): string => {
+  if (value === '남성' || value === 'male') return '남성';
+  if (value === '여성' || value === 'female') return '여성';
+  return '미입력';
+};
+
+const getMarriageHistoryLabel = (value: string | null): string => {
+  if (value === '초혼' || value === 'first_marriage') return '초혼';
+  if (value === '재혼' || value === 'remarriage') return '재혼';
+  return '미입력';
+};
 const shortDateFormatter = new Intl.DateTimeFormat('ko-KR', {
   year: '2-digit',
   month: '2-digit',
@@ -254,17 +263,20 @@ export default async function AdminMembersPage({
       ) : members ? (
         <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] table-fixed text-left text-sm">
+            <table className="w-full min-w-[1360px] table-fixed text-left text-sm">
               <colgroup>
-                <col className="w-[24%]" />
-                <col className="w-[13%]" />
-                <col className="w-[18%]" />
-                <col className="w-[21%]" />
-                <col className="w-[24%]" />
+                <col className="w-[17%]" />
+                <col className="w-[7%]" />
+                <col className="w-[8%]" />
+                <col className="w-[12%]" />
+                <col className="w-[15%]" />
+                <col className="w-[10%]" />
+                <col className="w-[11%]" />
+                <col className="w-[20%]" />
               </colgroup>
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
-                  {['회원', '가입일', '프로필', '계정', 'Premium 및 관리'].map((label) => (
+                  {['회원', '성별', '나이', '지역', '직업', '결혼이력', '가입일', 'Premium 및 관리'].map((label) => (
                     <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>
                   ))}
                 </tr>
@@ -277,32 +289,22 @@ export default async function AdminMembersPage({
                         <p className="mt-1 font-mono text-xs text-gray-500" title={member.memberUserId}>{member.memberUserId.slice(0, 8)}</p>
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-gray-600">
+                        {getGenderLabel(member.gender)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-gray-600">
+                        {member.age === null ? '미입력' : `만 ${member.age}세`}
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="truncate text-gray-600" title={member.region?.trim() || undefined}>{displayProfileValue(member.region)}</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="truncate text-gray-600" title={member.job?.trim() || undefined}>{displayProfileValue(member.job)}</p>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-gray-600">
+                        {getMarriageHistoryLabel(member.marriageHistory)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-gray-600">
                         <time dateTime={member.joinedAt}>{formatShortDate(member.joinedAt, '확인 불가')}</time>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-wrap gap-1.5">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getAdminMemberProfileStatusClassName(member.profileStatus)}`}>
-                            {ADMIN_MEMBER_PROFILE_STATUS_LABELS[member.profileStatus]}
-                          </span>
-                          {member.profileVisibility ? (
-                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${member.profileVisibility === 'visible' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                              {ADMIN_MEMBER_PROFILE_VISIBILITY_LABELS[member.profileVisibility]}
-                            </span>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getAdminMemberAccountStatusClassName(member.currentAccountStatus)}`}>
-                          {ADMIN_MEMBER_ACCOUNT_STATUS_LABELS[member.currentAccountStatus]}
-                        </span>
-                        {member.storedAccountStatus !== member.currentAccountStatus ? (
-                          <p className="mt-1.5 text-xs font-semibold text-gray-500">저장 상태 {ADMIN_MEMBER_ACCOUNT_STATUS_LABELS[member.storedAccountStatus]} · 기간 만료</p>
-                        ) : null}
-                        {member.suspendedAt ? (
-                          <p className="mt-1.5 text-xs leading-5 text-gray-500">
-                            {formatShortDate(member.suspendedAt, '확인 불가')} ~ {formatShortDate(member.suspendedUntil, '무기한')}
-                          </p>
-                        ) : null}
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap items-center gap-1.5">

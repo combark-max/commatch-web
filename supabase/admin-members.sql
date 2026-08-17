@@ -91,7 +91,9 @@ begin
 end
 $preflight$;
 
-create or replace function public.get_admin_members(
+drop function if exists public.get_admin_members(text, text, text, text, integer, integer, text, text);
+
+create function public.get_admin_members(
   p_search text default null,
   p_account text default 'all',
   p_profile text default 'all',
@@ -108,6 +110,11 @@ returns table (
   profile_exists boolean,
   profile_status text,
   profile_visibility text,
+  gender text,
+  age integer,
+  region text,
+  job text,
+  marriage_history text,
   stored_account_status text,
   current_account_status text,
   suspended_at timestamptz,
@@ -192,6 +199,14 @@ begin
         when restriction.profile_visibility = 'hidden' then 'hidden'
         else 'visible'
       end as profile_visibility,
+      nullif(pg_catalog.btrim(profile.gender), '') as gender,
+      case
+        when profile.birth_date is null then null
+        else pg_catalog.date_part('year', pg_catalog.age(current_date, profile.birth_date))::integer
+      end as age,
+      nullif(pg_catalog.btrim(profile.region), '') as region,
+      nullif(pg_catalog.btrim(profile.job), '') as job,
+      nullif(pg_catalog.btrim(profile.marriage_history), '') as marriage_history,
       coalesce(restriction.account_status, 'active') as stored_account_status,
       case
         when restriction.account_status = 'suspended'
@@ -250,6 +265,11 @@ begin
     member.profile_exists,
     member.profile_status,
     member.profile_visibility,
+    member.gender,
+    member.age,
+    member.region,
+    member.job,
+    member.marriage_history,
     member.stored_account_status,
     member.current_account_status,
     member.suspended_at,
@@ -308,7 +328,7 @@ begin
   end if;
 
   if pg_catalog.pg_get_function_result(v_function_oid) <>
-    'TABLE(member_user_id uuid, nickname text, joined_at timestamp with time zone, profile_exists boolean, profile_status text, profile_visibility text, stored_account_status text, current_account_status text, suspended_at timestamp with time zone, suspended_until timestamp with time zone, premium_membership_exists boolean, premium_stored_status text, premium_is_available boolean, premium_period_state text, total_count bigint)' then
+    'TABLE(member_user_id uuid, nickname text, joined_at timestamp with time zone, profile_exists boolean, profile_status text, profile_visibility text, gender text, age integer, region text, job text, marriage_history text, stored_account_status text, current_account_status text, suspended_at timestamp with time zone, suspended_until timestamp with time zone, premium_membership_exists boolean, premium_stored_status text, premium_is_available boolean, premium_period_state text, total_count bigint)' then
     raise exception 'Administrator member list return contract differs from the approved definition';
   end if;
 

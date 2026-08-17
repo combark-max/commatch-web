@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, Crown, Images, ShieldCheck, UserRound } from 'lucide-react';
+import AdminMemberProfileImages from '@/components/admin/AdminMemberProfileImages';
 import AdminMemberRestrictionForm from '@/components/admin/AdminMemberRestrictionForm';
 import { type AdminRole, requireAdminAccess } from '@/lib/admin/access';
 import {
@@ -268,21 +269,10 @@ export default async function AdminMemberDetailPage({
           <p className="mt-5 rounded-2xl bg-gray-50 p-5 text-sm font-semibold text-gray-500">작성된 프로필이 없습니다.</p>
         ) : (
           <>
-            {imageUrls.length > 0 ? (
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                {imageUrls.map((imageUrl, index) => (
-                  <div
-                    key={imageUrl}
-                    role="img"
-                    aria-label={`${member.nickname ?? '회원'} 프로필 사진 ${index + 1}`}
-                    className="aspect-square rounded-2xl bg-gray-100 bg-cover bg-center"
-                    style={{ backgroundImage: `url("${imageUrl}")` }}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="mt-5 rounded-2xl bg-gray-50 p-5 text-sm font-semibold text-gray-500">표시할 프로필 사진이 없습니다.</p>
-            )}
+            <AdminMemberProfileImages
+              imageUrls={imageUrls}
+              memberLabel={member.nickname ?? '회원'}
+            />
             <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
               <InformationItem label="닉네임" value={displayText(member.nickname)} />
               <InformationItem label="성별" value={getGenderLabel(member.gender)} />

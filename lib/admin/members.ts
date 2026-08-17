@@ -34,6 +34,11 @@ export type AdminMemberListItem = {
   profileExists: boolean;
   profileStatus: AdminMemberProfileStatus;
   profileVisibility: AdminMemberProfileVisibility | null;
+  gender: string | null;
+  age: number | null;
+  region: string | null;
+  job: string | null;
+  marriageHistory: string | null;
   storedAccountStatus: AdminMemberAccountStatus;
   currentAccountStatus: AdminMemberAccountStatus;
   suspendedAt: string | null;
@@ -45,7 +50,10 @@ export type AdminMemberListItem = {
   totalCount: number;
 };
 
-export type AdminMemberDetail = Omit<AdminMemberListItem, 'nickname' | 'totalCount'> & {
+export type AdminMemberDetail = Omit<
+  AdminMemberListItem,
+  'nickname' | 'gender' | 'age' | 'region' | 'job' | 'marriageHistory' | 'totalCount'
+> & {
   nickname: string | null;
   gender: string | null;
   birthDate: string | null;
@@ -196,6 +204,11 @@ const parseAdminMember = (value: unknown): AdminMemberListItem | null => {
     || !isOneOf(value.profile_status, ADMIN_MEMBER_PROFILE_STATUSES)
     || !(value.profile_visibility === null
       || isOneOf(value.profile_visibility, ADMIN_MEMBER_PROFILE_VISIBILITIES))
+    || !isNullableString(value.gender)
+    || !isNullableInteger(value.age)
+    || !isNullableString(value.region)
+    || !isNullableString(value.job)
+    || !isNullableString(value.marriage_history)
     || !isOneOf(value.stored_account_status, ADMIN_MEMBER_ACCOUNT_STATUSES)
     || !isOneOf(value.current_account_status, ADMIN_MEMBER_ACCOUNT_STATUSES)
     || !isNullableTimestamptz(value.suspended_at)
@@ -216,6 +229,11 @@ const parseAdminMember = (value: unknown): AdminMemberListItem | null => {
       : value.profile_status !== 'missing'
         || value.profile_visibility !== null
         || value.nickname !== null
+        || value.gender !== null
+        || value.age !== null
+        || value.region !== null
+        || value.job !== null
+        || value.marriage_history !== null
   ) return null;
 
   if (
@@ -255,6 +273,11 @@ const parseAdminMember = (value: unknown): AdminMemberListItem | null => {
     profileExists: value.profile_exists,
     profileStatus: value.profile_status,
     profileVisibility: value.profile_visibility,
+    gender: value.gender,
+    age: value.age,
+    region: value.region,
+    job: value.job,
+    marriageHistory: value.marriage_history,
     storedAccountStatus: value.stored_account_status,
     currentAccountStatus: value.current_account_status,
     suspendedAt: value.suspended_at,

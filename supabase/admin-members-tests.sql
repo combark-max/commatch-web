@@ -93,6 +93,12 @@ begin
      ) is null then
     raise exception 'Administrator member list SQL is not installed';
   end if;
+  if pg_catalog.pg_get_function_result(
+       'public.get_admin_members(text,text,text,text,integer,integer,text,text)'::regprocedure
+     ) is distinct from
+       'TABLE(member_user_id uuid, nickname text, joined_at timestamp with time zone, profile_exists boolean, profile_status text, profile_visibility text, gender text, age integer, region text, job text, marriage_history text, stored_account_status text, current_account_status text, suspended_at timestamp with time zone, suspended_until timestamp with time zone, premium_membership_exists boolean, premium_stored_status text, premium_is_available boolean, premium_period_state text, total_count bigint)' then
+    raise exception 'Administrator member list return signature is not current';
+  end if;
   if pg_catalog.to_regprocedure(
        'public.get_admin_dashboard_operational_summary(integer)'
      ) is null then
@@ -328,7 +334,13 @@ select pg_temp._commatch_members_it_assert(
 );
 select pg_temp._commatch_members_it_assert(
   'missing profile is distinct',
-  (select profile_status = 'missing' and not profile_exists
+  (select profile_status = 'missing'
+      and not profile_exists
+      and gender is null
+      and age is null
+      and region is null
+      and job is null
+      and marriage_history is null
    from public.get_admin_members(null, 'all', 'missing', 'all', 100, 0, 'joined_at', 'desc')
    where member_user_id = (select missing_user_id from _commatch_members_it_config))
 );
@@ -363,6 +375,16 @@ select pg_temp._commatch_members_it_assert(
 select pg_temp._commatch_members_it_assert(
   'completed profile accepts a nonblank photo array item and ten-character texts',
   (select profile_status = 'completed'
+   from public.get_admin_members(null, 'all', 'completed', 'all', 100, 0, 'joined_at', 'desc')
+   where member_user_id = (select completed_user_id from _commatch_members_it_config))
+);
+select pg_temp._commatch_members_it_assert(
+  'completed profile returns list demographics and age contract',
+  (select gender = '여성'
+      and age = pg_catalog.date_part('year', pg_catalog.age(current_date, date '1990-01-01'))::integer
+      and region = '서울'
+      and job = '개발자'
+      and marriage_history = 'first_marriage'
    from public.get_admin_members(null, 'all', 'completed', 'all', 100, 0, 'joined_at', 'desc')
    where member_user_id = (select completed_user_id from _commatch_members_it_config))
 );
@@ -480,6 +502,32 @@ select pg_temp._commatch_members_it_assert(
       and premium_stored_status is null
       and not premium_is_available
       and premium_period_state = 'none'
+   from public.get_admin_members(null, 'all', 'all', 'all', 100, 0)
+   where member_user_id = (select completed_user_id from _commatch_members_it_config))
+);
+reset role;
+
+update public.profiles
+set birth_date = (current_date - interval '30 years' + interval '1 day')::date
+where id = (select completed_user_id from _commatch_members_it_config);
+set local role authenticated;
+select pg_temp._commatch_members_it_set_user(super_admin_id) from _commatch_members_it_config;
+select pg_temp._commatch_members_it_assert(
+  'age is 29 on the day before the thirtieth birthday',
+  (select age = 29
+   from public.get_admin_members(null, 'all', 'all', 'all', 100, 0)
+   where member_user_id = (select completed_user_id from _commatch_members_it_config))
+);
+reset role;
+
+update public.profiles
+set birth_date = (current_date - interval '30 years')::date
+where id = (select completed_user_id from _commatch_members_it_config);
+set local role authenticated;
+select pg_temp._commatch_members_it_set_user(super_admin_id) from _commatch_members_it_config;
+select pg_temp._commatch_members_it_assert(
+  'age becomes 30 on the thirtieth birthday',
+  (select age = 30
    from public.get_admin_members(null, 'all', 'all', 'all', 100, 0)
    where member_user_id = (select completed_user_id from _commatch_members_it_config))
 );

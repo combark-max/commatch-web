@@ -24,7 +24,7 @@ begin
      or pg_catalog.obj_description(v_list_function_oid, 'pg_proc') is distinct from
        'commatch_admin_members_v1'
      or pg_catalog.pg_get_function_result(v_list_function_oid) <>
-       'TABLE(member_user_id uuid, nickname text, joined_at timestamp with time zone, profile_exists boolean, profile_status text, profile_visibility text, stored_account_status text, current_account_status text, suspended_at timestamp with time zone, suspended_until timestamp with time zone, premium_membership_exists boolean, premium_stored_status text, premium_is_available boolean, premium_period_state text, total_count bigint)' then
+       'TABLE(member_user_id uuid, nickname text, joined_at timestamp with time zone, profile_exists boolean, profile_status text, profile_visibility text, gender text, age integer, region text, job text, marriage_history text, stored_account_status text, current_account_status text, suspended_at timestamp with time zone, suspended_until timestamp with time zone, premium_membership_exists boolean, premium_stored_status text, premium_is_available boolean, premium_period_state text, total_count bigint)' then
     raise exception 'public.get_admin_members differs from the approved administrator member list dependency';
   end if;
 

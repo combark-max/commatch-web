@@ -295,5 +295,41 @@ select pg_temp._commatch_member_stats_it_expect_error(
 );
 reset role;
 
+-- Classifying every remaining Auth account as an administrator creates an
+-- empty member population without deleting or rewriting any account/profile.
+-- The surrounding transaction rolls all temporary classifications back.
+insert into public.admin_accounts (user_id, role, status, created_by)
+select auth_user.id, 'moderator', 'active', config.super_admin_id
+from auth.users as auth_user
+cross join pg_temp._commatch_member_stats_it_config as config
+where not exists (
+  select 1 from public.admin_accounts as admin_account
+  where admin_account.user_id = auth_user.id
+);
+
+set local role authenticated;
+select pg_temp._commatch_member_stats_it_set_user(super_admin_id)
+from pg_temp._commatch_member_stats_it_config;
+do $empty_population$
+declare
+  v_result record;
+begin
+  select * into strict v_result from public.get_admin_member_statistics();
+  if v_result.total_members <> 0
+    or v_result.regions <> '[]'::jsonb
+    or exists (
+      select 1
+      from pg_catalog.jsonb_array_elements(
+        v_result.gender || v_result.age_groups || v_result.marriage_history
+      ) as entry(value)
+      where (entry.value ->> 'count')::bigint <> 0
+    ) then
+    raise exception 'FAIL empty member population contract: %', pg_catalog.row_to_json(v_result);
+  end if;
+  raise notice 'PASS empty member population returns fixed zero categories and no regions';
+end;
+$empty_population$;
+reset role;
+
 select 'PASS all administrator member statistics rollback integration tests; rolling back fixtures' as test_result;
 rollback;

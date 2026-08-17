@@ -16,14 +16,6 @@ import {
   type AdminPremiumMembershipListItem,
 } from '@/lib/admin/premium-memberships';
 import {
-  getReportStatusClassName,
-  parseAdminReportList,
-  REPORT_REASON_LABELS,
-  REPORT_STATUS_LABELS,
-  REPORT_TARGET_LABELS,
-  type AdminReportListItem,
-} from '@/lib/admin/reports';
-import {
   parseAdminServiceStatistics,
   type AdminServiceStatistics,
 } from '@/lib/admin/service-statistics';
@@ -31,7 +23,6 @@ import { getAdminRoleLabel } from '@/lib/admin/presentation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 type DashboardSearchParams = {
-  reportPage?: string | string[];
   premiumPage?: string | string[];
   [key: string]: string | string[] | undefined;
 };
@@ -117,32 +108,6 @@ async function loadServiceStatistics(): Promise<DataResult<AdminServiceStatistic
     return { kind: 'error' };
   }
 }
-async function loadReportPage(requestedPage: number): Promise<PagedResult<AdminReportListItem>> {
-  const client = await createServerSupabaseClient();
-  const fetchPage = async (page: number) => {
-    const result = await client.rpc('get_admin_reports', { status_filter: null, target_type_filter: null, page_number: page, page_size: PAGE_SIZE });
-    return { error: result.error, items: result.error ? null : parseAdminReportList(result.data) };
-  };
-  let currentPage = requestedPage;
-  let result = await fetchPage(currentPage);
-  if (result.error) return { kind: errorKind(result.error) };
-  if (!result.items) return { kind: 'error' };
-  if (result.items.length === 0 && currentPage > 1) {
-    const first = await fetchPage(1);
-    if (first.error) return { kind: errorKind(first.error) };
-    if (!first.items) return { kind: 'error' };
-    const total = first.items[0]?.totalCount ?? 0;
-    const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
-    currentPage = lastPage;
-    result = lastPage === 1 ? first : await fetchPage(lastPage);
-    if (result.error) return { kind: errorKind(result.error) };
-    if (!result.items) return { kind: 'error' };
-  }
-  const totalCount = result.items[0]?.totalCount ?? 0;
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  if (currentPage > totalPages) currentPage = totalPages;
-  return { kind: 'success', data: { items: result.items, totalCount, currentPage, totalPages } };
-}
 async function loadPremiumPage(requestedPage: number): Promise<PagedResult<AdminPremiumMembershipListItem>> {
   const client = await createServerSupabaseClient();
   const fetchPage = async (page: number) => {
@@ -173,15 +138,13 @@ async function loadPremiumPage(requestedPage: number): Promise<PagedResult<Admin
 }
 
 const ErrorBox = ({ message, href = '/admin' }: { message: string; href?: string }) => <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-red-800"><div className="flex items-start gap-3"><AlertCircle className="mt-0.5 shrink-0" size={20} aria-hidden="true" /><div><p className="font-semibold">{message}</p><a href={href} className="mt-2 inline-block text-sm font-semibold underline underline-offset-4">다시 시도</a></div></div></div>;
-const MemberLink = ({ userId, nickname, memberExists, profileExists }: { userId: string; nickname: string | null; memberExists: boolean; profileExists: boolean }) => memberExists ? <Link href={`/admin/members/${userId}`} className="font-bold text-gray-900 underline-offset-4 hover:text-green-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2">{profileExists && nickname ? nickname : '프로필 정보 없음'}</Link> : <span className="font-bold text-gray-600">탈퇴한 회원</span>;
 
 export default async function AdminDashboardPage({ searchParams }: { searchParams: Promise<DashboardSearchParams> }) {
   const adminAccess = await requireAdminAccess('admin_dashboard_view');
   const query = await searchParams;
-  const reportPage = normalizePage(firstValue(query.reportPage));
   const premiumPage = normalizePage(firstValue(query.premiumPage));
-  const [summaryResult, operationalResult, reportResult, premiumResult, serviceStatisticsResult] = await Promise.all([
-    loadReportSummary(), loadOperationalSummary(), loadReportPage(reportPage), loadPremiumPage(premiumPage),
+  const [summaryResult, operationalResult, premiumResult, serviceStatisticsResult] = await Promise.all([
+    loadReportSummary(), loadOperationalSummary(), loadPremiumPage(premiumPage),
     loadServiceStatistics(),
   ]);
   const summaryCards: AdminMetric[] = summaryResult.kind === 'success' ? [
@@ -221,13 +184,8 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
   return <div className="space-y-8">
     <section><p className="text-sm font-bold text-green-700">{getAdminRoleLabel(adminAccess.role as AdminRole)}</p><h1 className="mt-2 text-3xl font-black text-gray-900">관리자 대시보드</h1><p className="mt-3 text-gray-600">신고, Premium, 회원 및 서비스 운영 현황을 확인하는 화면입니다.</p></section>
 
-    <AdminDashboardSection headingId="report-management-heading" title="신고 관리" description="최근 접수된 신고를 최신순으로 확인합니다." viewAllHref={adminAccess.permissions.includes('reports_view') ? '/admin/reports' : undefined} viewAllLabel="신고 관리 전체 보기">
+    <AdminDashboardSection headingId="report-management-heading" title="신고 관리" description="신고 상태별 현황을 확인합니다." viewAllHref={adminAccess.permissions.includes('reports_view') ? '/admin/reports' : undefined} viewAllLabel="신고 관리 전체 보기">
       {summaryResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">{summaryCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={summaryResult.kind === 'forbidden' ? '신고 조회 권한이 없습니다.' : '신고 현황을 불러오지 못했습니다.'} />}
-      {reportResult.kind === 'success' ? <section aria-labelledby="dashboard-reports-heading" className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-        <div className="border-b border-gray-100 px-5 py-5 sm:px-6"><h3 id="dashboard-reports-heading" className="text-lg font-black text-gray-900">최근 신고</h3><p className="mt-1 text-sm text-gray-500">총 {reportResult.data.totalCount.toLocaleString('ko-KR')}건 · {reportResult.data.currentPage} / {reportResult.data.totalPages}페이지</p></div>
-        {reportResult.data.items.length === 0 ? <p className="px-6 py-12 text-center text-sm font-medium text-gray-500">접수된 신고가 없습니다.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-left text-sm"><thead className="bg-gray-50 text-gray-600"><tr>{['상태', '대상', '신고 사유', '신고자', '신고 대상', '접수 시각', '상세'].map((label) => <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">{reportResult.data.items.map((report) => <tr key={report.reportId}><td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${getReportStatusClassName(report.status)}`}>{REPORT_STATUS_LABELS[report.status]}</span></td><td className="px-4 py-4 font-semibold text-gray-900">{REPORT_TARGET_LABELS[report.targetType]}</td><td className="px-4 py-4 text-gray-700">{REPORT_REASON_LABELS[report.reason]}</td><td className="px-4 py-4"><MemberLink userId={report.reporterUserId} nickname={report.reporterNickname} memberExists={report.reporterMemberExists} profileExists={report.reporterProfileExists} /></td><td className="px-4 py-4"><MemberLink userId={report.reportedUserId} nickname={report.reportedNickname} memberExists={report.reportedMemberExists} profileExists={report.reportedProfileExists} /></td><td className="whitespace-nowrap px-4 py-4 text-gray-600"><time dateTime={report.createdAt}>{dateFormatter.format(new Date(report.createdAt))}</time></td><td className="px-4 py-4"><Link href={`/admin/reports/${report.reportId}`} className="font-bold text-green-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">상세 보기</Link></td></tr>)}</tbody></table></div>}
-        <div className="border-t border-gray-100 px-3 py-4"><AdminPagination pathname="/admin" pageParam="reportPage" currentPage={reportResult.data.currentPage} totalPages={reportResult.data.totalPages} searchParams={query} ariaLabel="대시보드 신고 목록 페이지" /></div>
-      </section> : <ErrorBox message={reportResult.kind === 'forbidden' ? '신고 목록 조회 권한이 없습니다.' : '신고 목록을 불러오지 못했습니다.'} />}
     </AdminDashboardSection>
 
     <AdminDashboardSection headingId="premium-management-heading" title="Premium 관리" description="Premium 멤버십 행이 존재하는 전체 회원을 확인합니다." viewAllHref={adminAccess.permissions.includes('premium_memberships_view') ? '/admin/premium' : undefined} viewAllLabel="Premium 관리 전체 보기">

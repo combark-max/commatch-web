@@ -102,10 +102,13 @@ export default function AdminNavigation({
             1:1 문의
           </Link>
         ) : null}
-        <span aria-disabled="true" className="inline-flex shrink-0 cursor-not-allowed items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-gray-400">
+        <Link
+          href="/admin/statistics"
+          className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/statistics') ? activeClassName : defaultClassName}`}
+        >
           <BarChart3 size={17} aria-hidden="true" />
-          서비스 통계 상세 <span className="text-xs">— 준비 중</span>
-        </span>
+          서비스 통계
+        </Link>
       </div>
     </nav>
   );

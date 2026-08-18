@@ -125,12 +125,12 @@ export default async function AdminDashboardPage() {
     ] : []),
   ];
   const serviceStatisticsCards: AdminMetric[] = serviceStatisticsResult.kind === 'success' ? [
-    { label: '전체 매칭', count: serviceStatisticsResult.data.totalMatchCount, href: '/admin/statistics#matches', ariaLabel: '전체 매칭 상세 통계 보기' },
-    { label: '진행 중 매칭', count: serviceStatisticsResult.data.activeMatchCount, href: '/admin/statistics#matches', ariaLabel: '진행 중 매칭 상세 통계 보기' },
-    { label: '종료 매칭', count: serviceStatisticsResult.data.endedMatchCount, href: '/admin/statistics#matches', ariaLabel: '종료 매칭 상세 통계 보기' },
-    { label: '전체 메시지', count: serviceStatisticsResult.data.totalMessageCount, href: '/admin/statistics#messages', ariaLabel: '전체 메시지 상세 통계 보기' },
-    { label: '최근 7일 신규 회원', count: serviceStatisticsResult.data.newMemberLast7DaysCount, href: '/admin/statistics#members', ariaLabel: '최근 7일 신규 회원 상세 통계 보기' },
-    { label: '최근 7일 신고', count: serviceStatisticsResult.data.reportLast7DaysCount, href: '/admin/statistics#reports', ariaLabel: '최근 7일 신고 상세 통계 보기' },
+    { label: '전체 매칭', count: serviceStatisticsResult.data.totalMatchCount },
+    { label: '진행 중 매칭', count: serviceStatisticsResult.data.activeMatchCount },
+    { label: '종료 매칭', count: serviceStatisticsResult.data.endedMatchCount },
+    { label: '전체 메시지', count: serviceStatisticsResult.data.totalMessageCount },
+    { label: '최근 7일 신규 회원', count: serviceStatisticsResult.data.newMemberLast7DaysCount },
+    { label: '최근 7일 신고', count: serviceStatisticsResult.data.reportLast7DaysCount },
   ] : [];
 
   return <div className="space-y-8">
@@ -146,7 +146,7 @@ export default async function AdminDashboardPage() {
     </AdminDashboardSection>
 
     <AdminDashboardSection headingId="member-management-heading" title="회원 관리" description="회원 계정과 프로필 상태를 확인합니다." viewAllHref={adminAccess.permissions.includes('member_restrictions_view') ? '/admin/members' : undefined} viewAllLabel="회원 관리 전체 보기">{operationalResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{memberCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={operationalResult.kind === 'forbidden' ? '운영 통계 조회 권한이 없습니다.' : '운영 통계를 불러오지 못했습니다.'} />}</AdminDashboardSection>
-    <AdminDashboardSection headingId="service-statistics-heading" title="서비스 통계" description="현재 저장된 매칭·메시지와 최근 7일의 신규 회원·신고 현황을 확인합니다." viewAllHref="/admin/statistics" viewAllLabel="서비스 통계 상세 보기">
+    <AdminDashboardSection headingId="service-statistics-heading" title="서비스 통계" description="현재 저장된 매칭·메시지와 최근 7일의 신규 회원·신고 현황을 확인합니다.">
       {serviceStatisticsResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{serviceStatisticsCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={serviceStatisticsResult.kind === 'forbidden' ? '서비스 통계 조회 권한이 없습니다.' : '서비스 통계를 불러오지 못했습니다.'} />}
     </AdminDashboardSection>
     {adminAccess.permissions.includes('admin_accounts_manage') ? <AdminDashboardSection headingId="admin-account-management-heading" title="관리자 계정 관리" description="관리자 역할과 계정 상태를 관리합니다." viewAllHref="/admin/admins" viewAllLabel="관리자 계정 관리 전체 보기"><div className="rounded-2xl border border-green-200 bg-green-50 px-5 py-8 text-center"><p className="text-sm font-semibold text-green-900">관리자 계정 목록에서 역할과 상태를 안전하게 관리할 수 있습니다.</p><p className="mt-1 text-xs text-green-700">활성 super_admin 전용 기능입니다.</p></div></AdminDashboardSection> : null}

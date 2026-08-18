@@ -107,7 +107,7 @@ export default function AdminNavigation({
           className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/statistics') ? activeClassName : defaultClassName}`}
         >
           <BarChart3 size={17} aria-hidden="true" />
-          서비스 통계
+          회원 통계
         </Link>
       </div>
     </nav>

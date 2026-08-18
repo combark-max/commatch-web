@@ -46,13 +46,21 @@ export default function AdminNavigation({
           대시보드
         </Link>
 
-        {canViewReports ? (
+        <Link
+          href="/admin/statistics"
+          className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/statistics') ? activeClassName : defaultClassName}`}
+        >
+          <BarChart3 size={17} aria-hidden="true" />
+          회원 통계
+        </Link>
+
+        {canViewMembers ? (
           <Link
-            href="/admin/reports"
-            className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/reports') ? activeClassName : defaultClassName}`}
+            href="/admin/members"
+            className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/members') ? activeClassName : defaultClassName}`}
           >
-            <FileWarning size={17} aria-hidden="true" />
-            신고 관리
+            <Users size={17} aria-hidden="true" />
+            회원 관리
           </Link>
         ) : null}
 
@@ -66,24 +74,16 @@ export default function AdminNavigation({
           </Link>
         ) : null}
 
-        {canViewMembers ? (
+        {canViewReports ? (
           <Link
-            href="/admin/members"
-            className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/members') ? activeClassName : defaultClassName}`}
+            href="/admin/reports"
+            className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/reports') ? activeClassName : defaultClassName}`}
           >
-            <Users size={17} aria-hidden="true" />
-            회원 관리
+            <FileWarning size={17} aria-hidden="true" />
+            신고 관리
           </Link>
         ) : null}
-        {canManageAdmins ? (
-          <Link
-            href="/admin/admins"
-            className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/admins') ? activeClassName : defaultClassName}`}
-          >
-            <UserCog size={17} aria-hidden="true" />
-            관리자 계정 관리
-          </Link>
-        ) : null}
+
         {canManageNotices ? (
           <Link
             href="/admin/notices"
@@ -102,13 +102,15 @@ export default function AdminNavigation({
             1:1 문의
           </Link>
         ) : null}
-        <Link
-          href="/admin/statistics"
-          className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/statistics') ? activeClassName : defaultClassName}`}
-        >
-          <BarChart3 size={17} aria-hidden="true" />
-          회원 통계
-        </Link>
+        {canManageAdmins ? (
+          <Link
+            href="/admin/admins"
+            className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${pathname.startsWith('/admin/admins') ? activeClassName : defaultClassName}`}
+          >
+            <UserCog size={17} aria-hidden="true" />
+            관리자 계정 관리
+          </Link>
+        ) : null}
       </div>
     </nav>
   );

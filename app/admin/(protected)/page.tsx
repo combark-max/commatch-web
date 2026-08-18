@@ -136,18 +136,19 @@ export default async function AdminDashboardPage() {
   return <div className="space-y-8">
     <section><p className="text-sm font-bold text-green-700">{getAdminRoleLabel(adminAccess.role as AdminRole)}</p><h1 className="mt-2 text-3xl font-black text-gray-900">관리자 대시보드</h1><p className="mt-3 text-gray-600">신고, Premium, 회원 및 서비스 운영 현황을 확인하는 화면입니다.</p></section>
 
-    <AdminDashboardSection headingId="report-management-heading" title="신고 관리" description="신고 상태별 현황을 확인합니다." viewAllHref={adminAccess.permissions.includes('reports_view') ? '/admin/reports' : undefined} viewAllLabel="신고 관리 전체 보기">
-      {summaryResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">{summaryCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={summaryResult.kind === 'forbidden' ? '신고 조회 권한이 없습니다.' : '신고 현황을 불러오지 못했습니다.'} />}
+    <AdminDashboardSection headingId="service-statistics-heading" title="서비스 통계" description="현재 저장된 매칭·메시지와 최근 7일의 신규 회원·신고 현황을 확인합니다.">
+      {serviceStatisticsResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{serviceStatisticsCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={serviceStatisticsResult.kind === 'forbidden' ? '서비스 통계 조회 권한이 없습니다.' : '서비스 통계를 불러오지 못했습니다.'} />}
     </AdminDashboardSection>
+
+    <AdminDashboardSection headingId="member-management-heading" title="회원 관리" description="회원 계정과 프로필 상태를 확인합니다." viewAllHref={adminAccess.permissions.includes('member_restrictions_view') ? '/admin/members' : undefined} viewAllLabel="회원 관리 전체 보기">{operationalResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{memberCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={operationalResult.kind === 'forbidden' ? '운영 통계 조회 권한이 없습니다.' : '운영 통계를 불러오지 못했습니다.'} />}</AdminDashboardSection>
 
     <AdminDashboardSection headingId="premium-management-heading" title="Premium 관리" description="Premium 멤버십 행이 존재하는 전체 회원을 확인합니다." viewAllHref={adminAccess.permissions.includes('premium_memberships_view') ? '/admin/premium' : undefined} viewAllLabel="Premium 관리 전체 보기">
       {premiumCards.length > 0 ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{premiumCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : null}
       {operationalResult.kind !== 'success' ? <ErrorBox message={operationalResult.kind === 'forbidden' ? '운영 통계 조회 권한이 없습니다.' : '운영 통계를 불러오지 못했습니다.'} /> : null}
     </AdminDashboardSection>
 
-    <AdminDashboardSection headingId="member-management-heading" title="회원 관리" description="회원 계정과 프로필 상태를 확인합니다." viewAllHref={adminAccess.permissions.includes('member_restrictions_view') ? '/admin/members' : undefined} viewAllLabel="회원 관리 전체 보기">{operationalResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{memberCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={operationalResult.kind === 'forbidden' ? '운영 통계 조회 권한이 없습니다.' : '운영 통계를 불러오지 못했습니다.'} />}</AdminDashboardSection>
-    <AdminDashboardSection headingId="service-statistics-heading" title="서비스 통계" description="현재 저장된 매칭·메시지와 최근 7일의 신규 회원·신고 현황을 확인합니다.">
-      {serviceStatisticsResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{serviceStatisticsCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={serviceStatisticsResult.kind === 'forbidden' ? '서비스 통계 조회 권한이 없습니다.' : '서비스 통계를 불러오지 못했습니다.'} />}
+    <AdminDashboardSection headingId="report-management-heading" title="신고 관리" description="신고 상태별 현황을 확인합니다." viewAllHref={adminAccess.permissions.includes('reports_view') ? '/admin/reports' : undefined} viewAllLabel="신고 관리 전체 보기">
+      {summaryResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">{summaryCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={summaryResult.kind === 'forbidden' ? '신고 조회 권한이 없습니다.' : '신고 현황을 불러오지 못했습니다.'} />}
     </AdminDashboardSection>
   </div>;
 }

@@ -195,16 +195,20 @@ export default function AppShell({ children }: AppShellProps) {
     <div className="flex min-h-screen flex-col bg-gray-50">
       <header ref={headerRef} className="sticky top-0 z-[60] border-b border-gray-100 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" onClick={closeMenus} className={`text-2xl font-black ${isHome ? 'text-[#2E7D32]' : 'text-green-600'}`}>
+          <Link href="/" aria-label="ComMatch 홈" onClick={closeMenus} className={`text-2xl font-black ${isHome ? 'text-[#2E7D32]' : 'text-green-600'}`}>
             ComMatch
           </Link>
 
-          <nav aria-label="주요 내비게이션" className="hidden items-center gap-5 text-sm font-semibold text-gray-600 md:flex">
-            <Link href="/" className="transition-colors hover:text-green-600">홈</Link>
-            <Link href="/notices" className="transition-colors hover:text-green-600">공지사항</Link>
-            <Link href="/faq" className="transition-colors hover:text-green-600">FAQ</Link>
+          <nav aria-label="주요 내비게이션" className="hidden items-center gap-6 whitespace-nowrap text-sm font-semibold text-gray-600 lg:flex">
+            <div className="flex items-center gap-5">
+              <Link href="/#about" className="transition-colors hover:text-green-600">서비스 소개</Link>
+              <Link href="/#how-it-works" className="transition-colors hover:text-green-600">이용방법</Link>
+              {isLoggedIn ? <Link href="/premium" className="transition-colors hover:text-green-600">Premium</Link> : null}
+              <Link href="/notices" className="transition-colors hover:text-green-600">공지사항</Link>
+              <Link href="/faq" className="transition-colors hover:text-green-600">FAQ</Link>
+            </div>
             {isLoggedIn ? (
-              <>
+              <div className="flex shrink-0 items-center gap-3 border-l border-gray-200 pl-6">
                 <Link
                   href="/notifications"
                   onClick={closeMenus}
@@ -262,9 +266,9 @@ export default function AppShell({ children }: AppShellProps) {
                   </div>
                 ) : null}
                 </div>
-              </>
+              </div>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="flex shrink-0 items-center gap-3 border-l border-gray-200 pl-6">
                 <Link
                   href="/login"
                   className={isHome
@@ -273,11 +277,9 @@ export default function AppShell({ children }: AppShellProps) {
                 >
                   <LogIn size={17} /> 로그인
                 </Link>
-                {isHome ? (
-                  <Link href="/signup" className="rounded-xl bg-[#2E7D32] px-5 py-2.5 text-base text-white transition-colors hover:bg-[#256729]">
-                    회원가입
-                  </Link>
-                ) : null}
+                <Link href="/signup" className="rounded-xl bg-[#2E7D32] px-5 py-2.5 text-base text-white transition-colors hover:bg-[#256729]">
+                  회원가입
+                </Link>
               </div>
             )}
           </nav>
@@ -288,15 +290,18 @@ export default function AppShell({ children }: AppShellProps) {
             aria-expanded={isMobileMenuOpen}
             aria-controls="mobile-navigation"
             onClick={() => setIsMobileMenuOpen((current) => !current)}
-            className="flex h-11 w-11 items-center justify-center rounded-xl text-gray-700 transition hover:bg-green-50 hover:text-green-600 md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-xl text-gray-700 transition hover:bg-green-50 hover:text-green-600 lg:hidden"
           >
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
         {isMobileMenuOpen ? (
-          <nav id="mobile-navigation" aria-label="모바일 내비게이션" className="absolute left-0 right-0 top-full z-[70] border-t border-gray-100 bg-white p-4 shadow-xl md:hidden">
+          <nav id="mobile-navigation" aria-label="모바일 내비게이션" className="absolute left-0 right-0 top-full z-[70] border-t border-gray-100 bg-white p-4 shadow-xl lg:hidden">
             <Link href="/" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">홈</Link>
+            <Link href="/#about" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">서비스 소개</Link>
+            <Link href="/#how-it-works" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">이용방법</Link>
+            {isLoggedIn ? <Link href="/premium" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">Premium</Link> : null}
             <Link href="/notices" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">공지사항</Link>
             <Link href="/faq" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">FAQ</Link>
             {isLoggedIn ? (
@@ -330,11 +335,9 @@ export default function AppShell({ children }: AppShellProps) {
                 <Link href="/login" onClick={closeMenus} className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-700 hover:bg-green-50">
                   <LogIn size={19} /> 로그인
                 </Link>
-                {isHome ? (
-                  <Link href="/signup" onClick={closeMenus} className="mt-2 block rounded-xl bg-[#2E7D32] px-4 py-3 text-center font-bold text-white hover:bg-[#256729]">
-                    회원가입
-                  </Link>
-                ) : null}
+                <Link href="/signup" onClick={closeMenus} className="mt-2 block rounded-xl bg-[#2E7D32] px-4 py-3 text-center font-bold text-white hover:bg-[#256729]">
+                  회원가입
+                </Link>
               </>
             )}
           </nav>

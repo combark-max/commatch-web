@@ -29,6 +29,7 @@ type RelationshipFilter = 'all' | 'mutual' | 'matched' | 'not-mutual';
 type MatchStatus = 'active' | 'ended';
 
 type LikeResult = 'liked' | 'already_liked' | 'matched' | 'already_matched';
+type CancelLikeResult = 'cancelled' | 'not_liked' | 'already_matched';
 
 type SendLikeWithMatchRow = {
   like_result?: unknown;
@@ -113,6 +114,18 @@ function normalizeLikeResult(value: unknown): { likeResult: LikeResult; matchId:
   return { likeResult, matchId };
 }
 
+function normalizeCancelLikeResult(value: unknown): CancelLikeResult {
+  const cancelResult = normalizeNullableText(value);
+  if (
+    cancelResult !== 'cancelled'
+    && cancelResult !== 'not_liked'
+    && cancelResult !== 'already_matched'
+  ) {
+    throw new Error('Unexpected cancel-like result');
+  }
+  return cancelResult;
+}
+
 export default function FavoritesPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -123,6 +136,7 @@ export default function FavoritesPage() {
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
   const [sendingLikeMemberId, setSendingLikeMemberId] = useState<string | null>(null);
+  const [cancellingLikeMemberId, setCancellingLikeMemberId] = useState<string | null>(null);
   const [matchedLikeMemberIds, setMatchedLikeMemberIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<ToastState | null>(null);
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
@@ -465,7 +479,14 @@ export default function FavoritesPage() {
   };
 
   const handleSendLike = async (memberId: string) => {
-    if (sendingLikeMemberId || favorites.find((member) => member.id === memberId)?.hasLiked) return;
+    const member = favorites.find((favorite) => favorite.id === memberId);
+    if (
+      sendingLikeMemberId
+      || cancellingLikeMemberId
+      || member?.hasLiked
+      || member?.matchId
+      || matchedLikeMemberIds.has(memberId)
+    ) return;
 
     setSendingLikeMemberId(memberId);
     try {
@@ -512,6 +533,51 @@ export default function FavoritesPage() {
       setToast({ message: '좋아요를 보내지 못했습니다. 잠시 후 다시 시도해주세요.', type: 'error' });
     } finally {
       setSendingLikeMemberId(null);
+    }
+  };
+
+  const handleCancelLike = async (memberId: string) => {
+    const member = favorites.find((favorite) => favorite.id === memberId);
+    if (
+      cancellingLikeMemberId
+      || sendingLikeMemberId
+      || !member?.hasLiked
+      || member.matchId
+      || matchedLikeMemberIds.has(memberId)
+    ) return;
+
+    setCancellingLikeMemberId(memberId);
+    try {
+      const { data, error: cancelError } = await supabase.rpc('cancel_member_like', {
+        target_user_id: memberId,
+      });
+      if (cancelError) throw cancelError;
+
+      const cancelResult = normalizeCancelLikeResult(data);
+
+      if (cancelResult === 'already_matched') {
+        setMatchedLikeMemberIds((current) => new Set(current).add(memberId));
+        setToast({ message: '이미 매칭된 회원의 좋아요는 취소할 수 없습니다.', type: 'success' });
+        return;
+      }
+
+      setFavorites((current) => current.map((favorite) => (
+        favorite.id === memberId
+          ? { ...favorite, hasLiked: false }
+          : favorite
+      )));
+      setToast({
+        message: cancelResult === 'cancelled'
+          ? '좋아요를 취소했습니다.'
+          : '이미 취소된 좋아요입니다.',
+        type: 'success',
+      });
+    } catch (err: unknown) {
+      const supabaseError = err as { message?: string };
+      console.error('좋아요 취소 실패:', supabaseError.message ?? err);
+      setToast({ message: '좋아요를 취소하지 못했습니다. 잠시 후 다시 시도해주세요.', type: 'error' });
+    } finally {
+      setCancellingLikeMemberId(null);
     }
   };
 
@@ -817,17 +883,30 @@ export default function FavoritesPage() {
                       </Button>
                       <button
                         type="button"
-                        onClick={() => handleSendLike(member.id)}
-                        disabled={member.hasLiked || sendingLikeMemberId === member.id}
+                        onClick={() => {
+                          if (member.hasLiked) {
+                            void handleCancelLike(member.id);
+                            return;
+                          }
+                          void handleSendLike(member.id);
+                        }}
+                        disabled={
+                          Boolean(member.matchId)
+                          || matchedLikeMemberIds.has(member.id)
+                          || sendingLikeMemberId === member.id
+                          || cancellingLikeMemberId === member.id
+                        }
                         className="min-h-11 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-500"
                       >
-                        {sendingLikeMemberId === member.id
-                          ? '좋아요 보내는 중...'
-                          : member.matchId || matchedLikeMemberIds.has(member.id)
-                            ? '매칭됨'
-                            : member.hasLiked
-                              ? '좋아요 보냄'
-                              : '좋아요 보내기'}
+                        {member.matchId || matchedLikeMemberIds.has(member.id)
+                          ? '매칭됨'
+                          : cancellingLikeMemberId === member.id
+                            ? '취소 중...'
+                            : sendingLikeMemberId === member.id
+                              ? '좋아요 보내는 중...'
+                              : member.hasLiked
+                                ? '좋아요 취소'
+                                : '좋아요 보내기'}
                       </button>
                       {isAdvancedMode && member.matchId && member.matchStatus ? (
                         <Button

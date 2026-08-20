@@ -693,15 +693,19 @@ export default function ProfileCreatePage() {
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-gray-900">프로필 작성</h1>
           <p className="mt-2 text-gray-600">기본정보부터 자기소개까지 차근차근 작성해주세요.</p>
-          <p className="mt-1 text-sm text-gray-500">일부 추천 고도화 기능은 순차적으로 도입될 예정입니다.</p>
+          <div className="mt-5 rounded-2xl border border-green-100 bg-green-50 p-5 text-left shadow-sm">
+            <p className="text-lg font-bold text-green-900">좋은 인연을 위한 첫걸음, 나를 자세히 알려주세요.</p>
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              프로필을 충실하게 작성할수록 회원님의 성향과 조건을 더 정확하게 파악할 수 있으며, 더욱 정교한 회원 추천과 맞춤 분석에 활용됩니다.
+            </p>
+          </div>
         </div>
 
         <div className="mb-8 rounded-2xl border border-green-100 bg-green-50 p-5">
-          <div className="grid grid-cols-2 gap-2 text-center text-xs font-semibold text-gray-500 sm:grid-cols-4">
+          <div className="grid grid-cols-3 gap-2 text-center text-xs font-semibold text-gray-500">
             <span className="rounded-lg bg-white px-2 py-2 text-green-700">기본 정보</span>
             <span className="rounded-lg bg-white px-2 py-2 text-green-700">생활 정보</span>
             <span className="rounded-lg bg-white px-2 py-2 text-green-700">자기소개</span>
-            <span className="rounded-lg bg-gray-100 px-2 py-2">추천 고도화 기능 · 도입 예정</span>
           </div>
           <div className="mt-5 flex items-center justify-between gap-4">
             <p className="text-sm font-bold text-gray-800">프로필 완성도 {profileCompletion}%</p>
@@ -1104,15 +1108,6 @@ export default function ProfileCreatePage() {
               <span className="shrink-0 text-gray-500">{introductionLength} / 500자</span>
             </div>
             {errors.introduction && <p className="mt-1 text-xs text-red-500">{errors.introduction.message}</p>}
-
-            {/* TODO: AI 문장 다듬기 API, 개인정보 안내, 사용량 정책 확정 후 연결 */}
-            <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-bold text-gray-800">AI가 더 자연스럽게 다듬기</p>
-                <span className="rounded-full bg-gray-200 px-2 py-1 text-[10px] font-bold text-gray-600">도입 예정</span>
-              </div>
-              <p className="mt-2 text-xs leading-5 text-gray-500">작성한 내용을 바탕으로 문장을 자연스럽게 다듬는 기능이 추후 추가될 예정입니다.</p>
-            </div>
           </section>
 
           <div className="pt-6">

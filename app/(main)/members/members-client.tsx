@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
@@ -10,7 +11,7 @@ import {
 } from '@/lib/member/advanced-search-parser';
 import { REGIONS } from '@/constants/regions';
 import { JOBS, STANDARD_JOB_VALUES } from '@/constants/jobs';
-import { User, MapPin, Briefcase, ChevronDown, Heart, Loader2, Search } from 'lucide-react';
+import { User, MapPin, Briefcase, Heart, Loader2, Search } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 
@@ -55,7 +56,7 @@ export default function MembersClient({
   const [selectedJob, setSelectedJob] = useState('상관없음');
   const [ageMin, setAgeMin] = useState('');
   const [ageMax, setAgeMax] = useState('');
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(initialAdvancedOpen);
+  const [isAdvancedOpen] = useState(initialAdvancedOpen);
   const [heightMin, setHeightMin] = useState('');
   const [heightMax, setHeightMax] = useState('');
   const [selectedEducation, setSelectedEducation] = useState('전체');
@@ -455,7 +456,6 @@ export default function MembersClient({
         <div className="mb-8 sm:mb-10">
           <h1 className="flex items-center gap-2 text-3xl font-extrabold tracking-tight text-gray-900">
             회원 둘러보기
-            <span className="text-lg font-medium text-[#16a34a]">({members.length})</span>
           </h1>
           <p className="mt-2 text-gray-600">ComMatch에서 활동 중인 멋진 회원들을 만나보세요.</p>
         </div>
@@ -531,26 +531,12 @@ export default function MembersClient({
             </div>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
-            <button
-              type="button"
-              aria-expanded={isAdvancedOpen}
-              aria-controls="advanced-member-search"
-              onClick={() => {
-                if (!canUseAdvancedSearch) {
-                  router.push('/premium');
-                  return;
-                }
-
-                setIsAdvancedOpen((current) => !current);
-              }}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-bold text-green-700 transition hover:bg-green-100"
+            <Link
+              href="/premium#premium-benefits"
+              className="inline-flex min-h-11 items-center rounded-xl px-2 text-sm font-bold text-green-700 transition hover:text-green-800"
             >
-              {isAdvancedOpen ? '고급 검색 닫기' : '고급 검색 열기'}
-              <ChevronDown className={`h-4 w-4 transition-transform ${isAdvancedOpen ? 'rotate-180' : ''}`} />
-            </button>
-            <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-[#806B26]">
-              Premium 도입 전 테스트 제공
-            </span>
+              고급검색은 Premium 혜택에서 이용할 수 있습니다.
+            </Link>
           </div>
 
           {isAdvancedOpen ? (

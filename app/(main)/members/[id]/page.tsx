@@ -528,13 +528,13 @@ export default function MemberDetailPage() {
             <section className="rounded-[1.75rem] border border-dashed border-gray-200 bg-white p-6 sm:p-8" aria-labelledby="ai-summary-heading">
               <div className="flex items-center justify-between gap-3">
                 <h2 id="ai-summary-heading" className="flex items-center gap-2 text-xl font-bold text-gray-700">
-                  <Sparkles size={21} className="text-gray-400" /> 맞춤 분석 요약
+                  <Sparkles size={21} className="text-gray-400" /> AI Match 안내
                 </h2>
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">AI 추천 · 테스트 제공 중</span>
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">AI Match에서 제공</span>
               </div>
               <div className="mt-4 space-y-1 text-sm leading-6 text-gray-500">
-                <p>맞춤 분석은 AI 추천에 포함된 회원을 대상으로 제공합니다.</p>
-                <p>AI Match에서 선호조건 일치율과 추천 이유를 확인할 수 있습니다.</p>
+                <p>이 회원이 AI Match 추천에 포함된 경우 선호조건 일치율과 추천 이유를 확인할 수 있습니다.</p>
+                <p>Premium AI Match에서는 공통점과 확인할 점 등 더 자세한 맞춤 분석을 제공합니다.</p>
               </div>
             </section>
           </div>

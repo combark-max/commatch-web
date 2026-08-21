@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
-  Bell,
   Briefcase,
   Camera,
   ChevronRight,
@@ -392,7 +391,6 @@ export default function DashboardPage() {
             <h2 id="account-heading" className="text-xl font-bold text-gray-900">계정 관리</h2>
             <div className="mt-4 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
               <MenuLink href="/forgot-password" label="비밀번호 변경" icon={KeyRound} />
-              <MenuDisabled label="알림 설정" icon={Bell} status="준비 중" />
               <button
                 type="button"
                 onClick={handleLogout}
@@ -532,15 +530,5 @@ function MenuLink({ href, label, icon: Icon }: { href: string; label: string; ic
       <span className="flex-1">{label}</span>
       <ChevronRight size={18} className="text-gray-300" />
     </Link>
-  );
-}
-
-function MenuDisabled({ label, icon: Icon, status }: { label: string; icon: LinkIcon; status: string }) {
-  return (
-    <div className="flex items-center gap-3 border-t border-gray-100 px-5 py-4 text-gray-500">
-      <Icon size={20} className="text-gray-400" />
-      <span className="flex-1 font-semibold">{label}</span>
-      <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500">{status}</span>
-    </div>
   );
 }

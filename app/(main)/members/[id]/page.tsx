@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Cigarette,
+  Crown,
   Flag,
   GraduationCap,
   Heart,
@@ -39,6 +40,7 @@ type MemberProfile = {
   marriage_values: string | null;
   profile_image?: string | null;
   profile_images?: string[] | null;
+  is_premium_available: boolean;
 };
 
 type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
@@ -462,9 +464,16 @@ export default function MemberDetailPage() {
             <section aria-labelledby="basic-profile-heading">
               <div className="flex flex-col gap-5 border-b border-gray-100 pb-8 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 id="basic-profile-heading" className="text-3xl font-black text-gray-900 sm:text-4xl">
-                    {member.nickname || '익명'}
-                  </h2>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 id="basic-profile-heading" className="text-3xl font-black text-gray-900 sm:text-4xl">
+                      {member.nickname || '익명'}
+                    </h2>
+                    {member.is_premium_available === true ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-bold text-green-700">
+                        <Crown size={14} aria-hidden="true" /> Premium
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-base font-semibold text-[#16a34a] sm:text-lg">
                     <span>{age !== null ? `만 ${age}세` : '나이 정보 미입력'}</span>
                     <span className="h-1 w-1 rounded-full bg-gray-300" />

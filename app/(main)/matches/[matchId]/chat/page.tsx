@@ -613,6 +613,12 @@ export default function ChatPage() {
             <div className="space-y-3">
               {messages.map((message, index) => {
                 const isMine = message.sender_id === currentUserId;
+                const isReportDisabled = match.status !== 'active' || reportedMessageIds.has(message.id);
+                const reportButtonLabel = match.status !== 'active'
+                  ? '종료된 매칭의 메시지는 신고할 수 없습니다.'
+                  : reportedMessageIds.has(message.id)
+                    ? '신고 접수됨'
+                    : '이 메시지 신고';
                 const previousMessage = messages[index - 1];
                 const showDate = !previousMessage || dateKey(previousMessage.created_at) !== dateKey(message.created_at);
 
@@ -649,11 +655,11 @@ export default function ChatPage() {
                       {!isMine ? (
                         <button
                           type="button"
-                          aria-label={reportedMessageIds.has(message.id) ? '신고 접수됨' : '이 메시지 신고'}
-                          title={reportedMessageIds.has(message.id) ? '신고 접수됨' : '이 메시지 신고'}
-                          disabled={reportedMessageIds.has(message.id)}
+                          aria-label={reportButtonLabel}
+                          title={reportButtonLabel}
+                          disabled={isReportDisabled}
                           onClick={() => {
-                            if (isEndConfirmOpen || isEndingMatch) return;
+                            if (match.status !== 'active' || isEndConfirmOpen || isEndingMatch) return;
                             setReportNotice('');
                             setSelectedReportMessage(message);
                             setIsReportDialogOpen(true);

@@ -17,6 +17,7 @@ create temp table _commatch_my_reports_it_config (
   fixture_confirmation text not null,
   match_id uuid not null default pg_catalog.gen_random_uuid(),
   message_id uuid not null default pg_catalog.gen_random_uuid(),
+  ended_message_id uuid not null default pg_catalog.gen_random_uuid(),
   a_pending_profile_report_id uuid,
   a_resolved_message_report_id uuid,
   a_dismissed_profile_report_id uuid not null default pg_catalog.gen_random_uuid(),
@@ -158,7 +159,7 @@ begin
     where (existing_report.reporter_id = v_config.reporter_a_id
       and (
         (existing_report.target_type = 'profile' and existing_report.target_user_id in (v_config.profile_target_id, v_config.message_target_id))
-        or existing_report.target_message_id = v_config.message_id
+        or existing_report.target_message_id in (v_config.message_id, v_config.ended_message_id)
       ))
       or (existing_report.reporter_id = v_config.reporter_b_id
         and existing_report.target_type = 'profile'
@@ -182,6 +183,10 @@ from _commatch_my_reports_it_config;
 
 insert into public.messages (id, match_id, sender_id, content)
 select message_id, match_id, message_target_id, 'rollback member report history message'
+from _commatch_my_reports_it_config;
+
+insert into public.messages (id, match_id, sender_id, content)
+select ended_message_id, match_id, message_target_id, 'rollback ended match report guard message'
 from _commatch_my_reports_it_config;
 
 -- Existing member submission RPCs must still work after direct table SELECT is revoked.
@@ -212,6 +217,54 @@ begin
       a_resolved_message_report_id = v_message_report_id;
 end
 $reporter_a_submissions$;
+
+do $message_submission_guards$
+declare
+  v_config _commatch_my_reports_it_config%rowtype;
+  v_match_status text;
+begin
+  select * into v_config from _commatch_my_reports_it_config;
+
+  begin
+    perform public.submit_message_report(
+      v_config.message_id,
+      'harassment',
+      'rollback duplicate message report'
+    );
+    raise exception 'FAIL duplicate message report unexpectedly succeeded';
+  exception
+    when unique_violation then null;
+  end;
+
+  select public.end_match(v_config.match_id) into v_match_status;
+  if v_match_status <> 'ended' then
+    raise exception 'FAIL match did not end before ended-message report verification';
+  end if;
+
+  begin
+    perform public.submit_message_report(
+      v_config.ended_message_id,
+      'harassment',
+      'rollback ended match message report'
+    );
+    raise exception 'FAIL ended match message report unexpectedly succeeded';
+  exception
+    when sqlstate '55000' then
+      if sqlerrm <> 'Messages from an ended match cannot be reported' then
+        raise exception 'FAIL ended match message report returned an unexpected error: %', sqlerrm;
+      end if;
+  end;
+
+  if (select pg_catalog.count(*) from public.reports where id = v_config.a_resolved_message_report_id) <> 1
+     or exists (
+       select 1 from public.reports
+       where reporter_id = v_config.reporter_a_id
+         and target_message_id = v_config.ended_message_id
+     ) then
+    raise exception 'FAIL ended match report guard changed existing report rows';
+  end if;
+end
+$message_submission_guards$;
 
 select pg_temp._commatch_my_reports_set_user(reporter_b_id)
 from _commatch_my_reports_it_config;

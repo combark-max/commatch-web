@@ -216,6 +216,12 @@ begin
                 pg_catalog.regexp_replace(existing_function.prosrc, '[[:space:]]+', ' ', 'g')
               ) = '15e12ed4a21cd1506666e26a19199e7a'
             )
+            and not (
+              v_function_name = 'submit_message_report'
+              and pg_catalog.md5(
+                pg_catalog.regexp_replace(existing_function.prosrc, '[[:space:]]+', ' ', 'g')
+              ) = '99690836b7fd9a4b0b994052319fa0cb'
+            )
           )
       )
     ) then
@@ -752,7 +758,8 @@ begin
   select match_row.*
   into v_match
   from public.matches as match_row
-  where match_row.id = v_target_match_id;
+  where match_row.id = v_target_match_id
+  for share;
 
   if not found then
     raise exception using errcode = 'P0002', message = 'Match not found';
@@ -761,6 +768,10 @@ begin
   if v_reporter_id <> v_match.user_1_id
      and v_reporter_id <> v_match.user_2_id then
     raise exception using errcode = '42501', message = 'Not a participant in this match';
+  end if;
+
+  if v_match.status <> 'active' then
+    raise exception using errcode = '55000', message = 'Messages from an ended match cannot be reported';
   end if;
 
   if v_target_user_id <> v_match.user_1_id

@@ -48,7 +48,7 @@ type MemberSearchParams = {
 
 type MemberListError = 'forbidden' | 'rpc' | 'parse';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const MAX_PAGE = Math.floor(2_147_483_647 / PAGE_SIZE) + 1;
 
 const displayProfileValue = (value: string | null): string => value?.trim() || '미입력';
@@ -440,7 +440,7 @@ export default async function AdminMembersPage({
         </section>
       ) : null}
 
-      {!error && members && (members.length > 0 || page > 1) ? (
+      {!error && members && totalPages !== null && totalPages > 1 ? (
         <nav aria-label="관리자 회원 목록 페이지" className="flex items-center justify-center gap-3">
           {page > 1 ? (
             <Link href={buildListHref({ search, account, profile, visibility, gender, ageGroup, region, job, marriage, sort, direction, page: page - 1 })} className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"><ChevronLeft size={16} aria-hidden="true" />이전</Link>

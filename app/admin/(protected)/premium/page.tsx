@@ -36,7 +36,7 @@ type PremiumSearchParams = {
 
 type PremiumListError = 'forbidden' | 'rpc' | 'parse';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const MAX_PAGE = Math.floor(2_147_483_647 / PAGE_SIZE) + 1;
 const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
   year: 'numeric',
@@ -332,7 +332,7 @@ export default async function AdminPremiumMembershipsPage({
         </section>
       ) : null}
 
-      {!error && memberships && (memberships.length > 0 || page > 1) ? (
+      {!error && memberships && totalPages !== null && totalPages > 1 ? (
         <nav aria-label="Premium 회원 목록 페이지" className="flex items-center justify-center gap-3">
           {page > 1 ? (
             <Link href={buildListHref({ search, status, sort, direction, page: page - 1 })} className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"><ChevronLeft size={16} />이전</Link>

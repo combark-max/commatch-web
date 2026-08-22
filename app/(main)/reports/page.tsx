@@ -181,6 +181,17 @@ export default function ReportsPage() {
                     <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{report.reasonDetail}</p>
                   </div>
                 ) : null}
+
+                {report.status === 'resolved' || report.status === 'dismissed' ? (
+                  <div className="mt-5 rounded-2xl bg-green-50 p-4">
+                    <p className="text-xs font-bold text-green-700">처리 결과</p>
+                    <p className="mt-2 text-sm leading-6 text-green-900">
+                      {report.status === 'resolved'
+                        ? '신고 검토가 완료되었습니다.'
+                        : '신고 검토 후 종결되었습니다.'}
+                    </p>
+                  </div>
+                ) : null}
               </article>
             ))}
           </section>

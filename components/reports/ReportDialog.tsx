@@ -70,6 +70,7 @@ const getReportErrorMessage = (error: unknown, targetType: ReportTarget['type'])
   if (normalizedMessage.includes('message not found')) return '신고 대상 메시지를 찾을 수 없습니다.';
   if (normalizedMessage.includes('match not found')) return '해당 매칭을 찾을 수 없습니다.';
   if (normalizedMessage.includes('not a participant in this match')) return '참여한 매칭의 메시지만 신고할 수 있습니다.';
+  if (normalizedMessage.includes('messages from an ended match cannot be reported')) return '종료된 매칭의 메시지는 신고할 수 없습니다.';
   if (normalizedMessage.includes('you cannot report your own message')) return '본인이 보낸 메시지는 신고할 수 없습니다.';
   if (normalizedMessage.includes('message sender is not a participant in this match')) return '메시지 발신자 정보를 확인할 수 없습니다.';
 

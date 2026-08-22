@@ -26,7 +26,7 @@ type ReportsSearchParams = {
   page?: string | string[];
 };
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const listDateFormatter = new Intl.DateTimeFormat('ko-KR', {
   year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
   hour12: false, timeZone: 'Asia/Seoul',
@@ -214,7 +214,7 @@ export default async function AdminReportsPage({
         </section>
       )}
 
-      {reports !== null && totalCount > 0 ? (
+      {reports !== null && totalPages > 1 ? (
         <nav aria-label="신고 목록 페이지" className="flex items-center justify-center gap-3">
           {page > 1 ? (
             <Link href={buildListHref(status, targetType, page - 1)} className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"><ChevronLeft size={16} />이전</Link>

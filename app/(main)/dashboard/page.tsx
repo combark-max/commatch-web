@@ -48,6 +48,10 @@ type MatchSummaryRow = {
   total_unread_count: number | string | null;
 };
 
+type PremiumAccessRow = {
+  is_available: boolean;
+};
+
 const normalizeUnreadCount = (value: unknown) => {
   const parsed = typeof value === 'number'
     ? value
@@ -116,6 +120,7 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [favoriteCount, setFavoriteCount] = useState<number | null>(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [isPremiumAvailable, setIsPremiumAvailable] = useState<boolean | null>(null);
   const [profileError, setProfileError] = useState(false);
   const [favoritesError, setFavoritesError] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -135,7 +140,7 @@ export default function DashboardPage() {
 
         if (isMounted) setIsAuthenticated(true);
 
-        const [profileResult, favoritesResult, matchesResult] = await Promise.all([
+        const [profileResult, favoritesResult, matchesResult, premiumResult] = await Promise.all([
           supabase
             .from('profiles')
             .select('nickname, gender, birth_date, height, region, job, education, hobby, drinking, smoking, marriage_history, introduction, marriage_values, profile_image, profile_images')
@@ -146,6 +151,7 @@ export default function DashboardPage() {
             .select('id', { count: 'exact', head: true })
             .eq('user_id', user.id),
           supabase.rpc('get_my_match_summary'),
+          supabase.rpc('get_my_premium_access'),
         ]);
 
         if (profileResult.error) {
@@ -174,11 +180,28 @@ export default function DashboardPage() {
           const totalUnreadCount = normalizeUnreadCount(summaryRow?.total_unread_count);
           setUnreadMessageCount(totalUnreadCount);
         }
+
+        if (premiumResult.error) {
+          console.error('마이페이지 Premium 등급 조회 실패:', premiumResult.error.code, premiumResult.error.message);
+          if (isMounted) setIsPremiumAvailable(null);
+        } else {
+          const premiumRow = Array.isArray(premiumResult.data)
+            ? (premiumResult.data as PremiumAccessRow[])[0]
+            : null;
+
+          if (typeof premiumRow?.is_available !== 'boolean') {
+            console.error('마이페이지 Premium 등급 응답을 확인할 수 없습니다.');
+            if (isMounted) setIsPremiumAvailable(null);
+          } else if (isMounted) {
+            setIsPremiumAvailable(premiumRow.is_available);
+          }
+        }
       } catch (error: unknown) {
         console.error('마이페이지 정보 조회 실패:', error);
         if (isMounted) {
           setProfileError(true);
           setFavoritesError(true);
+          setIsPremiumAvailable(null);
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -275,7 +298,13 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
                 <Shield size={18} className="text-green-600" /> 회원 등급
               </div>
-              <p className="mt-3 inline-flex rounded-full bg-amber-50 px-3 py-1.5 text-sm font-bold text-[#806B26]">도입 예정</p>
+              <p className="mt-3 inline-flex rounded-full bg-amber-50 px-3 py-1.5 text-sm font-bold text-[#806B26]">
+                {isPremiumAvailable === null
+                  ? '확인할 수 없음'
+                  : isPremiumAvailable
+                    ? 'Premium 회원'
+                    : '일반 회원'}
+              </p>
             </div>
           </div>
 

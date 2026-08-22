@@ -373,9 +373,9 @@ export default function DashboardPage() {
               <div className="flex items-center gap-3">
                 <Sparkles className="text-green-600" />
                 <h2 id="premium-heading" className="text-xl font-bold text-gray-900">Premium</h2>
-                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-[#806B26]">도입 예정</span>
+                <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700">제공 중</span>
               </div>
-              <p className="mt-3 text-sm leading-6 text-gray-600">Premium 이용권 기능은 추후 제공될 예정입니다.</p>
+              <p className="mt-3 text-sm leading-6 text-gray-600">Premium 전용 혜택과 기능을 확인해 보세요.</p>
             </div>
             <Link
               href="/premium#premium-benefits"

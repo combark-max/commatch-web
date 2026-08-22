@@ -301,8 +301,8 @@ export default function AiMatchPage() {
         </div>
 
         {isExpandedMode ? (
-          <section className="mb-5 rounded-2xl border border-green-100 bg-green-50 p-5" aria-label="확대 추천 테스트 안내">
-            <p className="font-bold text-green-800">Premium 도입 전 테스트 제공</p>
+          <section className="mb-5 rounded-2xl border border-green-100 bg-green-50 p-5" aria-label="Premium 확대 추천 안내">
+            <p className="font-bold text-green-800">Premium 확대 추천</p>
             <p className="mt-2 text-sm leading-6 text-gray-700">
               일반 추천은 최대 10명까지 제공되며, 확대 추천에서는 조건에 맞는 회원을 최대 20명까지 확인할 수 있습니다.
             </p>
@@ -522,7 +522,7 @@ export default function AiMatchPage() {
                         <p className="mt-4 text-xs leading-5 text-gray-500">{currentPremiumMember.dataNote}</p>
                       ) : null}
                       <p className="mt-4 rounded-xl border border-gray-200 bg-white/80 p-3 text-xs leading-5 text-gray-600">
-                        자기소개와 결혼 가치관은 자유롭게 작성한 내용이므로 현재 테스트 분석 점수에는 포함하지 않습니다. 회원 상세 화면에서 직접 확인해 주세요.
+                        자기소개와 결혼 가치관은 자유롭게 작성한 내용이므로 현재 추천 분석 점수에는 포함하지 않습니다. 회원 상세 화면에서 직접 확인해 주세요.
                       </p>
                     </>
                   ) : (

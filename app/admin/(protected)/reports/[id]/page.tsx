@@ -5,7 +5,6 @@ import {
   FileWarning,
   MessageSquareWarning,
   ShieldCheck,
-  Trash2,
   UserRound,
 } from 'lucide-react';
 import AdminMemberRestrictionForm from '@/components/admin/AdminMemberRestrictionForm';
@@ -155,12 +154,6 @@ function ProfileCard({
     </article>
   );
 }
-
-const DisabledAction = ({ icon, label }: { icon: React.ReactNode; label: string }) => (
-  <span aria-disabled="true" className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400">
-    {icon}{label}
-  </span>
-);
 
 const MatchParticipant = ({
   userId,
@@ -517,17 +510,6 @@ export default async function AdminReportDetailPage({
             ))}
           </ol>
         )}
-      </section>
-
-      <section aria-labelledby="member-actions" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
-        <h2 id="member-actions" className="text-xl font-black text-gray-900">추가 회원·콘텐츠 조치</h2>
-        <p className="mt-2 text-sm text-gray-500">아래 기능은 아직 실제 조치와 연결되지 않았습니다.</p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <DisabledAction icon={<Trash2 size={16} />} label="회원 강제 탈퇴 — 준비 중" />
-          {detail.targetType === 'message' ? (
-            <DisabledAction icon={<MessageSquareWarning size={16} />} label="채팅 메시지 비노출 — 준비 중" />
-          ) : null}
-        </div>
       </section>
 
       <section aria-labelledby="report-action-history" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">

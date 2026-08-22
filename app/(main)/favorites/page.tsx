@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Briefcase, CalendarDays, Loader2, MapPin, Search, Sparkles, User } from 'lucide-react';
+import { ArrowLeft, Briefcase, CalendarDays, Loader2, MapPin, Search, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import Button from '@/components/ui/Button';
@@ -863,16 +863,6 @@ export default function FavoritesPage() {
                         </p>
                       ) : null}
                     </div>
-
-                    <section className="mt-5 rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="flex items-center gap-1.5 text-xs font-bold text-gray-500">
-                          <Sparkles size={15} /> AI 추천 이유
-                        </h3>
-                        <span className="rounded-full bg-gray-200 px-2 py-1 text-[10px] font-bold text-gray-500">도입 예정</span>
-                      </div>
-                      <p className="mt-2 text-sm text-gray-500">AI 추천 이유 기능은 도입 예정입니다.</p>
-                    </section>
 
                     <div className="mt-6 grid gap-2 sm:grid-cols-2">
                       <Button

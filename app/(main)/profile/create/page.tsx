@@ -943,7 +943,6 @@ export default function ProfileCreatePage() {
               </select>
               {errors.region && <p className="mt-1 text-xs text-red-500">{errors.region.message}</p>}
               {/* TODO: 회원가입 단계에서 지역 정보를 수집하게 되면 자동 입력 연결 */}
-              <p className="mt-1.5 text-xs text-gray-400">회원가입 정보 자동 입력 기능은 추후 도입될 예정입니다.</p>
             </div>
 
             {/* 7. Job */}
@@ -1013,7 +1012,6 @@ export default function ProfileCreatePage() {
                 className={`w-full px-4 py-2.5 border ${errors.hobby ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
               />
               {errors.hobby && <p className="mt-1 text-xs text-red-500">{errors.hobby.message}</p>}
-              <p className="mt-1.5 text-xs text-gray-400">여러 취미를 최대 5개까지 선택하는 기능은 도입 예정입니다.</p>
             </div>
 
             {/* 11. Drinking */}
@@ -1083,10 +1081,6 @@ export default function ProfileCreatePage() {
             </div>
             <p className="mt-1 text-xs text-gray-500">10자 이상 500자 이하로 작성해 주세요.</p>
             {errors.marriage_values && <p className="mt-1 text-xs text-red-500">{errors.marriage_values.message}</p>}
-            <div className="mt-5 rounded-xl border border-green-100 bg-green-50 p-4">
-              <p className="text-sm font-bold text-green-800">향후 추천 고도화에 활용 예정</p>
-              <p className="mt-2 text-xs leading-5 text-gray-600">프로필 정보를 자세히 작성하면 향후 더 정교한 추천 기능에 활용될 수 있습니다.</p>
-            </div>
           </section>
 
           {/* 12. Introduction */}

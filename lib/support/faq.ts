@@ -38,7 +38,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     category: 'AI 추천',
     question: 'AI Match에서는 무엇을 확인할 수 있나요?',
-    answer: '설정한 선호조건을 바탕으로 추천된 회원과 조건 일치율, 추천 이유를 확인할 수 있습니다. 현재 AI 추천 관련 기능은 테스트 형태로 제공 중입니다.',
+    answer: '설정한 선호조건을 바탕으로 추천된 회원과 조건 일치율, 추천 이유를 확인할 수 있습니다.',
   },
   {
     category: 'Premium',

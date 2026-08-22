@@ -202,7 +202,7 @@ export default function AdminMemberRestrictionForm({
           placeholder="회원에게 공개될 수 있는 제재 사유를 입력할 수 있습니다."
           className="w-full resize-y rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm leading-6 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20 disabled:bg-gray-100"
         />
-        <p className="mt-2 text-xs text-gray-500">향후 일반 회원 정지 안내 화면에 공개될 수 있는 문구입니다.</p>
+        <p className="mt-2 text-xs text-gray-500">입력한 제재 사유는 정지된 회원의 안내 화면에 표시됩니다.</p>
       </div>
 
       <div>

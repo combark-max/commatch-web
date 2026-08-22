@@ -350,7 +350,7 @@ export default function LikesReceivedPage() {
         {isAdvancedMode ? (
           <>
             <section className="mt-6 rounded-[2rem] border border-green-100 bg-green-50 p-6 sm:p-7">
-              <p className="text-sm font-bold text-green-800">Premium 도입 전 테스트 제공 기능입니다.</p>
+              <p className="text-sm font-bold text-green-800">Premium 받은 관심 회원</p>
               <p className="mt-2 text-sm leading-6 text-green-900">
                 받은 관심을 관계와 매칭 상태에 따라 정리할 수 있습니다.
               </p>

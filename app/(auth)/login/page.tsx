@@ -15,8 +15,6 @@ import {
   Lock,
   LogIn,
   Mail,
-  MessageCircle,
-  UserRound,
 } from 'lucide-react';
 import { signIn } from '@/lib/auth/auth';
 import { parseMemberAccessRpcResponse } from '@/lib/member/access-parser';
@@ -32,12 +30,6 @@ const loginSchema = z.object({
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
-
-const socialLogins = [
-  { label: '카카오 로그인', icon: MessageCircle },
-  { label: '네이버 로그인', icon: UserRound },
-  { label: 'Google 로그인', icon: LogIn },
-];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -186,26 +178,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <section className="mt-10 border-t border-gray-200 pt-8" aria-labelledby="social-login-heading">
-              <div className="flex items-center justify-between gap-4">
-                <h2 id="social-login-heading" className="text-base font-bold text-gray-900">간편 로그인</h2>
-                <span className="text-xs font-semibold text-gray-400">서비스 준비 중</span>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                {socialLogins.map(({ label, icon: Icon }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    disabled
-                    className="flex min-h-20 cursor-not-allowed flex-col items-center justify-center gap-1 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-500"
-                  >
-                    <Icon size={20} aria-hidden="true" />
-                    <span>{label}</span>
-                    <span className="text-[11px] font-medium text-gray-400">도입 예정</span>
-                  </button>
-                ))}
-              </div>
-            </section>
           </div>
         </div>
       </div>

@@ -243,18 +243,18 @@ export default function PremiumPage() {
 
         <section aria-labelledby="upcoming-premium-heading">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 id="upcoming-premium-heading" className="text-2xl font-bold text-gray-900">도입 예정</h2>
-            <span className="text-sm font-medium text-gray-500">앞으로 추가될 Premium 혜택입니다.</span>
+            <h2 id="upcoming-premium-heading" className="text-2xl font-bold text-gray-900">추가 Premium 혜택</h2>
+            <span className="text-sm font-medium text-gray-500">Premium 회원에게 제공되는 추가 혜택입니다.</span>
           </div>
           <div className="mt-5 max-w-md rounded-[1.75rem] border border-gray-100 bg-white p-6 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-500">
                 <BadgeCheck size={21} />
               </span>
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-[#806B26]">도입 예정</span>
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-[#806B26]">이용 가능</span>
             </div>
             <h3 className="mt-5 text-lg font-bold text-gray-900">Premium 전용 배지</h3>
-            <p className="mt-2 text-sm leading-6 text-gray-600">프로필에 Premium 회원임을 알 수 있는 전용 표시가 제공될 예정입니다.</p>
+            <p className="mt-2 text-sm leading-6 text-gray-600">회원 상세 프로필에 Premium 회원임을 알 수 있는 전용 배지가 표시됩니다.</p>
           </div>
         </section>
 

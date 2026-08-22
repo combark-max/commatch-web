@@ -39,6 +39,7 @@ export default function AppShell({ children }: AppShellProps) {
   const supabase = createClient();
   const headerRef = useRef<HTMLElement | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [nickname, setNickname] = useState<string | null>(null);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
@@ -58,6 +59,7 @@ export default function AppShell({ children }: AppShellProps) {
 
       if (!isMounted) return;
       setIsLoggedIn(Boolean(resolvedUserId));
+      setCurrentUserId(resolvedUserId ?? null);
 
       if (!resolvedUserId) {
         setNickname(null);
@@ -86,7 +88,7 @@ export default function AppShell({ children }: AppShellProps) {
   }, [isAccountSuspendedPage, supabase]);
 
   useEffect(() => {
-    if (!isLoggedIn || isAccountSuspendedPage) return;
+    if (!isLoggedIn || !currentUserId || isAccountSuspendedPage) return;
 
     let isMounted = true;
 
@@ -109,14 +111,51 @@ export default function AppShell({ children }: AppShellProps) {
       void loadUnreadNotificationCount();
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void loadUnreadNotificationCount();
+      }
+    };
+
+    const notificationChannel = supabase
+      .channel(`notifications:${currentUserId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `recipient_user_id=eq.${currentUserId}`,
+        },
+        () => void loadUnreadNotificationCount(),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `recipient_user_id=eq.${currentUserId}`,
+        },
+        () => void loadUnreadNotificationCount(),
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          void loadUnreadNotificationCount();
+        }
+      });
+
     void loadUnreadNotificationCount();
     window.addEventListener('commatch:notifications-changed', handleNotificationsChanged);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       isMounted = false;
       window.removeEventListener('commatch:notifications-changed', handleNotificationsChanged);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      void supabase.removeChannel(notificationChannel);
     };
-  }, [isAccountSuspendedPage, isLoggedIn, pathname, supabase]);
+  }, [currentUserId, isAccountSuspendedPage, isLoggedIn, pathname, supabase]);
 
   useEffect(() => {
     const closeMenus = () => {
@@ -162,6 +201,7 @@ export default function AppShell({ children }: AppShellProps) {
       return;
     }
     setIsLoggedIn(false);
+    setCurrentUserId(null);
     setNickname(null);
     setUnreadNotificationCount(0);
     router.push('/');

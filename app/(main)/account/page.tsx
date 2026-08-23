@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Loader2, Settings, X } from 'lucide-react';
+import PushSettings from '@/components/push/PushSettings';
+import { cleanupPushBeforeSignOut } from '@/lib/push/client';
 import { createClient } from '@/lib/supabase/client';
 
 export default function AccountPage() {
@@ -59,6 +61,7 @@ export default function AccountPage() {
       return;
     }
 
+    await cleanupPushBeforeSignOut();
     await supabase.auth.signOut();
     window.alert('회원탈퇴가 완료되었습니다.');
     router.replace('/');
@@ -71,6 +74,7 @@ export default function AccountPage() {
     <div className="min-h-screen bg-gray-50 px-4 py-12">
       <div className="mx-auto max-w-2xl space-y-6">
         <div><h1 className="flex items-center gap-2 text-3xl font-bold text-gray-900"><Settings className="text-green-600" /> 계정 설정</h1><p className="mt-2 text-gray-500">비밀번호와 계정 정보를 관리합니다.</p></div>
+        <PushSettings />
         <section id="delete-account" className="rounded-2xl border border-red-200 bg-white p-7 shadow-sm">
           <h2 className="flex items-center gap-2 text-lg font-bold text-red-700"><AlertTriangle /> 회원탈퇴</h2>
           <p className="mt-2 text-sm leading-relaxed text-gray-600">프로필, 관심회원, 이상형 정보와 사진을 모두 삭제합니다.</p>

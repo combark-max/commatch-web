@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import AppShell from '@/components/common/AppShell';
+import ServiceWorkerRegistration from '@/components/push/ServiceWorkerRegistration';
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,6 +19,10 @@ export const metadata: Metadata = {
   description: "ComMatch와 함께 스마트한 AI 기반 매칭을 경험해보세요.",
 };
 
+export const viewport: Viewport = {
+  themeColor: '#2E7D32',
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -25,10 +30,11 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="ko"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <ServiceWorkerRegistration />
         <AppShell>{children}</AppShell>
       </body>
     </html>

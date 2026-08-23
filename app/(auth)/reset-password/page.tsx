@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { KeyRound, Loader2, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { cleanupPushBeforeSignOut } from '@/lib/push/client';
 
 type ResetStatus = 'expired' | 'session_error' | 'invalid' | 'error';
 
@@ -172,6 +173,7 @@ function ResetPasswordContent() {
   };
 
   const handleLogin = async () => {
+    await cleanupPushBeforeSignOut();
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();

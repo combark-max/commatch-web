@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 import { AuthResponse, UserResponse, AuthError } from '@supabase/supabase-js';
+import { cleanupPushBeforeSignOut } from '@/lib/push/client';
 
 const supabase = createClient();
 
@@ -28,6 +29,7 @@ export const signIn = async (email: string, password: string): Promise<AuthRespo
  * Signs out the current user.
  */
 export const signOut = async (): Promise<{ error: AuthError | null }> => {
+  await cleanupPushBeforeSignOut();
   return await supabase.auth.signOut();
 };
 

@@ -10,6 +10,8 @@ export type PushSubscriptionSettings = {
   subscriptionId: string;
   newMessageEnabled: boolean;
   newLikeEnabled: boolean;
+  newMatchEnabled: boolean;
+  supportInquiryAnsweredEnabled: boolean;
   revokedAt: string | null;
 };
 
@@ -17,6 +19,8 @@ type PushSettingsRow = {
   subscription_id?: unknown;
   new_message_enabled?: unknown;
   new_like_enabled?: unknown;
+  new_match_enabled?: unknown;
+  support_inquiry_answered_enabled?: unknown;
   revoked_at?: unknown;
 };
 
@@ -114,6 +118,8 @@ function parseSettings(value: unknown): PushSubscriptionSettings | null {
     typeof row.subscription_id !== 'string'
     || typeof row.new_message_enabled !== 'boolean'
     || typeof row.new_like_enabled !== 'boolean'
+    || typeof row.new_match_enabled !== 'boolean'
+    || typeof row.support_inquiry_answered_enabled !== 'boolean'
     || (row.revoked_at !== null && typeof row.revoked_at !== 'string')
   ) {
     return null;
@@ -123,6 +129,8 @@ function parseSettings(value: unknown): PushSubscriptionSettings | null {
     subscriptionId: row.subscription_id,
     newMessageEnabled: row.new_message_enabled,
     newLikeEnabled: row.new_like_enabled,
+    newMatchEnabled: row.new_match_enabled,
+    supportInquiryAnsweredEnabled: row.support_inquiry_answered_enabled,
     revokedAt: row.revoked_at ?? null,
   };
 }
@@ -138,7 +146,7 @@ export async function getMyPushSubscriptionSettings(
   subscription: PushSubscription,
 ): Promise<PushSubscriptionSettings | null> {
   const supabase = createClient();
-  const { data, error } = await supabase.rpc('get_my_push_subscription_settings', {
+  const { data, error } = await supabase.rpc('get_my_push_subscription_settings_v2', {
     p_endpoint: subscription.endpoint,
   });
   if (error) throw error;
@@ -148,6 +156,8 @@ export async function getMyPushSubscriptionSettings(
 export async function subscribeAndRegisterPush(options: {
   newMessageEnabled: boolean;
   newLikeEnabled: boolean;
+  newMatchEnabled: boolean;
+  supportInquiryAnsweredEnabled: boolean;
 }): Promise<{ subscription: PushSubscription; settings: PushSubscriptionSettings }> {
   const capability = getPushCapability();
   if (capability.status !== 'ready') {
@@ -176,13 +186,15 @@ export async function subscribeAndRegisterPush(options: {
   try {
     const serialized = serializeSubscription(subscription);
     const supabase = createClient();
-    const { data, error } = await supabase.rpc('register_my_push_subscription', {
+    const { data, error } = await supabase.rpc('register_my_push_subscription_v2', {
       p_endpoint: serialized.endpoint,
       p_p256dh: serialized.p256dh,
       p_auth: serialized.auth,
       p_expiration_time: serialized.expirationTime,
       p_new_message_enabled: options.newMessageEnabled,
       p_new_like_enabled: options.newLikeEnabled,
+      p_new_match_enabled: options.newMatchEnabled,
+      p_support_inquiry_answered_enabled: options.supportInquiryAnsweredEnabled,
     });
     if (error) throw error;
 

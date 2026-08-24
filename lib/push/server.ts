@@ -2,7 +2,11 @@ import 'server-only';
 
 import webPush from 'web-push';
 
-export type PushEventType = 'new_message' | 'new_like';
+export type PushEventType =
+  | 'new_message'
+  | 'new_like'
+  | 'new_match'
+  | 'support_inquiry_answered';
 
 export type PushDeliveryClaim = {
   deliveryId: string;
@@ -71,9 +75,12 @@ export function assertPushServerConfigured(): void {
 }
 
 function createPayload(claim: PushDeliveryClaim): string {
-  const body = claim.eventType === 'new_message'
-    ? '새 메시지가 도착했습니다.'
-    : '새로운 좋아요를 받았습니다.';
+  const bodyByEventType: Record<PushEventType, string> = {
+    new_message: '새 메시지가 도착했습니다.',
+    new_like: '새로운 좋아요를 받았습니다.',
+    new_match: '새로운 매칭이 성사되었습니다.',
+    support_inquiry_answered: '문의에 답변이 등록되었습니다.',
+  };
 
   return JSON.stringify({
     version: 1,
@@ -81,7 +88,7 @@ function createPayload(claim: PushDeliveryClaim): string {
     notificationId: claim.notificationId,
     type: claim.eventType,
     title: 'ComMatch',
-    body,
+    body: bodyByEventType[claim.eventType],
   });
 }
 

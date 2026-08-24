@@ -41,7 +41,10 @@ function isAuthorized(request: Request, secret: string): boolean {
 }
 
 function isPushEventType(value: unknown): value is PushEventType {
-  return value === 'new_message' || value === 'new_like';
+  return value === 'new_message'
+    || value === 'new_like'
+    || value === 'new_match'
+    || value === 'support_inquiry_answered';
 }
 
 function parseClaim(value: unknown): PushDeliveryClaim | null {

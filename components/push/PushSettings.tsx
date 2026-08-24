@@ -1,7 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BellRing, Loader2, MessageCircle, Smartphone, ThumbsUp } from 'lucide-react';
+import {
+  BellRing,
+  CircleHelp,
+  HeartHandshake,
+  Loader2,
+  MessageCircle,
+  Smartphone,
+  ThumbsUp,
+} from 'lucide-react';
 import {
   getCurrentPushSubscription,
   getMyPushSubscriptionSettings,
@@ -11,7 +19,7 @@ import {
   type PushCapability,
 } from '@/lib/push/client';
 
-type PushSettingKey = 'message' | 'like';
+type PushSettingKey = 'message' | 'like' | 'match' | 'support';
 type LoadState = 'loading' | 'ready' | 'error';
 
 function PushToggle({
@@ -62,6 +70,8 @@ export default function PushSettings() {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [messageEnabled, setMessageEnabled] = useState(false);
   const [likeEnabled, setLikeEnabled] = useState(false);
+  const [matchEnabled, setMatchEnabled] = useState(false);
+  const [supportEnabled, setSupportEnabled] = useState(false);
   const [pendingSetting, setPendingSetting] = useState<PushSettingKey | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -98,6 +108,8 @@ export default function PushSettings() {
         if (isMounted && settings && settings.revokedAt === null) {
           setMessageEnabled(settings.newMessageEnabled);
           setLikeEnabled(settings.newLikeEnabled);
+          setMatchEnabled(settings.newMatchEnabled);
+          setSupportEnabled(settings.supportInquiryAnsweredEnabled);
         }
         if (isMounted) setLoadState('ready');
       } catch (error) {
@@ -117,17 +129,28 @@ export default function PushSettings() {
 
     const previousMessageEnabled = messageEnabled;
     const previousLikeEnabled = likeEnabled;
+    const previousMatchEnabled = matchEnabled;
+    const previousSupportEnabled = supportEnabled;
     const nextMessageEnabled = setting === 'message' ? !messageEnabled : messageEnabled;
     const nextLikeEnabled = setting === 'like' ? !likeEnabled : likeEnabled;
+    const nextMatchEnabled = setting === 'match' ? !matchEnabled : matchEnabled;
+    const nextSupportEnabled = setting === 'support' ? !supportEnabled : supportEnabled;
 
     setPendingSetting(setting);
     setStatusMessage(null);
 
     try {
-      if (!nextMessageEnabled && !nextLikeEnabled) {
+      if (
+        !nextMessageEnabled
+        && !nextLikeEnabled
+        && !nextMatchEnabled
+        && !nextSupportEnabled
+      ) {
         await revokeAndUnsubscribePush();
         setMessageEnabled(false);
         setLikeEnabled(false);
+        setMatchEnabled(false);
+        setSupportEnabled(false);
         setCapability({ status: 'ready', permission: Notification.permission });
         setStatusMessage('이 기기의 Push 알림을 해제했습니다.');
         return;
@@ -136,15 +159,21 @@ export default function PushSettings() {
       const result = await subscribeAndRegisterPush({
         newMessageEnabled: nextMessageEnabled,
         newLikeEnabled: nextLikeEnabled,
+        newMatchEnabled: nextMatchEnabled,
+        supportInquiryAnsweredEnabled: nextSupportEnabled,
       });
       setMessageEnabled(result.settings.newMessageEnabled);
       setLikeEnabled(result.settings.newLikeEnabled);
+      setMatchEnabled(result.settings.newMatchEnabled);
+      setSupportEnabled(result.settings.supportInquiryAnsweredEnabled);
       setCapability({ status: 'ready', permission: Notification.permission });
       setStatusMessage('이 기기의 Push 설정을 저장했습니다.');
     } catch (error) {
       console.error('Push 설정을 저장하지 못했습니다.', error);
       setMessageEnabled(previousMessageEnabled);
       setLikeEnabled(previousLikeEnabled);
+      setMatchEnabled(previousMatchEnabled);
+      setSupportEnabled(previousSupportEnabled);
       const permission = 'Notification' in window ? Notification.permission : 'default';
       setCapability({ status: 'ready', permission });
       setStatusMessage(
@@ -213,6 +242,22 @@ export default function PushSettings() {
                 description="새로운 좋아요를 받으면 이 기기에서 알림을 받습니다."
                 onChange={() => void updateSetting('like')}
                 icon={<ThumbsUp size={20} aria-hidden="true" />}
+              />
+              <PushToggle
+                checked={matchEnabled}
+                disabled={isBusy || loadState !== 'ready'}
+                label="새 매칭 Push"
+                description="새로운 매칭이 성사되면 이 기기에서 알림을 받습니다."
+                onChange={() => void updateSetting('match')}
+                icon={<HeartHandshake size={20} aria-hidden="true" />}
+              />
+              <PushToggle
+                checked={supportEnabled}
+                disabled={isBusy || loadState !== 'ready'}
+                label="문의 답변 Push"
+                description="문의에 답변이 등록되면 이 기기에서 알림을 받습니다."
+                onChange={() => void updateSetting('support')}
+                icon={<CircleHelp size={20} aria-hidden="true" />}
               />
             </div>
           )}

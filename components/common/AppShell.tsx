@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Bell,
+  BellRing,
   ChevronDown,
   CircleUser,
   Heart,
@@ -29,6 +30,18 @@ const accountLinks = [
   { href: '/profile/create', label: '내 프로필 수정', icon: UserRound },
   { href: '/preference', label: '이상형 수정', icon: SlidersHorizontal },
   { href: '/favorites', label: '관심회원', icon: Heart },
+  { href: '/account', label: '계정 설정', icon: Settings },
+];
+
+const desktopActivityLinks = [
+  { href: '/dashboard', label: '마이페이지', icon: LayoutDashboard },
+  { href: '/favorites', label: '관심회원', icon: Heart },
+];
+
+const desktopSettingsLinks = [
+  { href: '/profile/create', label: '내 프로필 수정', icon: UserRound },
+  { href: '/preference', label: '이상형 수정', icon: SlidersHorizontal },
+  { href: '/account#push-settings-heading', label: '알림 설정', icon: BellRing },
   { href: '/account', label: '계정 설정', icon: Settings },
 ];
 
@@ -282,7 +295,20 @@ export default function AppShell({ children }: AppShellProps) {
 
                 {isAccountMenuOpen ? (
                   <div role="menu" className="absolute right-0 top-full z-[70] mt-2 w-56 rounded-2xl border border-gray-200 bg-white p-2 shadow-xl">
-                    {accountLinks.map(({ href, label, icon: Icon }) => (
+                    {desktopActivityLinks.map(({ href, label, icon: Icon }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        role="menuitem"
+                        onClick={closeMenus}
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition hover:bg-green-50 hover:text-green-700"
+                      >
+                        <Icon size={18} />
+                        {label}
+                      </Link>
+                    ))}
+                    <div role="separator" className="my-1 border-t border-gray-100" />
+                    {desktopSettingsLinks.map(({ href, label, icon: Icon }) => (
                       <Link
                         key={href}
                         href={href}

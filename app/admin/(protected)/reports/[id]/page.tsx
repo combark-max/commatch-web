@@ -2,11 +2,13 @@ import Link from 'next/link';
 import {
   AlertCircle,
   ArrowLeft,
+  EyeOff,
   FileWarning,
   MessageSquareWarning,
   ShieldCheck,
   UserRound,
 } from 'lucide-react';
+import AdminMessageModerationForm from '@/components/admin/AdminMessageModerationForm';
 import AdminMemberRestrictionForm from '@/components/admin/AdminMemberRestrictionForm';
 import AdminReportStatusForm from '@/components/admin/AdminReportStatusForm';
 import { type AdminRole, requireAdminAccess } from '@/lib/admin/access';
@@ -26,6 +28,9 @@ import {
   isReportStatus,
   isReportTargetType,
   isUuid,
+  MESSAGE_MODERATION_ACTION_LABELS,
+  MESSAGE_MODERATION_VISIBILITY_LABELS,
+  parseAdminMessageModerationActions,
   parseAdminReportActions,
   parseAdminReportDetail,
   REPORT_REASON_LABELS,
@@ -194,12 +199,16 @@ export default async function AdminReportDetailPage({
   }
 
   const supabase = await createServerSupabaseClient();
-  const [detailResult, actionsResult] = await Promise.all([
+  const [detailResult, actionsResult, moderationActionsResult] = await Promise.all([
     supabase.rpc('get_admin_report_detail', { p_report_id: id }),
     supabase.rpc('get_admin_report_actions', { p_report_id: id }),
+    supabase.rpc('get_admin_message_moderation_actions', { p_report_id: id }),
   ]);
   const detail = detailResult.error ? null : parseAdminReportDetail(detailResult.data);
   const actions = actionsResult.error ? null : parseAdminReportActions(actionsResult.data);
+  const moderationActions = moderationActionsResult.error
+    ? null
+    : parseAdminMessageModerationActions(moderationActionsResult.data);
   const reportMissing = !detailResult.error && Array.isArray(detailResult.data) && detailResult.data.length === 0;
 
   if (!detail) {
@@ -291,8 +300,13 @@ export default async function AdminReportDetailPage({
             <MessageSquareWarning className="text-amber-600" size={22} aria-hidden="true" />
             <h2 id="reported-message" className="text-xl font-black text-gray-900">신고된 메시지</h2>
           </div>
-          {detail.message.exists ? (
+          {detail.message.source ? (
             <div className="mt-5 rounded-2xl bg-gray-50 p-5">
+              {detail.message.source === 'snapshot' ? (
+                <p className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                  삭제된 메시지의 신고 접수 당시 원문입니다.
+                </p>
+              ) : null}
               <p className="whitespace-pre-wrap break-words text-sm leading-6 text-gray-800">{detail.message.content ?? '내용이 없는 메시지입니다.'}</p>
               <dl className="mt-4 grid gap-3 border-t border-gray-200 pt-4 text-xs text-gray-500 sm:grid-cols-3">
                 <div><dt className="font-semibold">메시지 ID</dt><dd className="mt-1 break-all">{detail.messageId}</dd></div>
@@ -331,6 +345,70 @@ export default async function AdminReportDetailPage({
           ) : (
             <p className="mt-5 rounded-2xl bg-amber-50 p-5 text-sm font-semibold text-amber-800">신고된 메시지를 찾을 수 없습니다.</p>
           )}
+        </section>
+      ) : null}
+
+      {detail.targetType === 'message' ? (
+        <section aria-labelledby="message-moderation-management" className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2">
+            <EyeOff className="text-amber-700" size={22} aria-hidden="true" />
+            <h2 id="message-moderation-management" className="text-xl font-black text-gray-900">메시지 비노출 관리</h2>
+          </div>
+          <p className="mt-2 text-sm text-gray-500">
+            신고 처리 상태와 별도로 관리됩니다. 비노출된 메시지는 양쪽 채팅에서 원문 대신 안내 문구가 표시됩니다.
+          </p>
+
+          <div className="mt-5">
+            {detail.message.exists && detail.messageId && detail.message.moderationVisibility ? (
+              <AdminMessageModerationForm
+                key={detail.message.moderationVisibility}
+                reportId={detail.reportId}
+                messageId={detail.messageId}
+                visibility={detail.message.moderationVisibility}
+                canManage={adminAccess.permissions.includes('reports_manage')}
+              />
+            ) : (
+              <p className="rounded-2xl bg-amber-50 p-5 text-sm font-semibold text-amber-800">
+                원본 메시지가 삭제되어 비노출 또는 복원 상태를 변경할 수 없습니다.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-7 border-t border-gray-100 pt-6">
+            <h3 className="font-black text-gray-900">메시지 비노출 처리 이력</h3>
+            {moderationActions === null ? (
+              <p className="mt-4 rounded-2xl bg-red-50 p-5 text-sm font-semibold text-red-700">메시지 처리 이력을 불러오지 못했습니다.</p>
+            ) : moderationActions.length === 0 ? (
+              <p className="mt-4 rounded-2xl bg-gray-50 p-5 text-sm font-semibold text-gray-500">아직 메시지 비노출 처리 이력이 없습니다.</p>
+            ) : (
+              <ol className="mt-4 space-y-4">
+                {moderationActions.map((action) => (
+                  <li key={action.actionId} className="rounded-2xl border border-gray-100 p-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="font-bold text-gray-900">{MESSAGE_MODERATION_ACTION_LABELS[action.action]}</p>
+                      <time className="text-xs font-medium text-gray-500" dateTime={action.createdAt}>
+                        {dateTimeFormatter.format(new Date(action.createdAt))}
+                      </time>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-600">
+                      {MESSAGE_MODERATION_VISIBILITY_LABELS[action.previousVisibility]}
+                      {' → '}
+                      {MESSAGE_MODERATION_VISIBILITY_LABELS[action.newVisibility]}
+                    </p>
+                    <p className="mt-2 text-xs text-gray-500">
+                      처리 관리자: {isAdminRole(action.adminRole) ? getAdminRoleLabel(action.adminRole) : action.adminRole}
+                      {action.reportId === detail.reportId ? ' · 현재 신고' : action.reportId ? ' · 다른 신고' : ' · 신고 연결 해제됨'}
+                    </p>
+                    {action.reason ? (
+                      <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">
+                        <strong className="text-gray-900">사유:</strong> {action.reason}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
         </section>
       ) : null}
 

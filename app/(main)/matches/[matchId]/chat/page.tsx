@@ -34,9 +34,13 @@ type MessageRow = {
   match_id: string;
   sender_id: string;
   content: string;
+  moderation_visibility: 'visible' | 'hidden';
+  message_type: 'text';
   read_at: string | null;
   created_at: string;
 };
+
+type RealtimeMessageSignal = Omit<MessageRow, 'content'>;
 
 type ChatMatch = {
   id: string;
@@ -51,6 +55,16 @@ type PageState = 'loading' | 'ready' | 'error' | 'denied';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_MESSAGE_LENGTH = 1000;
+const HIDDEN_MESSAGE_PLACEHOLDER = '관리자에 의해 비노출된 메시지입니다.';
+const REALTIME_MESSAGE_COLUMNS = [
+  'id',
+  'match_id',
+  'sender_id',
+  'message_type',
+  'read_at',
+  'created_at',
+  'moderation_visibility',
+];
 
 const timeFormatter = new Intl.DateTimeFormat('ko-KR', {
   hour: '2-digit',
@@ -102,7 +116,7 @@ function mergeMessages(current: MessageRow[], incoming: MessageRow[]): MessageRo
   return Array.from(messagesById.values()).sort(compareMessages);
 }
 
-function parseRealtimeMessage(value: unknown): MessageRow | null {
+function parseMessage(value: unknown): MessageRow | null {
   if (!value || typeof value !== 'object') return null;
 
   const message = value as Record<string, unknown>;
@@ -111,6 +125,8 @@ function parseRealtimeMessage(value: unknown): MessageRow | null {
     || typeof message.match_id !== 'string'
     || typeof message.sender_id !== 'string'
     || typeof message.content !== 'string'
+    || message.message_type !== 'text'
+    || (message.moderation_visibility !== 'visible' && message.moderation_visibility !== 'hidden')
     || typeof message.created_at !== 'string'
     || (message.read_at !== null && typeof message.read_at !== 'string')
   ) {
@@ -122,6 +138,43 @@ function parseRealtimeMessage(value: unknown): MessageRow | null {
     match_id: message.match_id,
     sender_id: message.sender_id,
     content: message.content,
+    moderation_visibility: message.moderation_visibility,
+    message_type: message.message_type,
+    read_at: message.read_at,
+    created_at: message.created_at,
+  };
+}
+
+function parseMessages(value: unknown): MessageRow[] | null {
+  if (!Array.isArray(value)) return null;
+  const messages: MessageRow[] = [];
+  for (const entry of value) {
+    const message = parseMessage(entry);
+    if (!message) return null;
+    messages.push(message);
+  }
+  return messages;
+}
+
+function parseRealtimeMessageSignal(value: unknown): RealtimeMessageSignal | null {
+  if (!value || typeof value !== 'object') return null;
+  const message = value as Record<string, unknown>;
+  if (
+    typeof message.id !== 'string'
+    || typeof message.match_id !== 'string'
+    || typeof message.sender_id !== 'string'
+    || message.message_type !== 'text'
+    || (message.moderation_visibility !== 'visible' && message.moderation_visibility !== 'hidden')
+    || typeof message.created_at !== 'string'
+    || (message.read_at !== null && typeof message.read_at !== 'string')
+  ) return null;
+
+  return {
+    id: message.id,
+    match_id: message.match_id,
+    sender_id: message.sender_id,
+    moderation_visibility: message.moderation_visibility,
+    message_type: message.message_type,
     read_at: message.read_at,
     created_at: message.created_at,
   };
@@ -135,6 +188,9 @@ export default function ChatPage() {
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const activeMatchIdRef = useRef<string | null>(null);
   const realtimeChannelSequenceRef = useRef(0);
+  const refreshInFlightRef = useRef<Promise<MessageRow[] | null> | null>(null);
+  const refreshAgainRef = useRef(false);
+  const latestModerationSignalRef = useRef<Map<string, 'visible' | 'hidden'>>(new Map());
   const matchId = params.matchId;
   const matchesHref = searchParams.get('from') === 'advanced' ? '/matches?advanced=1' : '/matches';
 
@@ -174,6 +230,7 @@ export default function ChatPage() {
       setMatch(null);
       setMessages([]);
       activeMatchIdRef.current = null;
+      latestModerationSignalRef.current.clear();
 
       if (!matchId || !UUID_PATTERN.test(matchId)) {
         if (isMounted) {
@@ -218,14 +275,13 @@ export default function ChatPage() {
           return;
         }
 
-        const { data: messageRows, error: messageError } = await supabase
-          .from('messages')
-          .select('id, match_id, sender_id, content, read_at, created_at')
-          .eq('match_id', matchId)
-          .order('created_at', { ascending: true })
-          .order('id', { ascending: true });
+        const { data: messageRowsData, error: messageError } = await supabase.rpc('get_match_messages', {
+          p_match_id: matchId,
+        });
 
         if (messageError) throw messageError;
+        const messageRows = parseMessages(messageRowsData);
+        if (!messageRows) throw new Error('Invalid safe message response');
 
         const resolvedMatch: ChatMatch = {
           id: matchId,
@@ -240,12 +296,12 @@ export default function ChatPage() {
           activeMatchIdRef.current = matchId;
           setCurrentUserId(user.id);
           setMatch(resolvedMatch);
-          setMessages((currentMessages) => mergeMessages(currentMessages, (messageRows ?? []) as MessageRow[]));
+          setMessages((currentMessages) => mergeMessages(currentMessages, messageRows));
           setImageFailed(false);
           setPageState('ready');
         }
 
-        const hasUnreadMessages = (messageRows ?? []).some(
+        const hasUnreadMessages = messageRows.some(
           (message) => message.sender_id !== user.id && message.read_at === null,
         );
 
@@ -283,19 +339,44 @@ export default function ChatPage() {
   }, [messages, pageState]);
 
   const refreshMessages = useCallback(async (): Promise<MessageRow[] | null> => {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('id, match_id, sender_id, content, read_at, created_at')
-      .eq('match_id', matchId)
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true });
+    if (refreshInFlightRef.current) {
+      refreshAgainRef.current = true;
+      return refreshInFlightRef.current;
+    }
 
-    if (error) return null;
-    if (activeMatchIdRef.current !== matchId) return null;
+    const runRefresh = async (): Promise<MessageRow[] | null> => {
+      let latestMessages: MessageRow[] | null = null;
 
-    const refreshedMessages = (data ?? []) as MessageRow[];
-    setMessages((currentMessages) => mergeMessages(currentMessages, refreshedMessages));
-    return refreshedMessages;
+      do {
+        refreshAgainRef.current = false;
+        const { data, error } = await supabase.rpc('get_match_messages', {
+          p_match_id: matchId,
+        });
+        if (error || activeMatchIdRef.current !== matchId) return null;
+
+        const parsedMessages = parseMessages(data);
+        if (!parsedMessages) return null;
+        const refreshedMessages = parsedMessages.map((message) => (
+          latestModerationSignalRef.current.get(message.id) === 'hidden'
+            ? {
+                ...message,
+                content: HIDDEN_MESSAGE_PLACEHOLDER,
+                moderation_visibility: 'hidden' as const,
+              }
+            : message
+        ));
+        latestMessages = refreshedMessages;
+        setMessages((currentMessages) => mergeMessages(currentMessages, refreshedMessages));
+      } while (refreshAgainRef.current && activeMatchIdRef.current === matchId);
+
+      return latestMessages;
+    };
+
+    const inFlight = runRefresh().finally(() => {
+      refreshInFlightRef.current = null;
+    });
+    refreshInFlightRef.current = inFlight;
+    return inFlight;
   }, [matchId, supabase]);
 
   useEffect(() => {
@@ -378,21 +459,51 @@ export default function ChatPage() {
           schema: 'public',
           table: 'messages',
           filter: `match_id=eq.${matchId}`,
+          select: REALTIME_MESSAGE_COLUMNS,
         },
         (payload) => {
           if (!isActive) return;
 
-          const message = parseRealtimeMessage(payload.new);
+          const message = parseRealtimeMessageSignal(payload.new);
           if (!message || message.match_id !== matchId) return;
+          void refreshMessages().then((refreshedMessages) => {
+            if (
+              refreshedMessages
+              && message.sender_id !== currentUserId
+              && document.visibilityState === 'visible'
+            ) scheduleMarkRead();
+          });
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `match_id=eq.${matchId}`,
+          select: REALTIME_MESSAGE_COLUMNS,
+        },
+        (payload) => {
+          if (!isActive) return;
 
-          setMessages((currentMessages) => mergeMessages(currentMessages, [message]));
+          const message = parseRealtimeMessageSignal(payload.new);
+          if (!message || message.match_id !== matchId) return;
+          latestModerationSignalRef.current.set(message.id, message.moderation_visibility);
 
-          if (
-            message.sender_id !== currentUserId
-            && document.visibilityState === 'visible'
-          ) {
-            scheduleMarkRead();
+          if (message.moderation_visibility === 'hidden') {
+            setMessages((currentMessages) => currentMessages.map((currentMessage) => (
+              currentMessage.id === message.id
+                ? {
+                    ...currentMessage,
+                    content: HIDDEN_MESSAGE_PLACEHOLDER,
+                    moderation_visibility: 'hidden',
+                    read_at: message.read_at ?? currentMessage.read_at,
+                  }
+                : currentMessage
+            )));
           }
+          void refreshMessages();
         },
       )
       .subscribe((status) => {
@@ -410,6 +521,7 @@ export default function ChatPage() {
     return () => {
       isActive = false;
       hasPendingMarkRead = false;
+      refreshAgainRef.current = false;
       if (markReadTimer) clearTimeout(markReadTimer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       void supabase.removeChannel(channel);

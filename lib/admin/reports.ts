@@ -12,6 +12,9 @@ export const REPORT_REASONS = [
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export type ReportTargetType = (typeof REPORT_TARGET_TYPES)[number];
 export type ReportReason = (typeof REPORT_REASONS)[number];
+export type MessageModerationVisibility = 'visible' | 'hidden';
+export type AdminMessageSource = 'live' | 'snapshot';
+export type MessageModerationActionType = 'hide' | 'restore';
 
 export type AdminReportListItem = {
   reportId: string;
@@ -56,6 +59,8 @@ export type AdminReportDetail = {
     matchUser2Id: string | null;
     matchUser2Nickname: string | null;
     exists: boolean;
+    moderationVisibility: MessageModerationVisibility | null;
+    source: AdminMessageSource | null;
   };
 };
 
@@ -85,6 +90,24 @@ export type ReportStatusActionState = {
   message: string;
 };
 
+export type AdminMessageModerationAction = {
+  actionId: string;
+  messageId: string;
+  reportId: string | null;
+  adminUserId: string | null;
+  adminRole: string;
+  action: MessageModerationActionType;
+  reason: string | null;
+  previousVisibility: MessageModerationVisibility;
+  newVisibility: MessageModerationVisibility;
+  createdAt: string;
+};
+
+export type MessageModerationActionState = {
+  kind: 'idle' | 'success' | 'error';
+  message: string;
+};
+
 export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
   pending: '접수 대기',
   reviewing: '검토 중',
@@ -104,6 +127,16 @@ export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
   spam: '광고·스팸',
   privacy_violation: '개인정보 침해',
   other: '기타',
+};
+
+export const MESSAGE_MODERATION_VISIBILITY_LABELS: Record<MessageModerationVisibility, string> = {
+  visible: '노출',
+  hidden: '비노출',
+};
+
+export const MESSAGE_MODERATION_ACTION_LABELS: Record<MessageModerationActionType, string> = {
+  hide: '비노출 처리',
+  restore: '복원',
 };
 
 export const REPORT_STATUS_TRANSITIONS: Record<ReportStatus, ReportStatus[]> = {
@@ -160,6 +193,10 @@ export const isReportTargetType = (value: unknown): value is ReportTargetType =>
 export const isReportReason = (value: unknown): value is ReportReason => (
   typeof value === 'string' && REPORT_REASONS.includes(value as ReportReason)
 );
+
+export const isMessageModerationVisibility = (
+  value: unknown,
+): value is MessageModerationVisibility => value === 'visible' || value === 'hidden';
 
 export const parseAdminReportList = (value: unknown): AdminReportListItem[] | null => {
   if (!Array.isArray(value)) return null;
@@ -256,6 +293,11 @@ export const parseAdminReportDetail = (value: unknown): AdminReportDetail | null
     || (row.message_created_at !== null && !isValidDate(row.message_created_at))
     || !isNullableUuid(row.match_id)
     || typeof row.message_exists !== 'boolean'
+    || !(row.message_moderation_visibility === null
+      || isMessageModerationVisibility(row.message_moderation_visibility))
+    || !(row.message_source === null
+      || row.message_source === 'live'
+      || row.message_source === 'snapshot')
   ) return null;
 
   return {
@@ -302,8 +344,48 @@ export const parseAdminReportDetail = (value: unknown): AdminReportDetail | null
       matchUser2Id,
       matchUser2Nickname,
       exists: row.message_exists,
+      moderationVisibility: row.message_moderation_visibility,
+      source: row.message_source,
     },
   };
+};
+
+export const parseAdminMessageModerationActions = (
+  value: unknown,
+): AdminMessageModerationAction[] | null => {
+  if (!Array.isArray(value)) return null;
+
+  const actions: AdminMessageModerationAction[] = [];
+  for (const entry of value) {
+    if (
+      !isRecord(entry)
+      || !isUuid(entry.action_id)
+      || !isUuid(entry.message_id)
+      || !isNullableUuid(entry.report_id)
+      || !isNullableUuid(entry.admin_user_id)
+      || typeof entry.admin_role !== 'string'
+      || (entry.action !== 'hide' && entry.action !== 'restore')
+      || !isNullableString(entry.reason)
+      || !isMessageModerationVisibility(entry.previous_visibility)
+      || !isMessageModerationVisibility(entry.new_visibility)
+      || !isValidDate(entry.created_at)
+    ) return null;
+
+    actions.push({
+      actionId: entry.action_id,
+      messageId: entry.message_id,
+      reportId: entry.report_id,
+      adminUserId: entry.admin_user_id,
+      adminRole: entry.admin_role,
+      action: entry.action,
+      reason: entry.reason,
+      previousVisibility: entry.previous_visibility,
+      newVisibility: entry.new_visibility,
+      createdAt: entry.created_at,
+    });
+  }
+
+  return actions;
 };
 
 export const parseAdminReportActions = (value: unknown): AdminReportAction[] | null => {
@@ -341,6 +423,17 @@ export const parseStatusUpdateResult = (value: unknown): boolean => {
     && isReportStatus(row.previous_status)
     && isReportStatus(row.new_status)
     && isNullableString(row.note)
+    && isValidDate(row.changed_at);
+};
+
+export const parseMessageModerationUpdateResult = (value: unknown): boolean => {
+  if (!Array.isArray(value) || value.length !== 1 || !isRecord(value[0])) return false;
+  const row = value[0];
+  return isUuid(row.message_id)
+    && isMessageModerationVisibility(row.previous_visibility)
+    && isMessageModerationVisibility(row.new_visibility)
+    && row.previous_visibility !== row.new_visibility
+    && isNullableString(row.reason)
     && isValidDate(row.changed_at);
 };
 

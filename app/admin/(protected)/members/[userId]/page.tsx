@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, Crown, Images, ShieldCheck, UserRound } from 'lucide-react';
+import AdminMemberDeletionForm from '@/components/admin/AdminMemberDeletionForm';
 import AdminMemberProfileImages from '@/components/admin/AdminMemberProfileImages';
 import AdminMemberRestrictionForm from '@/components/admin/AdminMemberRestrictionForm';
 import { type AdminRole, requireAdminAccess } from '@/lib/admin/access';
@@ -398,6 +399,24 @@ export default async function AdminMemberDetailPage({
           </ol>
         )}
       </section>
+
+      {adminAccess.role === 'super_admin' ? (
+        <section aria-labelledby="member-force-deletion" className="rounded-3xl border border-red-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="text-red-700" size={22} aria-hidden="true" />
+            <h2 id="member-force-deletion" className="text-xl font-black text-red-950">회원 강제탈퇴</h2>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-gray-600">
+            active super_admin만 실행할 수 있으며, 사유와 처리 결과는 별도 감사기록에 영구 보존됩니다.
+          </p>
+          <div className="mt-6 border-t border-red-100 pt-6">
+            <AdminMemberDeletionForm
+              targetUserId={member.memberUserId}
+              targetLabel={member.nickname ?? '닉네임 정보 없음'}
+            />
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

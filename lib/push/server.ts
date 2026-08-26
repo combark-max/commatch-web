@@ -20,6 +20,7 @@ export type PushDeliveryClaim = {
   auth: string;
   expirationTime: string | null;
   attemptCount: number;
+  targetId?: string | null;
 };
 
 export type PushSendResult =
@@ -89,6 +90,7 @@ function createPayload(claim: PushDeliveryClaim): string {
     type: claim.eventType,
     title: 'ComMatch',
     body: bodyByEventType[claim.eventType],
+    targetId: claim.targetId,
   });
 }
 

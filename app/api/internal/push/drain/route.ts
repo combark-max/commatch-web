@@ -31,6 +31,13 @@ type ClaimRow = {
   attempt_count?: unknown;
 };
 
+type RoutingNotification = {
+  id: string;
+  type: PushEventType;
+  matchId: string | null;
+  inquiryId: string | null;
+};
+
 function isAuthorized(request: Request, secret: string): boolean {
   const authorization = request.headers.get('authorization');
   if (!authorization?.startsWith('Bearer ')) return false;
@@ -90,6 +97,59 @@ function parseClaim(value: unknown): PushDeliveryClaim | null {
   };
 }
 
+function parseNullableUuid(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  return typeof value === 'string' && UUID_PATTERN.test(value) ? value : undefined;
+}
+
+function parseRoutingNotifications(value: unknown): RoutingNotification[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (typeof item !== 'object' || item === null) return [];
+    const row = item as Record<string, unknown>;
+    const matchId = parseNullableUuid(row.match_id);
+    const inquiryId = parseNullableUuid(row.inquiry_id);
+    if (
+      typeof row.id !== 'string'
+      || !UUID_PATTERN.test(row.id)
+      || !isPushEventType(row.type)
+      || matchId === undefined
+      || inquiryId === undefined
+    ) {
+      return [];
+    }
+
+    return [{
+      id: row.id,
+      type: row.type,
+      matchId,
+      inquiryId,
+    }];
+  });
+}
+
+function resolveTargetId(
+  claim: PushDeliveryClaim,
+  notifications: RoutingNotification[],
+): string | null | undefined {
+  const notification = notifications.find((row) => row.id === claim.notificationId);
+  if (
+    !notification
+    || notification.type !== claim.eventType
+  ) {
+    return undefined;
+  }
+
+  if (claim.eventType === 'new_message' || claim.eventType === 'new_match') {
+    return notification.matchId ?? undefined;
+  }
+  if (claim.eventType === 'support_inquiry_answered') {
+    return notification.inquiryId ?? undefined;
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
   const workerSecret = process.env.PUSH_WORKER_SECRET;
   if (!workerSecret || workerSecret.length < 32) {
@@ -139,10 +199,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Push drain failed.' }, { status: 500 });
   }
 
+  let routingNotifications: RoutingNotification[] = [];
+  if (claims.length > 0) {
+    const { data, error } = await admin
+      .from('notifications')
+      .select(`
+        id,
+        type,
+        match_id,
+        inquiry_id
+      `)
+      .in('id', [...new Set(claims.map((claim) => claim.notificationId))]);
+
+    if (error) {
+      console.error('Push routing target lookup failed.', {
+        code: error.code ?? 'routing_lookup_error',
+      });
+    } else {
+      routingNotifications = parseRoutingNotifications(data);
+    }
+  }
+
+  const routedClaims = claims.map((claim) => ({
+    ...claim,
+    targetId: resolveTargetId(claim, routingNotifications),
+  }));
+
   const counts = { sent: 0, pending: 0, failed: 0, stale: 0 };
   try {
-    for (let index = 0; index < claims.length; index += SEND_CONCURRENCY) {
-      const batch = claims.slice(index, index + SEND_CONCURRENCY);
+    for (let index = 0; index < routedClaims.length; index += SEND_CONCURRENCY) {
+      const batch = routedClaims.slice(index, index + SEND_CONCURRENCY);
       const outcomes = await Promise.all(batch.map(async (claim): Promise<keyof typeof counts> => {
         const result = await sendPushDelivery(claim);
         if (result.ok) {

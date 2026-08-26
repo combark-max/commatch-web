@@ -125,12 +125,12 @@ export default async function AdminDashboardPage() {
     ] : []),
   ];
   const serviceStatisticsCards: AdminMetric[] = serviceStatisticsResult.kind === 'success' ? [
-    { label: '전체 매칭', count: serviceStatisticsResult.data.totalMatchCount },
-    { label: '진행 중 매칭', count: serviceStatisticsResult.data.activeMatchCount },
-    { label: '종료 매칭', count: serviceStatisticsResult.data.endedMatchCount },
-    { label: '전체 메시지', count: serviceStatisticsResult.data.totalMessageCount },
-    { label: '최근 7일 신규 회원', count: serviceStatisticsResult.data.newMemberLast7DaysCount },
-    { label: '최근 7일 신고', count: serviceStatisticsResult.data.reportLast7DaysCount },
+    { label: '전체 매칭', count: serviceStatisticsResult.data.totalMatchCount, countHref: '/admin/service-statistics?metric=total_matches', countAriaLabel: '전체 매칭 상세 내역 보기' },
+    { label: '진행 중 매칭', count: serviceStatisticsResult.data.activeMatchCount, countHref: '/admin/service-statistics?metric=active_matches', countAriaLabel: '진행 중 매칭 상세 내역 보기' },
+    { label: '종료 매칭', count: serviceStatisticsResult.data.endedMatchCount, countHref: '/admin/service-statistics?metric=ended_matches', countAriaLabel: '종료 매칭 상세 내역 보기' },
+    { label: '전체 메시지', count: serviceStatisticsResult.data.totalMessageCount, countHref: '/admin/service-statistics?metric=total_messages', countAriaLabel: '전체 메시지 상세 내역 보기' },
+    { label: '최근 7일 신규 회원', count: serviceStatisticsResult.data.newMemberLast7DaysCount, countHref: '/admin/service-statistics?metric=recent_members', countAriaLabel: '최근 7일 신규 회원 상세 내역 보기' },
+    { label: '최근 7일 신고', count: serviceStatisticsResult.data.reportLast7DaysCount, countHref: '/admin/service-statistics?metric=recent_reports', countAriaLabel: '최근 7일 신고 상세 내역 보기' },
   ] : [];
 
   return <div className="space-y-8">

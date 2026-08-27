@@ -29,7 +29,7 @@ type MatchRow = {
   other_nickname?: unknown;
 };
 
-type NotificationType = 'new_match' | 'new_message' | 'new_like' | 'support_inquiry_answered';
+type NotificationType = 'new_match' | 'new_message' | 'new_like' | 'support_inquiry_answered' | 'match_ended';
 
 type NotificationItem = {
   id: string;
@@ -62,7 +62,8 @@ function isNotificationType(value: string | null): value is NotificationType {
   return value === 'new_match'
     || value === 'new_message'
     || value === 'new_like'
-    || value === 'support_inquiry_answered';
+    || value === 'support_inquiry_answered'
+    || value === 'match_ended';
 }
 
 function normalizeNotifications(notificationValue: unknown, matchValue: unknown): NotificationItem[] {
@@ -104,7 +105,7 @@ function normalizeNotifications(notificationValue: unknown, matchValue: unknown)
     const hasValidMatchId = matchId !== null && UUID_PATTERN.test(matchId);
     const hasValidInquiryId = inquiryId !== null && UUID_PATTERN.test(inquiryId);
     const hasValidTarget = (
-      (type === 'new_match' || type === 'new_message')
+      (type === 'new_match' || type === 'new_message' || type === 'match_ended')
         ? hasValidMatchId && inquiryId === null
         : type === 'new_like'
           ? matchId === null && inquiryId === null
@@ -146,6 +147,15 @@ function getNotificationContent(notification: NotificationItem): {
       title: '새 메시지가 도착했습니다.',
       body: '매칭된 회원이 새로운 메시지를 보냈습니다.',
       actionLabel: '채팅하기',
+      href: `/matches/${notification.matchId}/chat`,
+    };
+  }
+
+  if (notification.type === 'match_ended') {
+    return {
+      title: '매칭이 종료되었습니다.',
+      body: '상대 회원이 매칭을 종료했습니다. 기존 대화는 확인할 수 있습니다.',
+      actionLabel: '대화 확인',
       href: `/matches/${notification.matchId}/chat`,
     };
   }

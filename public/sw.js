@@ -23,6 +23,7 @@ self.addEventListener('push', (event) => {
       || payload?.type === 'new_like'
       || payload?.type === 'new_match'
       || payload?.type === 'support_inquiry_answered'
+      || payload?.type === 'match_ended'
       ? payload.type
       : null;
     const targetId = typeof payload?.targetId === 'string'
@@ -38,7 +39,9 @@ self.addEventListener('push', (event) => {
           ? '새로운 매칭이 성사되었습니다.'
           : type === 'support_inquiry_answered'
             ? '문의에 답변이 등록되었습니다.'
-            : '새 알림이 도착했습니다.';
+            : type === 'match_ended'
+              ? '매칭이 종료되었습니다.'
+              : '새 알림이 도착했습니다.';
 
     await self.registration.showNotification('ComMatch', {
       body,
@@ -64,7 +67,7 @@ function getNotificationDestination(data) {
     ? data.targetId
     : null;
 
-  if ((type === 'new_message' || type === 'new_match') && targetId) {
+  if ((type === 'new_message' || type === 'new_match' || type === 'match_ended') && targetId) {
     return `/matches/${targetId}/chat`;
   }
   if (type === 'new_like' && data?.targetId === null) {

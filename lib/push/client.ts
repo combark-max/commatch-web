@@ -12,6 +12,7 @@ export type PushSubscriptionSettings = {
   newLikeEnabled: boolean;
   newMatchEnabled: boolean;
   supportInquiryAnsweredEnabled: boolean;
+  matchEndedEnabled: boolean;
   revokedAt: string | null;
 };
 
@@ -21,6 +22,7 @@ type PushSettingsRow = {
   new_like_enabled?: unknown;
   new_match_enabled?: unknown;
   support_inquiry_answered_enabled?: unknown;
+  match_ended_enabled?: unknown;
   revoked_at?: unknown;
 };
 
@@ -120,6 +122,7 @@ function parseSettings(value: unknown): PushSubscriptionSettings | null {
     || typeof row.new_like_enabled !== 'boolean'
     || typeof row.new_match_enabled !== 'boolean'
     || typeof row.support_inquiry_answered_enabled !== 'boolean'
+    || typeof row.match_ended_enabled !== 'boolean'
     || (row.revoked_at !== null && typeof row.revoked_at !== 'string')
   ) {
     return null;
@@ -131,6 +134,7 @@ function parseSettings(value: unknown): PushSubscriptionSettings | null {
     newLikeEnabled: row.new_like_enabled,
     newMatchEnabled: row.new_match_enabled,
     supportInquiryAnsweredEnabled: row.support_inquiry_answered_enabled,
+    matchEndedEnabled: row.match_ended_enabled,
     revokedAt: row.revoked_at ?? null,
   };
 }
@@ -146,7 +150,7 @@ export async function getMyPushSubscriptionSettings(
   subscription: PushSubscription,
 ): Promise<PushSubscriptionSettings | null> {
   const supabase = createClient();
-  const { data, error } = await supabase.rpc('get_my_push_subscription_settings_v2', {
+  const { data, error } = await supabase.rpc('get_my_push_subscription_settings_v3', {
     p_endpoint: subscription.endpoint,
   });
   if (error) throw error;
@@ -158,6 +162,7 @@ export async function subscribeAndRegisterPush(options: {
   newLikeEnabled: boolean;
   newMatchEnabled: boolean;
   supportInquiryAnsweredEnabled: boolean;
+  matchEndedEnabled: boolean;
 }): Promise<{ subscription: PushSubscription; settings: PushSubscriptionSettings }> {
   const capability = getPushCapability();
   if (capability.status !== 'ready') {
@@ -186,7 +191,7 @@ export async function subscribeAndRegisterPush(options: {
   try {
     const serialized = serializeSubscription(subscription);
     const supabase = createClient();
-    const { data, error } = await supabase.rpc('register_my_push_subscription_v2', {
+    const { data, error } = await supabase.rpc('register_my_push_subscription_v3', {
       p_endpoint: serialized.endpoint,
       p_p256dh: serialized.p256dh,
       p_auth: serialized.auth,
@@ -195,6 +200,7 @@ export async function subscribeAndRegisterPush(options: {
       p_new_like_enabled: options.newLikeEnabled,
       p_new_match_enabled: options.newMatchEnabled,
       p_support_inquiry_answered_enabled: options.supportInquiryAnsweredEnabled,
+      p_match_ended_enabled: options.matchEndedEnabled,
     });
     if (error) throw error;
 

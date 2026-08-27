@@ -51,7 +51,8 @@ function isPushEventType(value: unknown): value is PushEventType {
   return value === 'new_message'
     || value === 'new_like'
     || value === 'new_match'
-    || value === 'support_inquiry_answered';
+    || value === 'support_inquiry_answered'
+    || value === 'match_ended';
 }
 
 function parseClaim(value: unknown): PushDeliveryClaim | null {
@@ -141,7 +142,11 @@ function resolveTargetId(
     return undefined;
   }
 
-  if (claim.eventType === 'new_message' || claim.eventType === 'new_match') {
+  if (
+    claim.eventType === 'new_message'
+    || claim.eventType === 'new_match'
+    || claim.eventType === 'match_ended'
+  ) {
     return notification.matchId ?? undefined;
   }
   if (claim.eventType === 'support_inquiry_answered') {

@@ -6,7 +6,8 @@ export type PushEventType =
   | 'new_message'
   | 'new_like'
   | 'new_match'
-  | 'support_inquiry_answered';
+  | 'support_inquiry_answered'
+  | 'match_ended';
 
 export type PushDeliveryClaim = {
   deliveryId: string;
@@ -81,6 +82,7 @@ function createPayload(claim: PushDeliveryClaim): string {
     new_like: '새로운 좋아요를 받았습니다.',
     new_match: '새로운 매칭이 성사되었습니다.',
     support_inquiry_answered: '문의에 답변이 등록되었습니다.',
+    match_ended: '매칭이 종료되었습니다.',
   };
 
   return JSON.stringify({

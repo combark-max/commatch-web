@@ -1,4 +1,5 @@
-import { AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { AlertCircle, ChevronRight, MessagesSquare } from 'lucide-react';
 import AdminDashboardSection from '@/components/admin/dashboard/AdminDashboardSection';
 import AdminMetricCard, { type AdminMetric } from '@/components/admin/dashboard/AdminMetricCard';
 import { requireAdminAccess, type AdminRole } from '@/lib/admin/access';
@@ -8,6 +9,7 @@ import {
   type AdminServiceStatistics,
 } from '@/lib/admin/service-statistics';
 import { getAdminRoleLabel } from '@/lib/admin/presentation';
+import { parseAdminSupportInquiryList } from '@/lib/support/inquiries';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 type ReportSummary = { totalCount: string; pendingCount: string; reviewingCount: string; resolvedCount: string; dismissedCount: string };
@@ -91,13 +93,26 @@ async function loadPremiumCount(): Promise<DataResult<{ totalCount: number }>> {
   return { kind: 'success', data: { totalCount: memberships[0]?.totalCount ?? 0 } };
 }
 
+async function loadPendingInquiryCount(): Promise<DataResult<{ totalCount: number }>> {
+  const client = await createServerSupabaseClient();
+  const { data, error } = await client.rpc('get_admin_support_inquiries', {
+    p_status: 'pending', p_page: 1, p_page_size: 1,
+  });
+  if (error) return { kind: errorKind(error) };
+  const inquiries = parseAdminSupportInquiryList(data);
+  if (!inquiries) return { kind: 'error' };
+  return { kind: 'success', data: { totalCount: inquiries[0]?.totalCount ?? 0 } };
+}
+
 const ErrorBox = ({ message, href = '/admin' }: { message: string; href?: string }) => <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-red-800"><div className="flex items-start gap-3"><AlertCircle className="mt-0.5 shrink-0" size={20} aria-hidden="true" /><div><p className="font-semibold">{message}</p><a href={href} className="mt-2 inline-block text-sm font-semibold underline underline-offset-4">다시 시도</a></div></div></div>;
 
 export default async function AdminDashboardPage() {
   const adminAccess = await requireAdminAccess('admin_dashboard_view');
-  const [summaryResult, operationalResult, premiumResult, serviceStatisticsResult] = await Promise.all([
+  const canViewSupportInquiries = adminAccess.permissions.includes('support_inquiries_view');
+  const [summaryResult, operationalResult, premiumResult, serviceStatisticsResult, pendingInquiryResult] = await Promise.all([
     loadReportSummary(), loadOperationalSummary(), loadPremiumCount(),
     loadServiceStatistics(),
+    canViewSupportInquiries ? loadPendingInquiryCount() : Promise.resolve(null),
   ]);
   const summaryCards: AdminMetric[] = summaryResult.kind === 'success' ? [
     { label: '전체 신고', count: summaryResult.data.totalCount, href: '/admin/reports', ariaLabel: '전체 신고 목록 보기' },
@@ -135,6 +150,40 @@ export default async function AdminDashboardPage() {
 
   return <div className="space-y-8">
     <section><p className="text-sm font-bold text-green-700">{getAdminRoleLabel(adminAccess.role as AdminRole)}</p><h1 className="mt-2 text-3xl font-black text-gray-900">관리자 대시보드</h1><p className="mt-3 text-gray-600">신고, Premium, 회원 및 서비스 운영 현황을 확인하는 화면입니다.</p></section>
+
+    {canViewSupportInquiries ? (
+      pendingInquiryResult?.kind === 'success' ? (
+        <Link
+          href="/admin/inquiries?status=pending"
+          aria-label={pendingInquiryResult.data.totalCount > 0 ? `새 문의 ${pendingInquiryResult.data.totalCount}건 보기` : '답변 대기 문의 보기'}
+          className={`group flex items-center gap-4 rounded-2xl border p-5 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 ${
+            pendingInquiryResult.data.totalCount > 0
+              ? 'border-amber-200 bg-amber-50 hover:border-amber-300 hover:bg-amber-100'
+              : 'border-gray-200 bg-white hover:border-green-200 hover:bg-green-50'
+          }`}
+        >
+          <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${pendingInquiryResult.data.totalCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>
+            <MessagesSquare size={22} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2 font-black text-gray-900">
+              1:1 문의
+              {pendingInquiryResult.data.totalCount > 0 ? (
+                <span className="inline-flex min-h-6 min-w-6 items-center justify-center rounded-full bg-amber-600 px-2 text-xs font-black text-white">
+                  {pendingInquiryResult.data.totalCount}
+                </span>
+              ) : null}
+            </span>
+            <span className={`mt-1 block text-sm font-semibold ${pendingInquiryResult.data.totalCount > 0 ? 'text-amber-800' : 'text-gray-500'}`}>
+              {pendingInquiryResult.data.totalCount > 0 ? `새 문의 ${pendingInquiryResult.data.totalCount}건` : '답변 대기 문의가 없습니다'}
+            </span>
+          </span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-gray-400 transition group-hover:text-green-700" aria-hidden="true" />
+        </Link>
+      ) : (
+        <ErrorBox message={pendingInquiryResult?.kind === 'forbidden' ? '1:1 문의 조회 권한이 없습니다.' : '1:1 문의 현황을 불러오지 못했습니다.'} />
+      )
+    ) : null}
 
     <AdminDashboardSection headingId="service-statistics-heading" title="서비스 통계" description="현재 저장된 매칭·메시지와 최근 7일의 신규 회원·신고 현황을 확인합니다.">
       {serviceStatisticsResult.kind === 'success' ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{serviceStatisticsCards.map((card) => <AdminMetricCard key={card.label} {...card} />)}</div> : <ErrorBox message={serviceStatisticsResult.kind === 'forbidden' ? '서비스 통계 조회 권한이 없습니다.' : '서비스 통계를 불러오지 못했습니다.'} />}

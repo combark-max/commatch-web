@@ -17,6 +17,7 @@ import {
   type AdminAccountStatus,
 } from '@/lib/admin/admin-accounts';
 import { getAdminRoleLabel } from '@/lib/admin/presentation';
+import { createBrowserUuidV4 } from '@/lib/utils/browser-uuid';
 
 type AdminAccountManagementFormsProps = {
   targetUserId: string;
@@ -57,7 +58,7 @@ function RoleChangeForm({
     const result = await action(previousState, formData);
     setDismissedRequestId(null);
     if (result.kind === 'error') setConfirming(false);
-    if (result.kind === 'success' || result.requestIdConflict) setRequestId(crypto.randomUUID());
+    if (result.kind === 'success' || result.requestIdConflict) setRequestId(createBrowserUuidV4());
     if (result.kind === 'success') {
       setRoleSelection(null);
       setReason('');
@@ -70,11 +71,11 @@ function RoleChangeForm({
   useEffect(() => {
     if (initializedRequestId.current) return;
     initializedRequestId.current = true;
-    setRequestId(crypto.randomUUID());
+    setRequestId(createBrowserUuidV4());
   }, []);
 
   const resetForFieldChange = () => {
-    setRequestId(crypto.randomUUID());
+    setRequestId(createBrowserUuidV4());
     setConfirming(false);
     setClientError('');
     setDismissedRequestId(state.requestId ?? null);
@@ -176,7 +177,7 @@ function StatusChangeForm({
     const result = await action(previousState, formData);
     setDismissedRequestId(null);
     if (result.kind === 'error') setConfirming(false);
-    if (result.kind === 'success' || result.requestIdConflict) setRequestId(crypto.randomUUID());
+    if (result.kind === 'success' || result.requestIdConflict) setRequestId(createBrowserUuidV4());
     if (result.kind === 'success') {
       setStatusSelection(null);
       setReason('');
@@ -189,11 +190,11 @@ function StatusChangeForm({
   useEffect(() => {
     if (initializedRequestId.current) return;
     initializedRequestId.current = true;
-    setRequestId(crypto.randomUUID());
+    setRequestId(createBrowserUuidV4());
   }, []);
 
   const resetForFieldChange = () => {
-    setRequestId(crypto.randomUUID());
+    setRequestId(createBrowserUuidV4());
     setConfirming(false);
     setClientError('');
     setDismissedRequestId(state.requestId ?? null);

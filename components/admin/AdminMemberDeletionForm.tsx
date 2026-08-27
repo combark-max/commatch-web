@@ -9,6 +9,7 @@ import {
   isAdminMemberDeletionUuid,
   type AdminMemberDeletionActionState,
 } from '@/lib/admin/member-deletions';
+import { createBrowserUuidV4 } from '@/lib/utils/browser-uuid';
 
 type AdminMemberDeletionFormProps = {
   targetUserId: string;
@@ -34,7 +35,7 @@ export default function AdminMemberDeletionForm({
   ): Promise<AdminMemberDeletionActionState> => {
     const result = await action(previousState, formData);
     if (result.kind === 'error') setConfirming(false);
-    if (result.resetRequestId) setRequestId(crypto.randomUUID());
+    if (result.resetRequestId) setRequestId(createBrowserUuidV4());
     return result;
   };
   const [state, formAction, pending] = useActionState(actionWithClientResult, initialState);
@@ -42,7 +43,7 @@ export default function AdminMemberDeletionForm({
   useEffect(() => {
     if (initializedRequestId.current) return;
     initializedRequestId.current = true;
-    setRequestId(crypto.randomUUID());
+    setRequestId(createBrowserUuidV4());
   }, []);
 
   if (state.kind === 'success') {
@@ -59,7 +60,7 @@ export default function AdminMemberDeletionForm({
   const resetConfirmation = () => {
     setConfirming(false);
     setClientError('');
-    if (initializedRequestId.current) setRequestId(crypto.randomUUID());
+    if (initializedRequestId.current) setRequestId(createBrowserUuidV4());
   };
 
   const validateForConfirmation = () => {

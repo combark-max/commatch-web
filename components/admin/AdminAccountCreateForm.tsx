@@ -13,6 +13,7 @@ import {
   type AdminAccountRole,
 } from '@/lib/admin/admin-accounts';
 import { getAdminRoleLabel } from '@/lib/admin/presentation';
+import { createBrowserUuidV4 } from '@/lib/utils/browser-uuid';
 
 const initialState: AdminAccountActionState = { kind: 'idle', message: '' };
 
@@ -33,7 +34,7 @@ export default function AdminAccountCreateForm() {
     const result = await createAdminAccountAction(previousState, formData);
     setDismissedStateRequestId(null);
     if (result.kind === 'error') setConfirming(false);
-    if (result.kind === 'success' || result.requestIdConflict) setRequestId(crypto.randomUUID());
+    if (result.kind === 'success' || result.requestIdConflict) setRequestId(createBrowserUuidV4());
     if (result.kind === 'success') {
       setTargetUserId('');
       setReason('');
@@ -46,11 +47,11 @@ export default function AdminAccountCreateForm() {
   useEffect(() => {
     if (initializedRequestId.current) return;
     initializedRequestId.current = true;
-    setRequestId(crypto.randomUUID());
+    setRequestId(createBrowserUuidV4());
   }, []);
 
   const resetForFieldChange = () => {
-    setRequestId(crypto.randomUUID());
+    setRequestId(createBrowserUuidV4());
     setConfirming(false);
     setClientError('');
     setDismissedStateRequestId(state.requestId ?? null);

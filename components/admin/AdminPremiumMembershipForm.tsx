@@ -16,6 +16,7 @@ import {
   type PremiumMembershipStatus,
   type PremiumMembershipUpdateActionState,
 } from '@/lib/admin/premium-memberships';
+import { createBrowserUuidV4 } from '@/lib/utils/browser-uuid';
 
 type AdminPremiumMembershipFormProps = {
   subjectUserId: string;
@@ -76,7 +77,7 @@ export default function AdminPremiumMembershipForm({
     setDismissedStateRequestId(null);
     if (result.kind === 'error') setConfirming(false);
     if (result.kind === 'success' || result.requestIdConflict) {
-      setRequestId(crypto.randomUUID());
+      setRequestId(createBrowserUuidV4());
       setConfirming(false);
     }
     if (result.kind === 'success') setReason('');
@@ -87,7 +88,7 @@ export default function AdminPremiumMembershipForm({
   useEffect(() => {
     if (initializedRequestId.current) return;
     initializedRequestId.current = true;
-    setRequestId(crypto.randomUUID());
+    setRequestId(createBrowserUuidV4());
   }, []);
 
   useEffect(() => {
@@ -97,7 +98,7 @@ export default function AdminPremiumMembershipForm({
   }, [membershipExists]);
 
   const resetForFieldChange = () => {
-    setRequestId(crypto.randomUUID());
+    setRequestId(createBrowserUuidV4());
     setConfirming(false);
     setClientError('');
     setDismissedStateRequestId(state.requestId ?? null);

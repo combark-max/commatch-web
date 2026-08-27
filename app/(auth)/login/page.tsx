@@ -73,7 +73,7 @@ export default function LoginPage() {
         : parseMemberAccessRpcResponse(memberAccessData);
 
       if (!memberAccess || !memberAccess.isAllowed) {
-        router.replace('/account-suspended');
+        window.location.replace('/account-suspended');
         return;
       }
 

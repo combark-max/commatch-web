@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
+  Bell,
   Briefcase,
   Camera,
   ChevronRight,
@@ -25,6 +26,7 @@ import { signOut } from '@/lib/auth/auth';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import { createClient } from '@/lib/supabase/client';
 import ImageModal from '@/components/common/ImageModal';
+import { useUnreadNotificationCount } from '@/components/common/AppShell';
 
 type Profile = {
   nickname: string | null;
@@ -113,6 +115,8 @@ const supportItems = [
 ];
 
 export default function DashboardPage() {
+  const unreadNotificationCount = useUnreadNotificationCount();
+  const unreadNotificationBadge = unreadNotificationCount > 99 ? '99+' : String(unreadNotificationCount);
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [isLoading, setIsLoading] = useState(true);
@@ -256,6 +260,30 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">마이페이지</h1>
           <p className="mt-2 text-gray-600">내 활동과 프로필, 계정 정보를 한곳에서 관리하세요.</p>
         </header>
+
+        <Link
+          href="/notifications"
+          aria-label={unreadNotificationCount > 0 ? `읽지 않은 알림 ${unreadNotificationCount}개` : '알림 확인'}
+          className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-green-200 hover:shadow-md lg:hidden"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-600">
+            <Bell size={22} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2 font-bold text-gray-900 group-hover:text-green-700">
+              알림
+              {unreadNotificationCount > 0 ? (
+                <span className="inline-flex min-h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-black leading-none text-white">
+                  {unreadNotificationBadge}
+                </span>
+              ) : null}
+            </span>
+            <span className="mt-1 block text-sm font-semibold text-gray-500">
+              {unreadNotificationCount > 0 ? `읽지 않은 알림 ${unreadNotificationCount}개` : '알림 확인'}
+            </span>
+          </span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-gray-300 transition group-hover:text-green-600" />
+        </Link>
 
         <section className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
           <div className="grid gap-7 p-7 md:grid-cols-[auto_minmax(0,1fr)_220px] md:items-center md:p-9">

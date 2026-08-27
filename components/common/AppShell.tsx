@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -24,6 +24,12 @@ import { getCurrentUser, signOut } from '@/lib/auth/auth';
 type AppShellProps = {
   children: React.ReactNode;
 };
+
+const UnreadNotificationCountContext = createContext(0);
+
+export function useUnreadNotificationCount() {
+  return useContext(UnreadNotificationCountContext);
+}
 
 const accountLinks = [
   { href: '/dashboard', label: '마이페이지', icon: LayoutDashboard },
@@ -410,7 +416,11 @@ export default function AppShell({ children }: AppShellProps) {
         ) : null}
       </header>
 
-      <main className="flex-1">{children}</main>
+      <main className="flex-1">
+        <UnreadNotificationCountContext.Provider value={unreadNotificationCount}>
+          {children}
+        </UnreadNotificationCountContext.Provider>
+      </main>
     </div>
   );
 }

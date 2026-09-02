@@ -29,7 +29,7 @@ type MatchRpcRow = {
   last_message_at: string | null;
   other_user_id: string | null;
   other_nickname: string | null;
-  other_birth_date?: string | null;
+  other_age?: number | null;
   other_profile_image: string | null;
   other_region: string | null;
   other_job: string | null;
@@ -50,7 +50,7 @@ type MatchListItem = {
   endedAt: string | null;
   otherUserId: string | null;
   nickname: string | null;
-  birthDate: string | null;
+  age: number | null;
   profileImageUrl: string | null;
   region: string | null;
   job: string | null;
@@ -97,6 +97,10 @@ function normalizeUnreadCount(value: unknown): number {
   return Math.floor(parsed);
 }
 
+function normalizeNullableAge(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
 function normalizeMatchRows(value: unknown): MatchListItem[] {
   if (!Array.isArray(value)) return [];
 
@@ -123,7 +127,7 @@ function normalizeMatchRows(value: unknown): MatchListItem[] {
       endedAt: normalizeNullableText(row.ended_at),
       otherUserId: normalizeNullableText(row.other_user_id),
       nickname: normalizeNullableText(row.other_nickname),
-      birthDate: normalizeNullableText(row.other_birth_date),
+      age: normalizeNullableAge(row.other_age),
       profileImageUrl: resolveProfileImageUrl(storedProfileImage),
       region: normalizeNullableText(row.other_region),
       job: normalizeNullableText(row.other_job),
@@ -139,40 +143,6 @@ function parseDate(value: string | null): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function calculateAge(birthDate: string | null): number | null {
-  if (!birthDate) return null;
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDate);
-  if (!match) return null;
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const birth = new Date(0);
-  birth.setHours(0, 0, 0, 0);
-  birth.setFullYear(year, month - 1, day);
-
-  if (
-    birth.getFullYear() !== year
-    || birth.getMonth() !== month - 1
-    || birth.getDate() !== day
-  ) {
-    return null;
-  }
-
-  const today = new Date();
-  if (birth.getTime() > today.getTime()) return null;
-
-  let age = today.getFullYear() - year;
-  const monthDifference = today.getMonth() - (month - 1);
-
-  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < day)) {
-    age -= 1;
-  }
-
-  return Number.isInteger(age) && age >= 0 ? age : null;
 }
 
 function formatMatchDate(value: string | null): string {
@@ -579,7 +549,7 @@ export default function MatchesPage() {
             {visibleMatches.map((match) => {
               const hasImage = Boolean(match.profileImageUrl) && !failedImageIds.has(match.matchId);
               const latestMessageDate = formatMessageDate(match.latestMessageAt);
-              const age = calculateAge(match.birthDate);
+              const age = match.age;
               const isActive = match.status === 'active';
               const statusLabel = isActive
                 ? '매칭 중'

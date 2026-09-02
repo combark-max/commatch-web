@@ -30,7 +30,7 @@ type ReceivedLikeRpcRow = {
   sender_user_id?: unknown;
   liked_at?: unknown;
   nickname?: unknown;
-  birth_date?: unknown;
+  age?: unknown;
   region?: unknown;
   job?: unknown;
   profile_image?: unknown;
@@ -52,7 +52,7 @@ type ReceivedLike = {
   senderUserId: string;
   likedAt: string;
   nickname: string;
-  birthDate: string | null;
+  age: number | null;
   region: string | null;
   job: string | null;
   profileImageUrl: string | null;
@@ -90,6 +90,14 @@ function normalizeNullableText(value: unknown, fieldName: string): string | null
   if (value === null) return null;
   if (typeof value !== 'string') throw new Error(`Unexpected ${fieldName}`);
   return value.trim() || null;
+}
+
+function normalizeNullableAge(value: unknown): number | null {
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new Error('Unexpected age');
+  }
+  return value;
 }
 
 function normalizeUuid(value: unknown, fieldName: string): string {
@@ -137,7 +145,7 @@ function normalizeReceivedLikes(value: unknown): ReceivedLike[] {
     const senderUserId = normalizeUuid(row.sender_user_id, 'sender_user_id');
     const likedAt = normalizeTimestamp(row.liked_at, 'liked_at');
     const nickname = normalizeNullableText(row.nickname, 'nickname') ?? '익명';
-    const birthDate = normalizeNullableText(row.birth_date, 'birth_date');
+    const age = normalizeNullableAge(row.age);
     const region = normalizeNullableText(row.region, 'region');
     const job = normalizeNullableText(row.job, 'job');
     const profileImage = normalizeNullableText(row.profile_image, 'profile_image');
@@ -172,7 +180,7 @@ function normalizeReceivedLikes(value: unknown): ReceivedLike[] {
       senderUserId,
       likedAt,
       nickname,
-      birthDate,
+      age,
       region,
       job,
       profileImageUrl: resolveProfileImageUrl(profileImage ?? profileImages[0] ?? null),
@@ -210,34 +218,6 @@ function normalizeLikeResult(value: unknown): { likeResult: LikeResult; matchId:
   }
 
   return { likeResult, matchId };
-}
-
-function calculateAge(birthDate: string | null): number | null {
-  if (!birthDate) return null;
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDate);
-  if (!match) return null;
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const birth = new Date(0);
-  birth.setHours(0, 0, 0, 0);
-  birth.setFullYear(year, month - 1, day);
-
-  if (birth.getFullYear() !== year || birth.getMonth() !== month - 1 || birth.getDate() !== day) {
-    return null;
-  }
-
-  const today = new Date();
-  if (birth.getTime() > today.getTime()) return null;
-
-  let age = today.getFullYear() - year;
-  if (today.getMonth() < month - 1 || (today.getMonth() === month - 1 && today.getDate() < day)) {
-    age -= 1;
-  }
-
-  return Number.isInteger(age) && age >= 0 ? age : null;
 }
 
 function getRelationshipStatus(receivedLike: ReceivedLike) {
@@ -462,7 +442,7 @@ export default function ReceivedLikesClient() {
         ) : (
           <section className="mt-5 grid gap-6 md:grid-cols-2 xl:grid-cols-3" aria-label="나에게 좋아요를 보낸 회원 목록">
             {receivedLikes.map((receivedLike) => {
-              const age = calculateAge(receivedLike.birthDate);
+              const age = receivedLike.age;
               const relationship = getRelationshipStatus(receivedLike);
               const hasImage = Boolean(receivedLike.profileImageUrl) && !failedImageIds.has(receivedLike.likeId);
               const isSending = sendingLikeId === receivedLike.likeId;

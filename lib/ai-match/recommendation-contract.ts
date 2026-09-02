@@ -18,7 +18,6 @@ export type PreferenceMatchResult = {
 export type BaseRecommendedMember = {
   id: string;
   nickname: string | null;
-  birth_date: string | null;
   gender: string | null;
   height: number | null;
   region: string | null;
@@ -156,7 +155,6 @@ const parseBaseRecommendedMember = (
   if (
     !isUuid(value.id)
     || !isNullableString(value.nickname)
-    || !isNullableString(value.birth_date)
     || !isNullableString(value.gender)
     || !isNullableNumber(value.height)
     || !isNullableString(value.region)
@@ -172,7 +170,6 @@ const parseBaseRecommendedMember = (
   return {
     id: value.id,
     nickname: value.nickname,
-    birth_date: value.birth_date,
     gender: value.gender,
     height: value.height,
     region: value.region,

@@ -26,7 +26,7 @@ import ReportDialog from '@/components/reports/ReportDialog';
 type MemberProfile = {
   id: string;
   nickname: string | null;
-  birth_date: string | null;
+  age: number | null;
   gender: string | null;
   height: number | null;
   job: string | null;
@@ -44,23 +44,6 @@ type MemberProfile = {
 };
 
 type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
-
-const calculateAge = (birthDate: string | null | undefined) => {
-  if (!birthDate) return null;
-
-  const birth = new Date(birthDate);
-  if (Number.isNaN(birth.getTime())) return null;
-
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age -= 1;
-  }
-
-  return age;
-};
 
 const getIntroductionPreview = (introduction: string | null) => {
   const text = introduction?.trim();
@@ -357,7 +340,7 @@ export default function MemberDetailPage() {
     );
   }
 
-  const age = calculateAge(member.birth_date);
+  const age = member.age;
   const introduction = member.introduction?.trim() || '';
   const introductionText = introduction
     ? `${introduction.slice(0, 500)}${introduction.length > 500 ? '...' : ''}`

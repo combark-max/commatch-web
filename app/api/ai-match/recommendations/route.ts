@@ -16,7 +16,6 @@ import { getCurrentMemberServiceAccess } from '@/lib/member/access';
 type Profile = {
   id: string;
   nickname: string | null;
-  birth_date: string | null;
   gender: string | null;
   height: number | null;
   region: string | null;
@@ -30,6 +29,14 @@ type Profile = {
   marriage_values: string | null;
   profile_image: string | null;
   profile_images: string[] | null;
+};
+
+type CurrentProfile = Profile & {
+  birth_date: string | null;
+};
+
+type CandidateProfile = Profile & {
+  age: number | null;
   is_priority_recommendation?: boolean;
 };
 
@@ -58,31 +65,14 @@ const UNAVAILABLE_COMPARISON_VALUES = new Set([
   '상관없음',
 ]);
 
-const calculateAge = (birthDate: string | null) => {
-  if (!birthDate) return null;
-
-  const birth = new Date(birthDate);
-  if (Number.isNaN(birth.getTime())) return null;
-
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age -= 1;
-  }
-
-  return age;
-};
-
-const calculateProfileCompleteness = (profile: Profile) => {
+const calculateProfileCompleteness = (profile: Profile, hasAgeInformation: boolean) => {
   const hasProfilePhoto = Boolean(profile.profile_image?.trim())
     || Boolean(profile.profile_images?.some((image) => typeof image === 'string' && image.trim()));
   const completedFields = [
     hasProfilePhoto,
     Boolean(profile.nickname?.trim()),
     Boolean(profile.gender?.trim()),
-    Boolean(profile.birth_date?.trim()),
+    hasAgeInformation,
     typeof profile.height === 'number' && Number.isFinite(profile.height) && profile.height > 0,
     Boolean(profile.region?.trim()),
     Boolean(profile.job?.trim()),
@@ -126,7 +116,7 @@ const matchesPreferredJob = (job: string | null, preferredJob: string | null) =>
   return job === preferredJob;
 };
 
-const getRecommendationReasons = (member: Profile, preference: Preference, age: number | null) => {
+const getRecommendationReasons = (member: CandidateProfile, preference: Preference, age: number | null) => {
   const reasons: string[] = [];
   const hasAgePreference = preference.age_min !== null || preference.age_max !== null;
   const matchesAge = age !== null
@@ -152,8 +142,8 @@ const getRecommendationReasons = (member: Profile, preference: Preference, age: 
 };
 
 const getAdvancedRecommendationAnalysis = (
-  currentProfile: Profile,
-  candidateProfile: Profile,
+  currentProfile: CurrentProfile,
+  candidateProfile: CandidateProfile,
   preference: Preference,
   candidateAge: number | null,
 ) => {
@@ -341,7 +331,7 @@ export async function GET(request: NextRequest) {
     if (profileResult.error) throw profileResult.error;
     if (preferenceResult.error) throw preferenceResult.error;
 
-    const currentProfile = profileResult.data as Profile | null;
+    const currentProfile = profileResult.data as CurrentProfile | null;
     const preference = preferenceResult.data as Preference | null;
     const hasEnteredPreference = Boolean(preference && (
       preference.age_min !== null
@@ -362,7 +352,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    if (calculateProfileCompleteness(currentProfile) < 80) {
+    if (calculateProfileCompleteness(currentProfile, Boolean(currentProfile.birth_date?.trim())) < 80) {
       return jsonResponse({
         status: 'setup',
         mode,
@@ -386,9 +376,9 @@ export async function GET(request: NextRequest) {
 
     if (membersError) throw membersError;
 
-    const scoredCandidates = ((data as Profile[]) ?? [])
+    const scoredCandidates = ((data as CandidateProfile[]) ?? [])
       .map((member) => {
-        const age = calculateAge(member.birth_date);
+        const age = member.age;
         let score = 0;
 
         const hasAgePreference = preference.age_min !== null || preference.age_max !== null;
@@ -418,7 +408,7 @@ export async function GET(request: NextRequest) {
           score,
           isPriorityRecommendation: member.is_priority_recommendation === true,
           reasons,
-          completeness: calculateProfileCompleteness(member),
+          completeness: calculateProfileCompleteness(member, age !== null),
           profile_image: resolveProfileImageUrl(member.profile_image),
         };
       })
@@ -427,7 +417,6 @@ export async function GET(request: NextRequest) {
     const toBaseRecommendation = (member: typeof selectedCandidates[number]): BaseRecommendedMember => ({
       id: member.id,
       nickname: member.nickname,
-      birth_date: member.birth_date,
       gender: member.gender,
       height: member.height,
       region: member.region,

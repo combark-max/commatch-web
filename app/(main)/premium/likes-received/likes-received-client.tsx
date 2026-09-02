@@ -23,7 +23,7 @@ type ReceivedFavoriteRpcRow = {
   sender_user_id?: unknown;
   created_at?: unknown;
   nickname?: unknown;
-  birth_date?: unknown;
+  age?: unknown;
   region?: unknown;
   job?: unknown;
   profile_image?: unknown;
@@ -38,7 +38,7 @@ type ReceivedFavorite = {
   senderUserId: string;
   createdAt: string;
   nickname: string;
-  birthDate: string | null;
+  age: number | null;
   region: string | null;
   job: string | null;
   profileImageUrl: string | null;
@@ -65,6 +65,14 @@ function normalizeText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
   return normalized || null;
+}
+
+function normalizeAge(value: unknown): number | null {
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new Error('Unexpected age');
+  }
+  return value;
 }
 function normalizeProfileImages(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -110,7 +118,7 @@ function normalizeReceivedFavorites(value: unknown): ReceivedFavorite[] {
       senderUserId,
       createdAt,
       nickname: normalizeText(row.nickname) ?? '익명',
-      birthDate: normalizeText(row.birth_date),
+      age: normalizeAge(row.age),
       region: normalizeText(row.region),
       job: normalizeText(row.job),
       profileImageUrl: resolveProfileImageUrl(storedProfileImage),
@@ -119,40 +127,6 @@ function normalizeReceivedFavorites(value: unknown): ReceivedFavorite[] {
       matchStatus: normalizeText(row.match_status),
     }];
   });
-}
-
-function calculateAge(birthDate: string | null): number | null {
-  if (!birthDate) return null;
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDate);
-  if (!match) return null;
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const birth = new Date(0);
-  birth.setHours(0, 0, 0, 0);
-  birth.setFullYear(year, month - 1, day);
-
-  if (
-    birth.getFullYear() !== year
-    || birth.getMonth() !== month - 1
-    || birth.getDate() !== day
-  ) {
-    return null;
-  }
-
-  const today = new Date();
-  if (birth.getTime() > today.getTime()) return null;
-
-  let age = today.getFullYear() - year;
-  const monthDifference = today.getMonth() - (month - 1);
-
-  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < day)) {
-    age -= 1;
-  }
-
-  return Number.isInteger(age) && age >= 0 ? age : null;
 }
 
 function getRelationshipStatus(favorite: ReceivedFavorite) {
@@ -274,8 +248,8 @@ export default function LikesReceivedPage() {
         return timestampDifference || preserveOriginalOrder();
       }
 
-      const leftAge = calculateAge(leftItem.favorite.birthDate);
-      const rightAge = calculateAge(rightItem.favorite.birthDate);
+      const leftAge = leftItem.favorite.age;
+      const rightAge = rightItem.favorite.age;
 
       if (leftAge === null && rightAge === null) return preserveOriginalOrder();
       if (leftAge === null) return 1;
@@ -412,7 +386,7 @@ export default function LikesReceivedPage() {
         ) : (
           <section className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3" aria-label="나를 관심목록에 저장한 회원 목록">
             {visibleFavorites.map((favorite) => {
-              const age = calculateAge(favorite.birthDate);
+              const age = favorite.age;
               const relationship = getRelationshipStatus(favorite);
               const hasImage = Boolean(favorite.profileImageUrl) && !failedImageIds.has(favorite.favoriteId);
 
@@ -483,4 +457,3 @@ export default function LikesReceivedPage() {
     </div>
   );
 }
-

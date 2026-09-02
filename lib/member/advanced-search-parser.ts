@@ -3,7 +3,7 @@ import { normalizeProfileImagePath } from '@/lib/profile-image';
 export type AdvancedSearchMember = {
   id: string;
   nickname: string | null;
-  birth_date: string | null;
+  age: number | null;
   gender: string | null;
   region: string | null;
   job: string | null;
@@ -19,6 +19,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
 
 const isNullableString = (value: unknown): value is string | null => (
   value === null || typeof value === 'string'
+);
+
+const isNullableAge = (value: unknown): value is number | null => (
+  value === null
+  || (typeof value === 'number' && Number.isInteger(value) && value >= 0)
 );
 
 const isNullableProfileImage = (value: unknown): value is string | null => (
@@ -39,7 +44,7 @@ export function parseAdvancedSearchMembers(value: unknown): AdvancedSearchMember
       || typeof row.id !== 'string'
       || !UUID_PATTERN.test(row.id)
       || !isNullableString(row.nickname)
-      || !isNullableString(row.birth_date)
+      || !isNullableAge(row.age)
       || !isNullableString(row.gender)
       || !isNullableString(row.region)
       || !isNullableString(row.job)
@@ -52,7 +57,7 @@ export function parseAdvancedSearchMembers(value: unknown): AdvancedSearchMember
     members.push({
       id: row.id,
       nickname: row.nickname,
-      birth_date: row.birth_date,
+      age: row.age,
       gender: row.gender,
       region: row.region,
       job: row.job,

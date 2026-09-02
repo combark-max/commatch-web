@@ -201,28 +201,6 @@ export default function MembersClient({
     }
   };
 
-  const getAge = (birthDate: string | null | undefined) => {
-    if (!birthDate) return null;
-
-    const birth = new Date(birthDate);
-    if (Number.isNaN(birth.getTime())) return null;
-
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age -= 1;
-    }
-
-    return age;
-  };
-
-  const calculateAge = (birthDate: string | null | undefined) => {
-    const age = getAge(birthDate);
-    return age === null ? '' : `${age}세`;
-  };
-
   const ageFilterError = useMemo(() => {
     const parsedMin = ageMin === '' ? null : Number(ageMin);
     const parsedMax = ageMax === '' ? null : Number(ageMax);
@@ -402,7 +380,7 @@ export default function MembersClient({
         || (selectedJob === '기타'
           ? !(STANDARD_JOB_VALUES as readonly string[]).includes(job)
           : job === selectedJob);
-      const memberAge = getAge(member.birth_date);
+      const memberAge = member.age;
       const parsedMin = ageMin === '' ? null : Number(ageMin);
       const parsedMax = ageMax === '' ? null : Number(ageMax);
       const matchesAge = ageFilterError !== null
@@ -697,7 +675,7 @@ export default function MembersClient({
                       {member.nickname || '익명'}
                     </h3>
                     <span className="mb-0.5 text-sm font-semibold text-[#16a34a]">
-                      {calculateAge(member.birth_date)}
+                      {member.age === null ? '' : `${member.age}세`}
                     </span>
                   </div>
 

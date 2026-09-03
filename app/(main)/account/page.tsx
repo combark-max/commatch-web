@@ -7,6 +7,9 @@ import PushSettings from '@/components/push/PushSettings';
 import { cleanupPushBeforeSignOut } from '@/lib/push/client';
 import { createClient } from '@/lib/supabase/client';
 
+const ACCOUNT_DELETION_RETRY_MESSAGE =
+  '회원탈퇴 처리 중 오류가 발생했습니다. 일부 데이터가 이미 정리되었을 수 있으니 같은 화면에서 다시 시도해 주세요.';
+
 export default function AccountPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -39,33 +42,42 @@ export default function AccountPage() {
     setIsDeleting(true);
     setError(null);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user?.email) {
-      setError('로그인 정보를 확인할 수 없습니다.');
-      setIsDeleting(false);
-      return;
-    }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) {
+        setError('로그인 정보를 확인할 수 없습니다.');
+        return;
+      }
 
-    const { error: passwordError } = await supabase.auth.signInWithPassword({ email: user.email, password });
-    if (passwordError) {
-      setError('현재 비밀번호가 올바르지 않습니다.');
-      setIsDeleting(false);
-      return;
-    }
+      const { error: passwordError } = await supabase.auth.signInWithPassword({ email: user.email, password });
+      if (passwordError) {
+        setError('현재 비밀번호가 올바르지 않습니다.');
+        return;
+      }
 
-    const response = await fetch('/api/account/delete', { method: 'DELETE' });
-    const body = await response.json() as { success?: boolean; message?: string };
-    if (!response.ok || !body.success) {
-      setError(body.message ?? '회원탈퇴 처리 중 오류가 발생했습니다.');
-      setIsDeleting(false);
-      return;
-    }
+      const response = await fetch('/api/account/delete', { method: 'DELETE' });
+      const body: unknown = await response.json();
+      const responseBody = body && typeof body === 'object'
+        ? body as { success?: unknown; message?: unknown }
+        : null;
+      const responseMessage = typeof responseBody?.message === 'string' && responseBody.message.trim()
+        ? responseBody.message
+        : ACCOUNT_DELETION_RETRY_MESSAGE;
+      if (!response.ok || responseBody?.success !== true) {
+        setError(responseMessage);
+        return;
+      }
 
-    await cleanupPushBeforeSignOut();
-    await supabase.auth.signOut();
-    window.alert('회원탈퇴가 완료되었습니다.');
-    router.replace('/');
-    router.refresh();
+      await cleanupPushBeforeSignOut();
+      await supabase.auth.signOut();
+      window.alert('회원탈퇴가 완료되었습니다.');
+      router.replace('/');
+      router.refresh();
+    } catch {
+      setError(ACCOUNT_DELETION_RETRY_MESSAGE);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (isChecking) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;

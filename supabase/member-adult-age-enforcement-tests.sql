@@ -1,5 +1,6 @@
 -- Rollback-safe integration tests for ComMatch's minimum member age.
--- Apply member-adult-age-enforcement.sql first, then run this file as one SQL
+-- Apply member-adult-age-enforcement.sql and the current consent document
+-- version migration first, then run this file as one SQL
 -- Editor invocation with a database-owner role. All fixtures are rolled back.
 
 begin;
@@ -180,8 +181,8 @@ cross join lateral (
 ) as fixture(user_id)
 cross join lateral (
   values
-    ('terms', 'terms-v1.0'),
-    ('privacy', 'privacy-v1.0'),
+    ('terms', 'terms-v1.1'),
+    ('privacy', 'privacy-v1.1'),
     ('adult_confirmation', 'adult-confirmation-v1.0')
 ) as consent(consent_type, document_version);
 

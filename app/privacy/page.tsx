@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Footer from '@/components/common/Footer';
 
+const PRIVACY_POLICY_VERSION = '1.1';
+
 export const metadata: Metadata = {
   title: 'ComMatch 개인정보처리방침',
   description: 'ComMatch 서비스의 개인정보 처리 목적과 항목을 안내합니다.',
@@ -30,7 +32,10 @@ const PURPOSES = [
   '관심 표시, 매칭 및 회원 간 연결',
   '메시지 제공과 대화 상태 관리',
   '신고 접수, 분쟁 대응 및 회원 보호',
+  '1:1 문의 접수, 답변 및 처리',
+  '서비스 알림과 Push 발송 및 수신 설정 관리',
   'Premium 상태와 기능 이용 권한 관리',
+  '관리자 조치와 감사 기록 관리',
   '이용약관, 개인정보 수집·이용 및 성인 확인 이력 관리',
   '서비스 운영, 장애 대응, 부정 이용 방지 및 보안',
 ] as const;
@@ -50,7 +55,7 @@ export default function PrivacyPage() {
             <p className="text-sm font-bold uppercase tracking-[0.16em] text-green-700">Privacy</p>
             <h1 className="mt-3 text-3xl font-black tracking-tight text-gray-900 sm:text-4xl">ComMatch 개인정보처리방침</h1>
             <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 text-sm text-gray-600">
-              <div className="flex gap-2"><dt className="font-semibold text-gray-800">버전</dt><dd>1.0</dd></div>
+              <div className="flex gap-2"><dt className="font-semibold text-gray-800">버전</dt><dd>{PRIVACY_POLICY_VERSION}</dd></div>
               <div className="flex gap-2"><dt className="font-semibold text-gray-800">시행일</dt><dd>추후 확정</dd></div>
             </dl>
           </header>
@@ -67,7 +72,11 @@ export default function PrivacyPage() {
               <div className="mt-5 space-y-6">
                 <div>
                   <h3 className="font-bold text-gray-900">회원가입 및 계정관리</h3>
-                  <BulletList items={['이메일 주소', '내부 회원 식별정보']} />
+                  <BulletList items={[
+                    '이메일 주소',
+                    '내부 회원 식별정보',
+                    '인증 휴대폰 번호 및 인증 상태·시각',
+                  ]} />
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900">프로필</h3>
@@ -80,12 +89,20 @@ export default function PrivacyPage() {
                 <div>
                   <h3 className="font-bold text-gray-900">서비스 이용정보</h3>
                   <BulletList items={[
-                    '관심 등록 및 관심 수신 정보',
-                    '매칭 및 메시지 정보',
-                    '신고 내용과 운영 처리 정보',
-                    'Premium 상태와 기능 권한 정보',
-                    '이용약관·개인정보·성인 확인 동의 이력',
+                    '관심·좋아요 등록 및 수신 정보',
+                    '매칭, 메시지, 읽음 및 운영 처리 정보',
+                    '신고 내용, 신고 대상 snapshot 및 운영 처리 정보',
+                    '1:1 문의 내용, 답변 및 처리정보',
+                    '서비스 알림 및 읽음 기록',
+                    'Push subscription 정보(브라우저 endpoint, 암호화 키, 수신 설정 및 상태·시각)',
+                    'Push 발송 상태, 시도 횟수, 응답 상태 및 오류 기록',
+                    'Premium 이용 상태, 기능 권한 및 관리 기록',
+                    '이용약관·개인정보 수집·이용·성인 확인 동의 이력',
+                    '관리자 계정·신고·회원 제한·Premium·문의 관련 조치 및 감사 기록',
+                    '탈퇴 후 동의 사실 증빙 등을 위해 별도 보존되는 consent 및 관련 이력',
+                    '부정 이용 방지를 위한 rate-limit용 가명 식별정보',
                     '로그인 세션, 접속 및 서비스 보안에 필요한 정보',
+                    '운영환경에서 생성될 수 있는 접속·오류·보안 로그',
                   ]} />
                 </div>
               </div>
@@ -175,7 +192,7 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-black text-gray-900">13. 부칙</h2>
               <ul className="mt-4 space-y-2">
-                <li>1. 이 개인정보처리방침의 버전은 1.0입니다.</li>
+                <li>1. 이 개인정보처리방침의 버전은 {PRIVACY_POLICY_VERSION}입니다.</li>
                 <li>2. 이 개인정보처리방침의 시행일은 추후 확정합니다.</li>
               </ul>
             </section>

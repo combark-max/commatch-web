@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Check, ChevronRight, Loader2, ShieldCheck, X } from 'lucide-react';
 import {
   submitRequiredConsents,
@@ -41,29 +42,10 @@ const INITIAL_STATE: ConsentActionState = {
   completedTypes: [],
 };
 
-const TERMS_SECTIONS = [
-  ['제1조 목적', '이 약관은 ComMatch가 제공하는 회원 프로필, 추천, 관심, 매칭 및 메시지 등 서비스의 이용 조건과 회원 및 회사의 권리·의무를 정하는 것을 목적으로 합니다.'],
-  ['제2조 정의', '회원은 본 약관에 동의하고 계정을 만든 이용자를 말하며, 서비스는 ComMatch 웹사이트에서 제공하는 결혼 상대 탐색 지원 기능을 말합니다.'],
-  ['제3조 약관의 적용', '회원은 가입과 서비스 이용 전에 약관을 확인해야 합니다. 약관이 변경되는 경우 회사는 적용 내용과 시점을 서비스에서 안내합니다.'],
-  ['제4조 회원가입과 계정', '회원은 정확한 정보를 사용하여 본인 계정을 관리해야 하며, 계정이나 인증 정보를 타인에게 양도하거나 공유해서는 안 됩니다.'],
-  ['제5조 서비스 이용', '서비스는 회원이 직접 작성한 프로필과 선호 조건을 바탕으로 상대 회원을 탐색하고 소통할 수 있도록 지원합니다. 특정한 만남이나 혼인 성립을 보장하지 않습니다.'],
-  ['제6조 프로필 정보', '회원은 사실에 부합하는 정보를 작성해야 하며, 타인의 개인정보·사진·저작물을 권한 없이 사용해서는 안 됩니다.'],
-  ['제7조 회원 간 소통', '회원은 상대방을 존중하고 동의 없는 연락, 괴롭힘, 차별, 위협, 성적 불쾌감을 주는 행위 또는 사기성 행위를 해서는 안 됩니다.'],
-  ['제8조 금지행위', '불법행위, 허위 계정, 서비스 운영 방해, 개인정보 무단 수집, 영리 목적의 광고·권유, 시스템 우회 또는 부정한 접근을 금지합니다.'],
-  ['제9조 신고와 안전조치', '회사는 신고 내용과 서비스 이용 기록을 확인하고 필요한 경우 콘텐츠 제한, 계정 이용 제한 또는 종료 등 안전조치를 할 수 있습니다.'],
-  ['제10조 서비스 변경과 중단', '운영상·기술상 필요에 따라 서비스의 전부 또는 일부가 변경되거나 일시 중단될 수 있으며, 중요한 변경은 가능한 범위에서 사전에 안내합니다.'],
-  ['제11조 Premium 기능', 'Premium 기능의 범위와 이용 조건은 해당 기능 도입 시 별도로 안내하며, 이번 약관 동의만으로 유료 결제가 이루어지지 않습니다.'],
-  ['제12조 게시물과 권리', '회원이 작성한 콘텐츠의 권리는 원칙적으로 회원에게 있으며, 회원은 서비스 제공과 운영에 필요한 범위에서 회사가 이를 처리할 수 있도록 허용합니다.'],
-  ['제13조 개인정보 보호', '회사는 개인정보 처리와 보호에 관하여 별도의 개인정보 수집·이용 안내 및 관련 정책을 따릅니다.'],
-  ['제14조 이용 제한', '회원이 약관 또는 운영정책을 위반하거나 서비스 안전을 해칠 우려가 있는 경우 회사는 사안에 따라 서비스 이용을 제한할 수 있습니다.'],
-  ['제15조 탈퇴', '회원은 계정 설정에서 탈퇴를 요청할 수 있습니다. 탈퇴 후 정보 처리는 개인정보 안내와 관련 법령 및 안전·분쟁 대응 기준을 따릅니다.'],
-  ['제16조 준거와 분쟁', '서비스 이용과 관련한 분쟁은 당사자 간 협의를 우선하며, 해결되지 않는 경우 대한민국 법령과 관할 법원의 절차를 따릅니다.'],
-  ['제17조 회원 간 관계와 책임', '① 회원은 상대 회원과의 만남 및 소통 여부를 스스로 판단하고 자신의 안전을 위해 필요한 주의를 기울여야 합니다.\n② 회사는 회원이 제공한 정보와 회원 간 의사결정을 대신하지 않으며, 회원은 상대방의 정보를 직접 확인해야 합니다.\n③ 회원 간의 개인적인 약속, 금전 거래 또는 서비스 밖에서 이루어진 행위는 원칙적으로 해당 회원 당사자 사이의 문제입니다.'],
-] as const;
-
 const PRIVACY_ITEMS = [
   '이메일 주소',
   '내부 회원 식별정보',
+  '인증 휴대폰 번호 및 인증 상태·시각',
   '닉네임',
   '성별',
   '생년월일',
@@ -78,23 +60,40 @@ const PRIVACY_ITEMS = [
   '자기소개',
   '결혼에 대한 가치관',
   '프로필 이미지',
-  '관심/매칭 정보',
-  '메시지 정보',
-  '신고 및 운영 관련 정보',
-  'Premium 이용 상태',
-  'consent 이력',
+  '관심·좋아요 및 매칭 정보',
+  '메시지, 읽음 및 운영 처리 정보',
+  '신고 정보와 신고 대상 snapshot',
+  '1:1 문의, 답변 및 처리정보',
+  '알림 및 읽음 기록',
+  'Push subscription 정보(endpoint, 암호화 키, 수신 설정 및 상태·시각)',
+  'Push 발송 상태, 시도 횟수, 응답 상태 및 오류 기록',
+  'Premium 이용·관리 기록',
+  'consent 및 탈퇴 후 보존되는 관련 이력',
+  '관리자 조치·감사 기록',
+  'rate-limit용 가명 식별정보',
+  '접속·보안 관련 정보',
 ] as const;
 
 const ConsentDocument = ({ type }: { type: ConsentFormType }) => {
   if (type === 'terms') {
     return (
-      <div className="space-y-5">
-        {TERMS_SECTIONS.map(([heading, body]) => (
-          <section key={heading}>
-            <h3 className="font-bold text-gray-900">{heading}</h3>
-            <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600">{body}</p>
-          </section>
-        ))}
+      <div className="space-y-5 text-sm leading-6 text-gray-600">
+        <section>
+          <h3 className="font-bold text-gray-900">이용약관 요약</h3>
+          <p className="mt-2">
+            ComMatch 이용약관은 회원가입과 계정 관리, 프로필·탐색·추천·관심·매칭·메시지 이용,
+            회원 간 안전과 금지행위, 신고 및 이용 제한, Premium 서비스, 탈퇴와 책임에 관한 사항을 정합니다.
+          </p>
+        </section>
+        <p>실제 동의 대상은 아래 링크에서 확인할 수 있는 전체 이용약관입니다.</p>
+        <Link
+          href="/terms"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-11 items-center rounded-xl border border-green-200 px-4 font-bold text-green-700 transition hover:bg-green-50"
+        >
+          전체 이용약관 확인
+        </Link>
       </div>
     );
   }
@@ -105,8 +104,9 @@ const ConsentDocument = ({ type }: { type: ConsentFormType }) => {
         <section>
           <h3 className="font-bold text-gray-900">수집·이용 목적</h3>
           <p className="mt-2">
-            회원 식별과 계정 운영, 프로필 제공, 관심·추천·매칭 및 메시지 기능, 신고 처리와 서비스 안전,
-            Premium 상태 관리, 동의 사실 확인을 위해 개인정보를 수집·이용합니다.
+            회원 식별과 계정 운영, 프로필·선호정보 제공, 관심·추천·매칭 및 메시지 기능, 문의·신고 처리,
+            알림·Push 제공, Premium 및 관리자 운영, 서비스 안전과 부정 이용 방지, 동의 사실 확인을 위해
+            개인정보를 수집·이용합니다.
           </p>
         </section>
         <section>
@@ -118,9 +118,10 @@ const ConsentDocument = ({ type }: { type: ConsentFormType }) => {
         <section>
           <h3 className="font-bold text-gray-900">보유·이용 기간</h3>
           <p className="mt-2">
-            회원탈퇴 또는 처리 목적 달성 시까지 보유·이용하는 것을 원칙으로 하며, 신고·안전 관련 기록 및
-            동의 이력 등 필요한 정보는 관련 법령, 서비스 안전, 분쟁 대응 또는 동의 사실 증빙에 필요한 기간
-            동안 별도로 보관할 수 있습니다.
+            회원탈퇴 또는 처리 목적 달성 시까지 보유·이용하는 것을 원칙으로 하며, 신고·안전 관련 기록,
+            관리자 조치·감사 기록, 동의 이력 등 필요한 정보는 관련 법령, 서비스 안전, 분쟁 대응 또는 동의
+            사실 증빙에 필요한 기간 동안 별도로 보관할 수 있습니다. 실제 항목별 보유기간은 운영정보 확정 후
+            관련 안내에 반영합니다.
           </p>
         </section>
         <section>
@@ -171,6 +172,7 @@ export default function ConsentForm({
     { type: 'privacy' as const, title: '개인정보 수집·이용', label: '[필수] 개인정보 수집·이용에 동의합니다.' },
     { type: 'adult_confirmation' as const, title: '성인 확인', label: adultConfirmationLabel },
   ]), [adultConfirmationLabel]);
+  const visibleItems = items.filter(({ type }) => !completed.has(type));
 
   const ensureRequestIds = () => {
     if (requestIds) return;
@@ -239,7 +241,7 @@ export default function ConsentForm({
 
         <form action={formAction} className="mt-9 overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-xl shadow-gray-200/60">
           <div className="divide-y divide-gray-100">
-            {items.map((item) => {
+            {visibleItems.map((item) => {
               const isCompleted = completed.has(item.type);
               return (
                 <section key={item.type} className="p-6 sm:p-7">

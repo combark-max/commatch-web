@@ -90,14 +90,14 @@ export const CONSENT_POLICIES = {
     type: 'terms',
     required: true,
     source: 'email_verification',
-    document: configuredDocument('terms-v1.0'),
+    document: configuredDocument('terms-v1.1'),
     enforcement: enabledEnforcement(),
   },
   privacy: {
     type: 'privacy',
     required: true,
     source: 'email_verification',
-    document: configuredDocument('privacy-v1.0'),
+    document: configuredDocument('privacy-v1.1'),
     enforcement: enabledEnforcement(),
   },
   adult_confirmation: {

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Footer from '@/components/common/Footer';
 
+const TERMS_DOCUMENT_VERSION = '1.1';
+
 export const metadata: Metadata = {
   title: 'ComMatch 이용약관',
   description: 'ComMatch 서비스 이용에 적용되는 이용약관입니다.',
@@ -185,7 +187,7 @@ const TERMS_SECTIONS = [
   {
     title: '제23조 부칙',
     clauses: [
-      '이 약관의 버전은 1.0입니다.',
+      `이 약관의 버전은 ${TERMS_DOCUMENT_VERSION}입니다.`,
       '이 약관의 시행일은 추후 확정합니다.',
     ],
   },
@@ -200,7 +202,7 @@ export default function TermsPage() {
             <p className="text-sm font-bold uppercase tracking-[0.16em] text-green-700">Legal</p>
             <h1 className="mt-3 text-3xl font-black tracking-tight text-gray-900 sm:text-4xl">ComMatch 이용약관</h1>
             <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 text-sm text-gray-600">
-              <div className="flex gap-2"><dt className="font-semibold text-gray-800">버전</dt><dd>1.0</dd></div>
+              <div className="flex gap-2"><dt className="font-semibold text-gray-800">버전</dt><dd>{TERMS_DOCUMENT_VERSION}</dd></div>
               <div className="flex gap-2"><dt className="font-semibold text-gray-800">시행일</dt><dd>추후 확정</dd></div>
             </dl>
           </header>

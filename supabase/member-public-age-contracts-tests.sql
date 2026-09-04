@@ -1,5 +1,6 @@
 -- ComMatch public member age contract integration tests.
--- Run after supabase/member-public-age-contracts.sql as a database owner.
+-- Run after supabase/member-public-age-contracts.sql and the current consent
+-- document version migration as a database owner.
 -- All fixtures are transaction-local and rolled back at the end.
 
 begin;
@@ -245,8 +246,8 @@ cross join lateral (
     (config.expired_caller_id), (config.outsider_id)
 ) as fixture(user_id)
 cross join lateral (values
-  ('terms', 'terms-v1.0'),
-  ('privacy', 'privacy-v1.0'),
+  ('terms', 'terms-v1.1'),
+  ('privacy', 'privacy-v1.1'),
   ('adult_confirmation', 'adult-confirmation-v1.0')
 ) as consent(consent_type, document_version);
 

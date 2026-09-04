@@ -1,6 +1,6 @@
 -- ComMatch member-service consent/access guard rollback-safe integration tests.
 --
--- Run after supabase/member-service-consent-access-guards.sql in a disposable
+-- Run after supabase/member-service-consent-document-versions-v1-1.sql in a disposable
 -- or staging database as a database owner capable of SET ROLE and inserting
 -- rollback-only auth.users fixtures. This script never commits fixture data.
 
@@ -222,11 +222,12 @@ cross join lateral (
   limit 1
 ) as source;
 
-insert into public.profiles (id, nickname, gender, profile_images)
+insert into public.profiles (id, nickname, gender, birth_date, profile_images)
 select fixture.user_id,
   '__member_access_it_' || fixture.position || '_'
     || pg_catalog.left(fixture.user_id::text, 8),
   case when fixture.gender_group = 'viewer' then '남성' else '여성' end,
+  date '1990-01-01',
   array[]::text[]
 from _commatch_member_access_it_config as config
 cross join lateral (
@@ -303,8 +304,8 @@ cross join lateral (
 ) as fixture(user_id)
 cross join lateral (
   values
-    ('terms', 'terms-v1.0'),
-    ('privacy', 'privacy-v1.0'),
+    ('terms', 'terms-v1.1'),
+    ('privacy', 'privacy-v1.1'),
     ('adult_confirmation', 'adult-confirmation-v1.0')
 ) as consent(consent_type, document_version);
 
@@ -312,7 +313,7 @@ cross join lateral (
 insert into public.user_consent_events (
   user_id, consent_type, action, document_version, source, request_id, created_at
 )
-select partial_consent_user_id, 'terms', 'accepted', 'terms-v1.0',
+select partial_consent_user_id, 'terms', 'accepted', 'terms-v1.1',
   'email_verification', pg_catalog.gen_random_uuid(), pg_catalog.now()
 from _commatch_member_access_it_config;
 
@@ -326,15 +327,15 @@ select config.withdrawn_consent_user_id, consent.consent_type, 'accepted',
 from _commatch_member_access_it_config as config
 cross join lateral (
   values
-    ('terms', 'terms-v1.0'),
-    ('privacy', 'privacy-v1.0'),
+    ('terms', 'terms-v1.1'),
+    ('privacy', 'privacy-v1.1'),
     ('adult_confirmation', 'adult-confirmation-v1.0')
 ) as consent(consent_type, document_version);
 
 insert into public.user_consent_events (
   user_id, consent_type, action, document_version, source, request_id, created_at
 )
-select withdrawn_consent_user_id, 'privacy', 'withdrawn', 'privacy-v1.0',
+select withdrawn_consent_user_id, 'privacy', 'withdrawn', 'privacy-v1.1',
   'settings', pg_catalog.gen_random_uuid(), pg_catalog.now()
 from _commatch_member_access_it_config;
 
@@ -525,6 +526,80 @@ select pg_temp._commatch_member_access_expect_count(
   'complete consent helper allowed',
   'select 1 where public.has_completed_required_member_consents()', 1
 );
+
+-- A later acceptance for an obsolete terms version must block access until the
+-- current terms version is accepted again. The unchanged adult event remains.
+reset role;
+insert into public.user_consent_events (
+  user_id, consent_type, action, document_version, source, request_id, created_at
+)
+select complete_consent_user_id, 'terms', 'accepted', 'terms-v1.0',
+  'email_verification', pg_catalog.gen_random_uuid(), pg_catalog.now() + interval '1 minute'
+from _commatch_member_access_it_config;
+
+set local role authenticated;
+select pg_temp._commatch_member_access_set_user(complete_consent_user_id)
+from _commatch_member_access_it_config;
+select pg_temp._commatch_member_access_expect_count(
+  'obsolete latest terms version denied',
+  'select 1 where public.has_completed_required_member_consents()', 0
+);
+
+reset role;
+insert into public.user_consent_events (
+  user_id, consent_type, action, document_version, source, request_id, created_at
+)
+select complete_consent_user_id, 'terms', 'accepted', 'terms-v1.1',
+  'email_verification', pg_catalog.gen_random_uuid(), pg_catalog.now() + interval '2 minutes'
+from _commatch_member_access_it_config;
+
+insert into public.user_consent_events (
+  user_id, consent_type, action, document_version, source, request_id, created_at
+)
+select complete_consent_user_id, 'privacy', 'accepted', 'privacy-v1.0',
+  'email_verification', pg_catalog.gen_random_uuid(), pg_catalog.now() + interval '3 minutes'
+from _commatch_member_access_it_config;
+
+set local role authenticated;
+select pg_temp._commatch_member_access_set_user(complete_consent_user_id)
+from _commatch_member_access_it_config;
+select pg_temp._commatch_member_access_expect_count(
+  'obsolete latest privacy version denied',
+  'select 1 where public.has_completed_required_member_consents()', 0
+);
+
+reset role;
+insert into public.user_consent_events (
+  user_id, consent_type, action, document_version, source, request_id, created_at
+)
+select complete_consent_user_id, 'privacy', 'accepted', 'privacy-v1.1',
+  'email_verification', pg_catalog.gen_random_uuid(), pg_catalog.now() + interval '4 minutes'
+from _commatch_member_access_it_config;
+
+set local role authenticated;
+select pg_temp._commatch_member_access_set_user(complete_consent_user_id)
+from _commatch_member_access_it_config;
+select pg_temp._commatch_member_access_expect_count(
+  'new terms and privacy with existing adult confirmation allowed',
+  'select 1 where public.has_completed_required_member_consents()', 1
+);
+select pg_temp._commatch_member_access_expect_count(
+  'new terms and privacy restore member service access',
+  'select 1 where public.is_member_service_allowed()', 1
+);
+
+reset role;
+select pg_temp._commatch_member_access_expect_count(
+  'adult confirmation was not re-recorded',
+  pg_catalog.format(
+    'select 1 from public.user_consent_events where user_id = %L::uuid and consent_type = ''adult_confirmation''',
+    complete_consent_user_id
+  ),
+  1
+)
+from _commatch_member_access_it_config;
+
+set local role authenticated;
 select pg_temp._commatch_member_access_set_user(timed_suspended_user_id)
 from _commatch_member_access_it_config;
 select pg_temp._commatch_member_access_expect_count(

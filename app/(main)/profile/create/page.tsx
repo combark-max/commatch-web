@@ -15,13 +15,36 @@ import { normalizeRegion, PROFILE_REGIONS } from '@/constants/regions';
 import { PROFILE_JOBS, STANDARD_JOB_VALUES } from '@/constants/jobs';
 
 const nicknameSchema = z.string().trim().min(2, { message: "닉네임은 최소 2자 이상이어야 합니다." });
+const MINIMUM_MEMBER_AGE = 19;
+const MINIMUM_AGE_MESSAGE = 'ComMatch는 만 19세 이상만 이용할 수 있습니다.';
+
+const getMaximumAdultBirthDate = (today = new Date()): string => {
+  const cutoffYear = today.getUTCFullYear() - MINIMUM_MEMBER_AGE;
+  const cutoffMonth = today.getUTCMonth();
+  const lastDayOfCutoffMonth = new Date(
+    Date.UTC(cutoffYear, cutoffMonth + 1, 0),
+  ).getUTCDate();
+  const cutoffDay = Math.min(today.getUTCDate(), lastDayOfCutoffMonth);
+  return [
+    String(cutoffYear).padStart(4, '0'),
+    String(cutoffMonth + 1).padStart(2, '0'),
+    String(cutoffDay).padStart(2, '0'),
+  ].join('-');
+};
+
+const isAdultBirthDate = (birthDate: string): boolean => (
+  /^\d{4}-\d{2}-\d{2}$/.test(birthDate)
+  && birthDate <= getMaximumAdultBirthDate()
+);
 
 const profileSchema = z.object({
   nickname: nicknameSchema,
   gender: z.enum(['남성', '여성']).refine((value) => value !== undefined, {
     message: "성별을 선택해주세요.",
   }),
-  birth_date: z.string().min(1, { message: "생년월일을 입력해주세요." }),
+  birth_date: z.string()
+    .min(1, { message: "생년월일을 입력해주세요." })
+    .refine(isAdultBirthDate, { message: MINIMUM_AGE_MESSAGE }),
   height: z.string().min(1, { message: "키를 입력해주세요." }),
   region: z.string().min(1, { message: "거주지역을 선택해주세요." }),
   job: z.string().min(1, { message: "직업을 선택해주세요." }),
@@ -906,6 +929,7 @@ export default function ProfileCreatePage() {
               <input
                 {...register("birth_date")}
                 type="date"
+                max={getMaximumAdultBirthDate()}
                 className={`w-full px-4 py-2.5 border ${errors.birth_date ? 'border-red-300' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all`}
               />
               {errors.birth_date && <p className="mt-1 text-xs text-red-500">{errors.birth_date.message}</p>}

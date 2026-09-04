@@ -120,8 +120,8 @@ const ConsentDocument = ({ type }: { type: ConsentFormType }) => {
           <p className="mt-2">
             회원탈퇴 또는 처리 목적 달성 시까지 보유·이용하는 것을 원칙으로 하며, 신고·안전 관련 기록,
             관리자 조치·감사 기록, 동의 이력 등 필요한 정보는 관련 법령, 서비스 안전, 분쟁 대응 또는 동의
-            사실 증빙에 필요한 기간 동안 별도로 보관할 수 있습니다. 실제 항목별 보유기간은 운영정보 확정 후
-            관련 안내에 반영합니다.
+            사실 증빙에 필요한 기간 동안 별도로 보관할 수 있습니다. 구체적인 보유·이용 기간은
+            개인정보처리방침을 따릅니다.
           </p>
         </section>
         <section>
@@ -333,7 +333,7 @@ export default function ConsentForm({
                 <h2 id="consent-document-title" className="text-xl font-black text-gray-900">
                   {items.find(({ type }) => type === openDocument)?.title}
                 </h2>
-                <p className="mt-1 text-xs text-gray-500">문서 버전 {documentVersions[openDocument]} · 시행일 추후 확정</p>
+                <p className="mt-1 text-xs text-gray-500">문서 버전 {documentVersions[openDocument]}</p>
               </div>
               <button
                 type="button"

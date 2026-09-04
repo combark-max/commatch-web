@@ -56,7 +56,7 @@ export default function PrivacyPage() {
             <h1 className="mt-3 text-3xl font-black tracking-tight text-gray-900 sm:text-4xl">ComMatch 개인정보처리방침</h1>
             <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 text-sm text-gray-600">
               <div className="flex gap-2"><dt className="font-semibold text-gray-800">버전</dt><dd>{PRIVACY_POLICY_VERSION}</dd></div>
-              <div className="flex gap-2"><dt className="font-semibold text-gray-800">시행일</dt><dd>추후 확정</dd></div>
+              <div className="flex gap-2"><dt className="font-semibold text-gray-800">시행일</dt><dd>2026-09-04</dd></div>
             </dl>
           </header>
 
@@ -177,8 +177,8 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-black text-gray-900">11. 개인정보 보호책임자</h2>
               <dl className="mt-4 space-y-2 rounded-2xl bg-gray-50 p-5">
-                <div className="flex flex-wrap gap-2"><dt className="font-bold text-gray-900">개인정보 보호책임자:</dt><dd>[확정 필요]</dd></div>
-                <div className="flex flex-wrap gap-2"><dt className="font-bold text-gray-900">이메일:</dt><dd>[확정 필요]</dd></div>
+                <div className="flex flex-wrap gap-2"><dt className="font-bold text-gray-900">개인정보 보호책임자:</dt><dd>하현명</dd></div>
+                <div className="flex flex-wrap gap-2"><dt className="font-bold text-gray-900">문의 이메일:</dt><dd>combark1972@gmail.com</dd></div>
               </dl>
             </section>
 
@@ -193,7 +193,7 @@ export default function PrivacyPage() {
               <h2 className="text-xl font-black text-gray-900">13. 부칙</h2>
               <ul className="mt-4 space-y-2">
                 <li>1. 이 개인정보처리방침의 버전은 {PRIVACY_POLICY_VERSION}입니다.</li>
-                <li>2. 이 개인정보처리방침의 시행일은 추후 확정합니다.</li>
+                <li>2. 이 개인정보처리방침의 시행일은 2026-09-04입니다.</li>
               </ul>
             </section>
           </div>

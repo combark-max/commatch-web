@@ -18,6 +18,7 @@ const TERMS_SECTIONS = [
   {
     title: '제2조 용어의 정의',
     clauses: [
+      'ComMatch는 개인 운영자가 제공·운영하는 서비스이며, 이 약관에서 “회사”는 해당 운영자를 말합니다.',
       '“서비스”란 ComMatch가 웹사이트 등을 통하여 제공하는 셀프 결혼정보 및 회원 간 연결 지원 기능을 말합니다.',
       '“회원”이란 이 약관에 동의하고 계정을 생성하여 서비스를 이용하는 사람을 말합니다.',
       '“프로필”이란 회원이 자신을 소개하기 위하여 입력하거나 등록한 정보와 이미지를 말합니다.',
@@ -174,6 +175,7 @@ const TERMS_SECTIONS = [
     clauses: [
       '회사는 회원이 등록한 이메일, 서비스 내 알림 또는 공지 화면을 통하여 필요한 사항을 통지할 수 있습니다.',
       '다수 회원에게 공통으로 적용되는 사항은 서비스 내 공지로 개별 통지를 대신할 수 있습니다.',
+      '서비스 관련 일반 문의는 combark1972@gmail.com으로 접수할 수 있습니다.',
     ],
   },
   {
@@ -188,7 +190,7 @@ const TERMS_SECTIONS = [
     title: '제23조 부칙',
     clauses: [
       `이 약관의 버전은 ${TERMS_DOCUMENT_VERSION}입니다.`,
-      '이 약관의 시행일은 추후 확정합니다.',
+      '이 약관의 시행일은 2026-09-04입니다.',
     ],
   },
 ] as const;
@@ -203,7 +205,7 @@ export default function TermsPage() {
             <h1 className="mt-3 text-3xl font-black tracking-tight text-gray-900 sm:text-4xl">ComMatch 이용약관</h1>
             <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 text-sm text-gray-600">
               <div className="flex gap-2"><dt className="font-semibold text-gray-800">버전</dt><dd>{TERMS_DOCUMENT_VERSION}</dd></div>
-              <div className="flex gap-2"><dt className="font-semibold text-gray-800">시행일</dt><dd>추후 확정</dd></div>
+              <div className="flex gap-2"><dt className="font-semibold text-gray-800">시행일</dt><dd>2026-09-04</dd></div>
             </dl>
           </header>
 

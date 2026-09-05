@@ -128,8 +128,51 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-black text-gray-900">5. 처리위탁 및 국외이전</h2>
               <p className="mt-4">
-                서비스 운영을 위하여 외부 서비스가 이용될 수 있습니다. 외부 서비스 제공자 및 국외이전 관련
-                세부사항은 실제 운영환경 확정 후 반영합니다.
+                ComMatch는 서비스 제공을 위해 외부 서비스를 이용하며, 이 과정에서 개인정보가 국외에서 처리될 수 있습니다.
+              </p>
+              <div className="mt-5 space-y-6">
+                <div>
+                  <h3 className="font-bold text-gray-900">Supabase</h3>
+                  <ul className="mt-2 space-y-2">
+                    <li>• 제공자: SUPABASE PTE. LTD. (Supabase)</li>
+                    <li>• 연락처: privacy@supabase.io</li>
+                    <li>• 처리 업무: 회원 인증, 데이터베이스, 파일 저장, 실시간 데이터 처리, 인증 이메일 발송 및 서비스 운영</li>
+                    <li>• 처리 정보: 계정·인증정보, 프로필, 매칭·메시지·문의·신고·동의정보, 프로필 이미지, 서비스 이용·접속·운영 정보 등</li>
+                    <li>• 주요 저장·처리 지역: 프로젝트 주 데이터는 대한민국 서울(ap-northeast-2)에서 처리되며, 지원·운영 및 하위처리 과정에서 국외 처리가 이루어질 수 있습니다.</li>
+                    <li>• 처리 시기·방법: 회원가입, 로그인, 서비스 이용, 파일 업로드 및 인증 이메일 발송 시 정보통신망을 통해 전송·처리됩니다.</li>
+                    <li>• 보유기간: 서비스 제공 및 계약 유지에 필요한 기간 동안 처리되며, 삭제·반환은 Supabase의 계약 및 데이터 처리 정책에 따릅니다.</li>
+                    <li>• 거부 효과: 해당 처리를 거부할 경우 ComMatch의 회원가입, 로그인 및 주요 서비스 제공이 어려울 수 있습니다.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-gray-900">Vercel Inc.</h3>
+                  <ul className="mt-2 space-y-2">
+                    <li>• 연락처: privacy@vercel.com</li>
+                    <li>• 처리 업무: 웹사이트 호스팅, CDN, 서버 함수, 정기 작업 및 운영 로그 처리</li>
+                    <li>• 처리 정보: IP 주소, 사용자 에이전트, 요청 경로·파라미터, 요청 처리에 필요한 인증정보 및 함수 실행 로그 등</li>
+                    <li>• 주요 처리 지역: 서버 함수는 미국 Washington, D.C.(iad1)에서 처리되며, CDN은 글로벌 인프라를 이용합니다.</li>
+                    <li>• 처리 시기·방법: 웹사이트 접속 및 서버 기능 실행 시 정보통신망을 통해 자동 처리됩니다.</li>
+                    <li>• 보유기간: 서비스 제공 및 운영에 필요한 기간 동안 처리되며, 구체적인 보존은 Vercel의 서비스 및 데이터 처리 정책에 따릅니다.</li>
+                    <li>• 거부 효과: 해당 처리를 거부할 경우 ComMatch 웹사이트 및 회원 서비스를 이용하기 어렵습니다.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-gray-900">선택적 Web Push</h3>
+                  <ul className="mt-2 space-y-2">
+                    <li>• 제공자: 이용자의 브라우저 또는 운영체제가 지정한 Web Push 서비스 제공자</li>
+                    <li>• 처리 업무: Web Push 알림 전달</li>
+                    <li>• 처리 정보: Push endpoint, 암호화된 알림 payload 및 전송 관련 메타데이터</li>
+                    <li>• 처리 지역: 이용자의 브라우저·운영체제 및 해당 Push 제공자의 인프라에 따라 국외에서 처리될 수 있습니다.</li>
+                    <li>• 처리 시기·방법: 회원이 Push 기능을 직접 활성화하고 알림 발생 조건이 충족될 때 암호화된 방식으로 전송됩니다.</li>
+                    <li>• 거부 방법: ComMatch의 Push 설정 또는 브라우저·기기의 알림 설정에서 언제든 비활성화할 수 있습니다.</li>
+                    <li>• 거부 효과: Web Push 알림만 받을 수 없으며 로그인, 매칭, 메시지 등 다른 회원 기능은 계속 이용할 수 있습니다.</li>
+                  </ul>
+                </div>
+              </div>
+              <p className="mt-5">
+                Web Push 알림에는 알림 유형과 일반 안내 문구 등이 암호화되어 포함되며, 실제 채팅 메시지 본문과 1:1 문의 답변 본문은 포함되지 않습니다. 국외 처리 또는 개인정보 처리에 관한 문의는 개인정보 보호책임자 이메일 combark1972@gmail.com으로 접수할 수 있습니다.
               </p>
             </section>
 

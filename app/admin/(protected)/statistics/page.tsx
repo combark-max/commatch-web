@@ -282,7 +282,7 @@ export default async function AdminStatisticsPage() {
             ) : null}
             <div className="grid gap-5 lg:grid-cols-2">
               <DonutChart title="회원 등급 분포" description="현재 시각에 실제 이용 가능한 Premium 멤버십을 기준으로 구분합니다." entries={memberResult.data.membershipTiers} total={memberResult.data.totalMembers} labels={MEMBERSHIP_TIER_LABELS} colors={MEMBERSHIP_COLORS} chartId="membership-tier-chart" />
-              <DonutChart title="성별 분포" description="남성·여성과 미입력 또는 기타 값을 구분합니다." entries={memberResult.data.gender} total={memberResult.data.totalMembers} labels={GENDER_LABELS} colors={GENDER_COLORS} chartId="gender-chart" />
+              <DonutChart title="성별 분포" description="남성과 여성을 구분합니다." entries={memberResult.data.gender.filter((entry) => entry.category === 'male' || entry.category === 'female')} total={memberResult.data.totalMembers} labels={GENDER_LABELS} colors={GENDER_COLORS} chartId="gender-chart" />
               <BarDistributionChart title="연령대별 분포" description="오늘 날짜의 만 나이를 생년월일로 계산합니다." entries={memberResult.data.ageGroups} total={memberResult.data.totalMembers} labels={AGE_LABELS} />
               <DonutChart title="초혼/재혼 분포" description="프로필의 결혼 이력 계약에 따라 초혼·재혼을 구분합니다." entries={memberResult.data.marriageHistory} total={memberResult.data.totalMembers} labels={MARRIAGE_LABELS} colors={MARRIAGE_COLORS} chartId="marriage-history-chart" />
               <BarDistributionChart title="지역별 분포" description="저장된 지역 전체를 회원 수 내림차순으로 표시합니다." entries={memberResult.data.regions} total={memberResult.data.totalMembers} className="lg:col-span-2" />

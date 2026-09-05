@@ -196,7 +196,7 @@ export default async function AdminMemberDetailPage({
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             {member.profileExists && member.profileVisibility === 'visible' ? (
-              <Link href={`/members/${member.memberUserId}`} className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
+              <Link href={`/admin/members/${member.memberUserId}/preview`} className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
                 <UserRound size={16} aria-hidden="true" /> 일반 회원 화면
               </Link>
             ) : null}

@@ -638,11 +638,15 @@ export default function ProfileCreatePage() {
         profile_images: finalPhotoPaths,
       };
 
-      const { data: savedProfile, error } = await supabase
-        .from('profiles')
-        .upsert(profileData, { onConflict: 'id' })
-        .select('profile_image, profile_images')
-        .single();
+      const { data: savedProfile, error } = hasExistingProfile
+        ? await supabase
+          .from('profiles')
+          .upsert(profileData, { onConflict: 'id' })
+          .select('profile_image, profile_images')
+          .single()
+        : await supabase
+          .from('profiles')
+          .insert(profileData);
 
       if (error) {
         console.error('프로필 저장 실패:', {

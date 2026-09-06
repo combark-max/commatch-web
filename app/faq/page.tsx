@@ -1,6 +1,13 @@
+import type { Metadata } from 'next';
 import { CircleHelp } from 'lucide-react';
 import Footer from '@/components/common/Footer';
 import { FAQ_ITEMS } from '@/lib/support/faq';
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: '/faq',
+  },
+};
 
 export default function FaqPage() {
   const categories = [...new Set(FAQ_ITEMS.map((item) => item.category))];

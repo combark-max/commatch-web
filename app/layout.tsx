@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://www.commatch.net'),
   title: "ComMatch - AI 기반 셀프 매칭 서비스",
   description: "ComMatch와 함께 스마트한 AI 기반 매칭을 경험해보세요.",
 };

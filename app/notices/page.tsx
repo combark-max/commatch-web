@@ -1,8 +1,15 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BellRing, ChevronRight } from 'lucide-react';
 import Footer from '@/components/common/Footer';
 import { parsePublicNoticeList } from '@/lib/support/notices';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: '/notices',
+  },
+};
 
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
   year: 'numeric',

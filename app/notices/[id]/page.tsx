@@ -1,9 +1,25 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Footer from '@/components/common/Footer';
 import { isUuid, parsePublicNoticeDetail } from '@/lib/support/notices';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  if (!isUuid(id)) return {};
+
+  return {
+    alternates: {
+      canonical: `/notices/${id}`,
+    },
+  };
+}
 
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
   year: 'numeric',

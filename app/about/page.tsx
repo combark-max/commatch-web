@@ -12,6 +12,9 @@ import Footer from '@/components/common/Footer';
 export const metadata: Metadata = {
   title: 'ComMatch 회사소개',
   description: 'ComMatch의 서비스 취지와 주요 기능, 신중한 만남을 위한 운영 방향을 소개합니다.',
+  alternates: {
+    canonical: '/about',
+  },
 };
 
 const serviceFeatures = [

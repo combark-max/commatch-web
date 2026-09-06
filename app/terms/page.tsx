@@ -6,6 +6,9 @@ const TERMS_DOCUMENT_VERSION = '1.1';
 export const metadata: Metadata = {
   title: 'ComMatch 이용약관',
   description: 'ComMatch 서비스 이용에 적용되는 이용약관입니다.',
+  alternates: {
+    canonical: '/terms',
+  },
 };
 
 const TERMS_SECTIONS = [

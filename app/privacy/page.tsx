@@ -6,6 +6,9 @@ const PRIVACY_POLICY_VERSION = '1.1';
 export const metadata: Metadata = {
   title: 'ComMatch 개인정보처리방침',
   description: 'ComMatch 서비스의 개인정보 처리 목적과 항목을 안내합니다.',
+  alternates: {
+    canonical: '/privacy',
+  },
 };
 
 const PROFILE_ITEMS = [

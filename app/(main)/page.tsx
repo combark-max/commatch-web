@@ -1,6 +1,13 @@
+import type { Metadata } from 'next';
 import Hero from '@/components/common/Hero';
 import Features from '@/components/common/Features';
 import Footer from '@/components/common/Footer';
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: '/',
+  },
+};
 
 const steps = [
   { title: '회원가입' },

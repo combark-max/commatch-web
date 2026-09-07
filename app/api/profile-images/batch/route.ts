@@ -14,8 +14,7 @@ const formatDuration = (duration: number) => duration.toFixed(1);
 export async function POST(request: NextRequest) {
   const routeStartedAt = performance.now();
   let authDuration = 0;
-  let accessStartedAt: number | null = null;
-  let accessFinishedAt: number | null = null;
+  let accessDuration = 0;
   let signDuration = 0;
 
   const { supabase, applyAuthResponseHeaders } = await createProfileImageServerSupabaseClient();
@@ -32,16 +31,17 @@ export async function POST(request: NextRequest) {
       }
     },
     parsePath: parseProfileImageRequestPath,
-    canAccess: async (path) => {
-      accessStartedAt ??= performance.now();
+    canAccessMany: async (paths) => {
+      const accessStartedAt = performance.now();
       try {
         const { data, error } = await supabase.rpc(
-          'can_access_profile_image',
-          { p_object_path: path },
+          'can_access_profile_images',
+          { p_object_paths: paths },
         );
-        return !error && data === true;
+        if (error) throw error;
+        return data;
       } finally {
-        accessFinishedAt = performance.now();
+        accessDuration = performance.now() - accessStartedAt;
       }
     },
     createSignedUrls: async (paths, expiresIn) => {
@@ -67,9 +67,6 @@ export async function POST(request: NextRequest) {
     },
   });
   applyAuthResponseHeaders(response.headers);
-  const accessDuration = accessStartedAt === null || accessFinishedAt === null
-    ? 0
-    : accessFinishedAt - accessStartedAt;
   const totalDuration = performance.now() - routeStartedAt;
   const serverTiming = [
     `auth;dur=${formatDuration(authDuration)}`,

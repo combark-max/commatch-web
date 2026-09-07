@@ -1,6 +1,5 @@
 export const MAX_PROFILE_IMAGE_BATCH_SIZE = 50;
 export const PROFILE_IMAGE_SIGNED_URL_TTL_SECONDS = 60;
-const PROFILE_IMAGE_ACCESS_CONCURRENCY = 8;
 
 type BatchBody = {
   urls?: Record<string, string>;
@@ -20,33 +19,12 @@ type SignedProfileImage = {
 type ProfileImageBatchDependencies = {
   authenticate: () => Promise<boolean>;
   parsePath: (value: string | null) => string | null;
-  canAccess: (path: string) => Promise<boolean>;
+  canAccessMany: (paths: string[]) => Promise<unknown>;
   createSignedUrls: (
     paths: string[],
     expiresIn: number,
   ) => Promise<SignedProfileImage[]>;
 };
-
-async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  concurrency: number,
-  mapper: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-
-  const worker = async () => {
-    while (nextIndex < items.length) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
-    }
-  };
-
-  const workerCount = Math.min(concurrency, items.length);
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  return results;
-}
 
 export async function handleProfileImageBatch(
   input: unknown,
@@ -93,18 +71,23 @@ export async function handleProfileImageBatch(
     return { status: 200, body: { urls: {} } };
   }
 
-  const accessResults = await mapWithConcurrency(
-    paths,
-    PROFILE_IMAGE_ACCESS_CONCURRENCY,
-    async (path) => {
-      try {
-        return await dependencies.canAccess(path) ? path : null;
-      } catch {
-        return null;
+  let accessResults: unknown;
+  try {
+    accessResults = await dependencies.canAccessMany(paths);
+  } catch {
+    accessResults = [];
+  }
+
+  const requestedPathSet = new Set(paths);
+  const allowedPathSet = new Set<string>();
+  if (Array.isArray(accessResults)) {
+    for (const path of accessResults) {
+      if (typeof path === 'string' && requestedPathSet.has(path)) {
+        allowedPathSet.add(path);
       }
-    },
-  );
-  const allowedPaths = accessResults.filter((path): path is string => path !== null);
+    }
+  }
+  const allowedPaths = paths.filter((path) => allowedPathSet.has(path));
 
   if (allowedPaths.length === 0) {
     return { status: 200, body: { urls: {} } };
@@ -120,7 +103,6 @@ export async function handleProfileImageBatch(
     return { status: 500, body: { error: 'Unable to load profile images' } };
   }
 
-  const allowedPathSet = new Set(allowedPaths);
   const urls: Record<string, string> = {};
   for (const signedImage of signedImages) {
     if (

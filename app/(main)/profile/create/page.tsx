@@ -9,6 +9,10 @@ import { Camera, User, Calendar, MapPin, Briefcase, GraduationCap, Wine, Quote, 
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 import ImageModal from '@/components/common/ImageModal';
+import {
+  PROFILE_IMAGE_INTERACTION_CLASS,
+  profileImageInteractionProps,
+} from '@/components/common/profile-image-interaction';
 import { createClient } from '@/lib/supabase/client';
 import { getProfileImageUrl, normalizeProfileImagePath } from '@/lib/profile-image';
 import { normalizeRegion, PROFILE_REGIONS } from '@/constants/regions';
@@ -797,7 +801,12 @@ export default function ProfileCreatePage() {
                         aria-label={`${index === 0 ? '대표 ' : ''}프로필 사진 ${index + 1} 크게 보기`}
                         className="h-full w-full cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-green-500 disabled:cursor-not-allowed"
                       >
-                        <img src={photo.previewUrl} alt={`${index + 1}번째 프로필 사진`} className="h-full w-full object-cover" />
+                        <img
+                          {...profileImageInteractionProps}
+                          src={photo.previewUrl}
+                          alt={`${index + 1}번째 프로필 사진`}
+                          className={`h-full w-full object-cover ${PROFILE_IMAGE_INTERACTION_CLASS}`}
+                        />
                       </button>
                     ) : (
                       <div className="flex h-full items-center justify-center text-gray-400"><Camera size={28} /></div>

@@ -17,8 +17,14 @@ import {
   UserRound,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { resolveProfileImageUrl } from '@/lib/profile-image';
+import { resolveProfileImagePath, resolveProfileImageUrl } from '@/lib/profile-image';
+import { getProfileImageDisplayUrl } from '@/lib/profile-image-batch';
+import { useProfileImageBatchUrls } from '@/lib/use-profile-image-batch';
 import ImageModal from '@/components/common/ImageModal';
+import {
+  PROFILE_IMAGE_INTERACTION_CLASS,
+  profileImageInteractionProps,
+} from '@/components/common/profile-image-interaction';
 import Button from '@/components/ui/Button';
 
 type MatchRpcRow = {
@@ -52,6 +58,7 @@ type MatchListItem = {
   nickname: string | null;
   age: number | null;
   profileImageUrl: string | null;
+  profileImagePath: string | null;
   region: string | null;
   job: string | null;
   latestMessage: string | null;
@@ -129,6 +136,7 @@ function normalizeMatchRows(value: unknown): MatchListItem[] {
       nickname: normalizeNullableText(row.other_nickname),
       age: normalizeNullableAge(row.other_age),
       profileImageUrl: resolveProfileImageUrl(storedProfileImage),
+      profileImagePath: resolveProfileImagePath(storedProfileImage),
       region: normalizeNullableText(row.other_region),
       job: normalizeNullableText(row.other_job),
       latestMessage: normalizeNullableText(row.latest_message_content),
@@ -172,6 +180,7 @@ export default function MatchesPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [matchesError, setMatchesError] = useState<string | null>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
+  const [failedBatchImagePaths, setFailedBatchImagePaths] = useState<Set<string>>(new Set());
   const [selectedImage, setSelectedImage] = useState<{ url: string; alt: string } | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
@@ -256,6 +265,9 @@ export default function MatchesPage() {
     ended: matches.filter((match) => match.status === 'ended').length,
     unread: matches.filter((match) => match.unreadCount > 0).length,
   }), [matches]);
+  const batchImageUrls = useProfileImageBatchUrls(
+    matches.map((match) => match.profileImagePath),
+  );
 
   const visibleMatches = useMemo(() => {
     if (!isAdvancedMode) return matches;
@@ -547,7 +559,13 @@ export default function MatchesPage() {
         ) : (
           <section className="grid gap-6 lg:grid-cols-2" aria-label="매칭 회원 목록">
             {visibleMatches.map((match) => {
-              const hasImage = Boolean(match.profileImageUrl) && !failedImageIds.has(match.matchId);
+              const thumbnailUrl = getProfileImageDisplayUrl(
+                match.profileImagePath,
+                match.profileImageUrl,
+                batchImageUrls,
+                failedBatchImagePaths,
+              );
+              const hasImage = Boolean(thumbnailUrl) && !failedImageIds.has(match.matchId);
               const latestMessageDate = formatMessageDate(match.latestMessageAt);
               const age = match.age;
               const isActive = match.status === 'active';
@@ -565,7 +583,7 @@ export default function MatchesPage() {
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row">
-                    <div className={`flex h-52 items-center justify-center overflow-hidden p-4 sm:h-auto sm:w-44 sm:shrink-0 ${
+                    <div className={`flex h-40 items-center justify-center overflow-hidden p-4 sm:h-auto sm:w-44 sm:shrink-0 ${
                       isActive ? 'bg-[#f0fdf4]' : 'bg-gray-100'
                     }`}>
                       {hasImage ? (
@@ -576,16 +594,24 @@ export default function MatchesPage() {
                             url: match.profileImageUrl ?? '',
                             alt: `${match.nickname ?? '매칭 상대'} 프로필 사진`,
                           })}
-                          className="h-full w-full max-w-[10rem] cursor-zoom-in rounded-2xl transition hover:opacity-95 focus:outline-none focus:ring-4 focus:ring-inset focus:ring-green-300 sm:max-w-none"
+                          className="h-32 w-32 max-w-full cursor-zoom-in rounded-2xl transition hover:opacity-95 focus:outline-none focus:ring-4 focus:ring-inset focus:ring-green-300 sm:h-full sm:w-full sm:max-w-none"
                         >
                           <Image
-                            src={match.profileImageUrl ?? ''}
+                            {...profileImageInteractionProps}
+                            src={thumbnailUrl ?? ''}
                             alt={`${match.nickname ?? '매칭 상대'} 프로필 사진`}
                             width={480}
                             height={560}
                             unoptimized
-                            onError={() => setFailedImageIds((current) => new Set(current).add(match.matchId))}
-                            className="h-full w-full rounded-2xl object-cover"
+                            onError={() => {
+                              const path = match.profileImagePath;
+                              if (path && batchImageUrls?.[path] && !failedBatchImagePaths.has(path)) {
+                                setFailedBatchImagePaths((current) => new Set(current).add(path));
+                                return;
+                              }
+                              setFailedImageIds((current) => new Set(current).add(match.matchId));
+                            }}
+                            className={`h-full w-full rounded-2xl object-cover ${PROFILE_IMAGE_INTERACTION_CLASS}`}
                           />
                         </button>
                       ) : (

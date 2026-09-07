@@ -20,6 +20,10 @@ import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import { createClient } from '@/lib/supabase/client';
+import {
+  PROFILE_IMAGE_INTERACTION_CLASS,
+  profileImageInteractionProps,
+} from '@/components/common/profile-image-interaction';
 
 type MatchStatus = 'active' | 'ended';
 type LikeResult = 'liked' | 'already_liked' | 'matched' | 'already_matched';
@@ -457,13 +461,14 @@ export default function ReceivedLikesClient() {
                   <div className="relative flex h-56 items-center justify-center overflow-hidden bg-rose-50/60 p-4">
                     {hasImage ? (
                       <Image
+                        {...profileImageInteractionProps}
                         src={receivedLike.profileImageUrl ?? ''}
                         alt={`${receivedLike.nickname} 프로필 사진`}
                         width={480}
                         height={560}
                         unoptimized
                         onError={() => setFailedImageIds((current) => new Set(current).add(receivedLike.likeId))}
-                        className="h-full w-full rounded-2xl object-contain"
+                        className={`h-full w-full rounded-2xl object-contain ${PROFILE_IMAGE_INTERACTION_CLASS}`}
                       />
                     ) : (
                       <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-white text-gray-300 shadow-sm">

@@ -16,6 +16,10 @@ import {
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import {
+  PROFILE_IMAGE_INTERACTION_CLASS,
+  profileImageInteractionProps,
+} from '@/components/common/profile-image-interaction';
+import {
   getRecommendationApiUrlForPage,
   parseRecommendationApiResponse,
   type BaseRecommendedMember,
@@ -396,11 +400,12 @@ export default function AiMatchPage() {
               <div className="relative flex h-80 items-center justify-center overflow-hidden bg-[#f0fdf4] md:h-[520px]">
                 {currentMember.profile_image && !failedImageIds.has(currentMember.id) ? (
                   <img
+                    {...profileImageInteractionProps}
                     key={`${currentMember.id}-${currentMember.profile_image ?? 'no-image'}`}
                     src={currentMember.profile_image}
                     alt={`${currentMember.nickname ?? '회원'} 프로필 사진`}
                     onError={() => setFailedImageIds((current) => new Set(current).add(currentMember.id))}
-                    className="absolute inset-0 h-full w-full object-contain"
+                    className={`absolute inset-0 h-full w-full object-contain ${PROFILE_IMAGE_INTERACTION_CLASS}`}
                   />
                 ) : (
                   <div className="flex h-32 w-32 items-center justify-center rounded-full border-4 border-white bg-white text-gray-300 shadow-md">

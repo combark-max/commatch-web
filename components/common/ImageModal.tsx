@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { User, X } from 'lucide-react';
+import {
+  PROFILE_IMAGE_INTERACTION_CLASS,
+  profileImageInteractionProps,
+} from '@/components/common/profile-image-interaction';
 
 type ImageModalProps = {
   isOpen: boolean;
@@ -64,10 +68,11 @@ export default function ImageModal({ isOpen, imageUrl, alt, onClose }: ImageModa
           </div>
         ) : (
           <img
+            {...profileImageInteractionProps}
             src={imageUrl}
             alt={alt}
             onError={() => setHasImageError(true)}
-            className="max-h-[85vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
+            className={`max-h-[85vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl ${PROFILE_IMAGE_INTERACTION_CLASS}`}
           />
         )}
       </div>

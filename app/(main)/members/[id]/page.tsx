@@ -21,6 +21,10 @@ import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import Button from '@/components/ui/Button';
 import ImageModal from '@/components/common/ImageModal';
+import {
+  PROFILE_IMAGE_INTERACTION_CLASS,
+  profileImageInteractionProps,
+} from '@/components/common/profile-image-interaction';
 import ReportDialog from '@/components/reports/ReportDialog';
 
 type MemberProfile = {
@@ -393,10 +397,11 @@ export default function MemberDetailPage() {
                     className="absolute inset-0 h-full w-full cursor-zoom-in focus:outline-none focus:ring-4 focus:ring-inset focus:ring-green-300"
                   >
                     <img
+                      {...profileImageInteractionProps}
                       src={member.profile_image}
                       alt={member.nickname ?? '프로필 이미지'}
                       onError={() => setHasProfileImageError(true)}
-                      className="h-full w-full object-contain"
+                      className={`h-full w-full object-contain ${PROFILE_IMAGE_INTERACTION_CLASS}`}
                     />
                   </button>
                 ) : (
@@ -425,6 +430,7 @@ export default function MemberDetailPage() {
                       className="aspect-[4/5] overflow-hidden rounded-2xl bg-[#e8f5e9] shadow-sm transition hover:opacity-90 focus:outline-none focus-visible:ring-4 focus-visible:ring-green-300"
                     >
                       <img
+                        {...profileImageInteractionProps}
                         src={imageUrl}
                         alt={`${member.nickname ?? '회원'} 프로필 사진 ${index + 2}`}
                         onError={() => {
@@ -434,7 +440,7 @@ export default function MemberDetailPage() {
                             return nextUrls;
                           });
                         }}
-                        className="h-full w-full object-cover"
+                        className={`h-full w-full object-cover ${PROFILE_IMAGE_INTERACTION_CLASS}`}
                       />
                     </button>
                   ))}

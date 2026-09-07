@@ -19,6 +19,10 @@ import { createClient } from '@/lib/supabase/client';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import Button from '@/components/ui/Button';
 import ReportDialog from '@/components/reports/ReportDialog';
+import {
+  PROFILE_IMAGE_INTERACTION_CLASS,
+  profileImageInteractionProps,
+} from '@/components/common/profile-image-interaction';
 
 type MatchRpcRow = {
   match_id: string | null;
@@ -660,13 +664,14 @@ export default function ChatPage() {
 
           {match.profileImageUrl && !imageFailed ? (
             <Image
+              {...profileImageInteractionProps}
               src={match.profileImageUrl}
               alt={`${match.nickname} 프로필 사진`}
               width={48}
               height={48}
               unoptimized
               onError={() => setImageFailed(true)}
-              className="h-12 w-12 shrink-0 rounded-full border border-gray-100 object-cover"
+              className={`h-12 w-12 shrink-0 rounded-full border border-gray-100 object-cover ${PROFILE_IMAGE_INTERACTION_CLASS}`}
             />
           ) : (
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-50 text-green-600">

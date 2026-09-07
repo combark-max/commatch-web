@@ -4,7 +4,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { resolveProfileImageUrl } from '@/lib/profile-image';
+import { resolveProfileImagePath, resolveProfileImageUrl } from '@/lib/profile-image';
+import { getProfileImageDisplayUrl } from '@/lib/profile-image-batch';
+import { useProfileImageBatchUrls } from '@/lib/use-profile-image-batch';
+import {
+  PROFILE_IMAGE_INTERACTION_CLASS,
+  profileImageInteractionProps,
+} from '@/components/common/profile-image-interaction';
 import {
   parseAdvancedSearchMembers,
   type AdvancedSearchMember,
@@ -15,7 +21,7 @@ import { User, MapPin, Briefcase, Heart, Loader2, Search } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 
-type Member = AdvancedSearchMember;
+type Member = AdvancedSearchMember & { profile_image_path: string | null };
 
 type AdvancedSearchState =
   | { status: 'idle'; requestKey: null; members: null }
@@ -63,6 +69,7 @@ export default function MembersClient({
   const [selectedDrinking, setSelectedDrinking] = useState('전체');
   const [hobbySearch, setHobbySearch] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [failedBatchImagePaths, setFailedBatchImagePaths] = useState<Set<string>>(new Set());
   const advancedSearchRequestRef = useRef(0);
 
   useEffect(() => {
@@ -125,6 +132,7 @@ export default function MembersClient({
               .filter((member) => member.gender === expectedGender && member.id !== user.id)
               .map((member) => ({
                 ...member,
+                profile_image_path: resolveProfileImagePath(member.profile_image ?? null),
                 profile_image: resolveProfileImageUrl(member.profile_image ?? null),
               })),
           );
@@ -328,6 +336,7 @@ export default function MembersClient({
             requestKey: advancedRequestKey,
             members: parsedMembers.map((member) => ({
               ...member,
+              profile_image_path: resolveProfileImagePath(member.profile_image ?? null),
               profile_image: resolveProfileImageUrl(member.profile_image ?? null),
             })),
           });
@@ -367,6 +376,9 @@ export default function MembersClient({
     : shouldRunAdvancedSearch
       ? EMPTY_MEMBERS
       : members;
+  const batchImageUrls = useProfileImageBatchUrls(
+    searchableMembers.map((member) => member.profile_image_path),
+  );
 
   const filteredMembers = useMemo(() => {
     return searchableMembers.filter((member) => {
@@ -643,12 +655,29 @@ export default function MembersClient({
                   className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:border-green-500/20 hover:shadow-xl"
                 >
                 <div className="relative aspect-[4/5] overflow-hidden bg-gray-100">
-                  {member.profile_image ? (
+                  {member.profile_image && getProfileImageDisplayUrl(
+                    member.profile_image_path,
+                    member.profile_image,
+                    batchImageUrls,
+                    failedBatchImagePaths,
+                  ) ? (
                     <img
-                      src={member.profile_image}
+                      {...profileImageInteractionProps}
+                      src={getProfileImageDisplayUrl(
+                        member.profile_image_path,
+                        member.profile_image,
+                        batchImageUrls,
+                        failedBatchImagePaths,
+                      ) ?? ''}
                       alt={member.nickname ?? '프로필 이미지'}
                       loading="lazy"
-                      className="h-full w-full object-cover"
+                      onError={() => {
+                        const path = member.profile_image_path;
+                        if (path && batchImageUrls?.[path] && !failedBatchImagePaths.has(path)) {
+                          setFailedBatchImagePaths((current) => new Set(current).add(path));
+                        }
+                      }}
+                      className={`h-full w-full object-cover ${PROFILE_IMAGE_INTERACTION_CLASS}`}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-gray-400">

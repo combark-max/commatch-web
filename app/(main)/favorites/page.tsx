@@ -5,7 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Briefcase, CalendarDays, Loader2, MapPin, Search, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { resolveProfileImageUrl } from '@/lib/profile-image';
+import { resolveProfileImagePath, resolveProfileImageUrl } from '@/lib/profile-image';
+import { getProfileImageDisplayUrl } from '@/lib/profile-image-batch';
+import { useProfileImageBatchUrls } from '@/lib/use-profile-image-batch';
+import {
+  PROFILE_IMAGE_INTERACTION_CLASS,
+  profileImageInteractionProps,
+} from '@/components/common/profile-image-interaction';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 
@@ -17,6 +23,7 @@ type FavoriteMember = {
   region: string | null;
   job: string | null;
   profile_image: string | null;
+  profile_image_path: string | null;
   isMutual: boolean;
   hasLiked: boolean;
   matchId: string | null;
@@ -135,6 +142,7 @@ export default function FavoritesPage() {
   const [retryKey, setRetryKey] = useState(0);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
+  const [failedBatchImagePaths, setFailedBatchImagePaths] = useState<Set<string>>(new Set());
   const [sendingLikeMemberId, setSendingLikeMemberId] = useState<string | null>(null);
   const [cancellingLikeMemberId, setCancellingLikeMemberId] = useState<string | null>(null);
   const [matchedLikeMemberIds, setMatchedLikeMemberIds] = useState<Set<string>>(new Set());
@@ -198,6 +206,7 @@ export default function FavoritesPage() {
             region: normalizeNullableText(row.region),
             job: normalizeNullableText(row.job),
             profile_image: resolveProfileImageUrl(normalizeNullableText(row.profile_image_url)),
+            profile_image_path: resolveProfileImagePath(normalizeNullableText(row.profile_image_url)),
             isMutual: row.is_mutual === true,
             hasLiked: row.has_liked === true,
             matchId: normalizeNullableText(row.match_id),
@@ -240,6 +249,9 @@ export default function FavoritesPage() {
       return region ? [region] : [];
     }),
   )).sort((left, right) => left.localeCompare(right, 'ko-KR')), [favorites]);
+  const batchImageUrls = useProfileImageBatchUrls(
+    favorites.map((member) => member.profile_image_path),
+  );
 
   const jobOptions = useMemo(() => Array.from(new Set(
     favorites.flatMap((member) => {
@@ -805,18 +817,32 @@ export default function FavoritesPage() {
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {visibleFavorites.map((member) => {
               const age = member.age;
-              const hasImage = Boolean(member.profile_image) && !failedImageIds.has(member.id);
+              const profileImageDisplayUrl = getProfileImageDisplayUrl(
+                member.profile_image_path,
+                member.profile_image,
+                batchImageUrls,
+                failedBatchImagePaths,
+              );
+              const hasImage = Boolean(profileImageDisplayUrl) && !failedImageIds.has(member.id);
 
               return (
                 <article key={member.id} className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm transition hover:shadow-lg">
                   <div className="relative flex h-56 items-center justify-center overflow-hidden bg-[#f0fdf4] p-4">
                     {hasImage ? (
                       <img
-                        src={member.profile_image ?? ''}
+                        {...profileImageInteractionProps}
+                        src={profileImageDisplayUrl ?? ''}
                         alt={member.nickname ?? '프로필 이미지'}
                         loading="lazy"
-                        onError={() => setFailedImageIds((current) => new Set(current).add(member.id))}
-                        className="h-full w-full rounded-2xl object-contain"
+                        onError={() => {
+                          const path = member.profile_image_path;
+                          if (path && batchImageUrls?.[path] && !failedBatchImagePaths.has(path)) {
+                            setFailedBatchImagePaths((current) => new Set(current).add(path));
+                            return;
+                          }
+                          setFailedImageIds((current) => new Set(current).add(member.id));
+                        }}
+                        className={`h-full w-full rounded-2xl object-contain ${PROFILE_IMAGE_INTERACTION_CLASS}`}
                       />
                     ) : (
                       <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-white text-gray-300 shadow-sm">

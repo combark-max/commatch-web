@@ -2,7 +2,10 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname === '/api/profile-images') {
+  if (
+    request.nextUrl.pathname === '/api/profile-images'
+    || request.nextUrl.pathname === '/api/profile-images/batch'
+  ) {
     return NextResponse.next();
   }
 

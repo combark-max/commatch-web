@@ -51,14 +51,7 @@ export function getProfileImageUrl(imagePath: string | null): string | null {
  * @returns 인증 이미지 API URL 또는 null
  */
 export function resolveProfileImageUrl(storedValue: string | null): string | null {
-  if (!storedValue) return null;
-
-  // 이미 저장된 값이 전체 URL이면 정규화
-  const normalizedPath = normalizeProfileImagePath(storedValue);
-  
-  if (!normalizedPath) return null;
-
-  return getProfileImageUrl(normalizedPath);
+  return getProfileImageUrl(resolveProfileImagePath(storedValue));
 }
 
 const PROFILE_IMAGE_OWNER_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -78,4 +71,8 @@ export function parseProfileImageRequestPath(value: string | null): string | nul
   }
 
   return value;
+}
+
+export function resolveProfileImagePath(storedValue: string | null): string | null {
+  return parseProfileImageRequestPath(normalizeProfileImagePath(storedValue));
 }

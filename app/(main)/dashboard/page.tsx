@@ -26,6 +26,10 @@ import { signOut } from '@/lib/auth/auth';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
 import { createClient } from '@/lib/supabase/client';
 import ImageModal from '@/components/common/ImageModal';
+import {
+  PROFILE_IMAGE_INTERACTION_CLASS,
+  profileImageInteractionProps,
+} from '@/components/common/profile-image-interaction';
 import { useUnreadNotificationCount } from '@/components/common/AppShell';
 
 type Profile = {
@@ -290,10 +294,11 @@ export default function DashboardPage() {
             <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-green-50 bg-gray-100 text-gray-300 shadow-sm">
               {profileImageUrl && !imageFailed ? (
                 <img
+                  {...profileImageInteractionProps}
                   src={profileImageUrl}
                   alt={`${profile?.nickname ?? '회원'} 프로필 사진`}
                   onError={() => setImageFailed(true)}
-                  className="h-full w-full object-cover"
+                  className={`h-full w-full object-cover ${PROFILE_IMAGE_INTERACTION_CLASS}`}
                 />
               ) : (
                 <User size={54} strokeWidth={1.5} />
@@ -352,9 +357,10 @@ export default function DashboardPage() {
                     className="group relative aspect-[4/5] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
                   >
                     <img
+                      {...profileImageInteractionProps}
                       src={photoUrl}
                       alt={`${profile?.nickname ?? '내'} 프로필 사진 ${index + 1}`}
-                      className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+                      className={`h-full w-full object-cover transition-transform group-hover:scale-[1.02] ${PROFILE_IMAGE_INTERACTION_CLASS}`}
                     />
                     {index === 0 ? (
                       <span className="absolute left-2 top-2 rounded-full bg-green-600 px-2 py-1 text-[10px] font-bold text-white shadow-sm">

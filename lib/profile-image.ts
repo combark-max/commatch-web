@@ -1,5 +1,3 @@
-import { createClient } from './supabase/client';
-
 /**
  * 프로필 이미지 경로를 정규화합니다.
  * 기존의 전체 URL이 저장되어 있는 경우 상대 경로로 변환하고,
@@ -33,29 +31,24 @@ export function normalizeProfileImagePath(value: string | null): string | null {
 }
 
 /**
- * 상대 경로를 공개 URL로 변환합니다.
+ * 상대 경로를 인증된 동일 출처 이미지 API URL로 변환합니다.
  * 
  * @param imagePath - 상대 경로 (예: "user-id/profile-123.jpg")
- * @returns 공개 URL
+ * @returns 인증 이미지 API URL
  */
 export function getProfileImageUrl(imagePath: string | null): string | null {
-  if (!imagePath) return null;
+  const normalizedPath = parseProfileImageRequestPath(imagePath);
+  if (!normalizedPath) return null;
 
-  const supabase = createClient();
-  const { data } = supabase.storage
-    .from('profile_images')
-    .getPublicUrl(imagePath);
-
-  return data.publicUrl;
+  return `/api/profile-images?path=${encodeURIComponent(normalizedPath)}`;
 }
 
 /**
- * 프로필 이미지 경로를 공개 URL로 변환합니다.
- * 저장된 값이 전체 URL이면 정규화한 후 공개 URL을 생성합니다.
- * 이미 공개 URL이면 그대로 반환합니다.
+ * 프로필 이미지 경로를 인증된 동일 출처 이미지 API URL로 변환합니다.
+ * 저장된 값이 과거 공개 URL이면 정규화한 후 인증 API URL을 생성합니다.
  * 
  * @param storedValue - DB에 저장된 profile_image 값
- * @returns 공개 URL 또는 null
+ * @returns 인증 이미지 API URL 또는 null
  */
 export function resolveProfileImageUrl(storedValue: string | null): string | null {
   if (!storedValue) return null;
@@ -66,4 +59,23 @@ export function resolveProfileImageUrl(storedValue: string | null): string | nul
   if (!normalizedPath) return null;
 
   return getProfileImageUrl(normalizedPath);
+}
+
+const PROFILE_IMAGE_OWNER_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function parseProfileImageRequestPath(value: string | null): string | null {
+  if (!value || value !== value.trim() || value.includes('\\') || /[\u0000-\u001f\u007f]/.test(value)) {
+    return null;
+  }
+
+  const segments = value.split('/');
+  if (
+    segments.length < 2
+    || !PROFILE_IMAGE_OWNER_PATTERN.test(segments[0])
+    || segments.some((segment) => segment === '' || segment === '.' || segment === '..')
+  ) {
+    return null;
+  }
+
+  return value;
 }

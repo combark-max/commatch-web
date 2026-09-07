@@ -38,7 +38,7 @@ import {
   REPORT_TARGET_LABELS,
   type AdminReportProfile,
 } from '@/lib/admin/reports';
-import { normalizeProfileImagePath } from '@/lib/profile-image';
+import { resolveProfileImageUrl } from '@/lib/profile-image';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 type DetailSearchParams = {
@@ -80,13 +80,6 @@ const buildBackHref = (query: DetailSearchParams): string => {
   return value ? `/admin/reports?${value}` : '/admin/reports';
 };
 
-const getProfileImageUrl = (storedValue: string | null): string | null => {
-  const path = normalizeProfileImagePath(storedValue);
-  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!path || !baseUrl) return null;
-  return `${baseUrl}/storage/v1/object/public/profile_images/${path.split('/').map(encodeURIComponent).join('/')}`;
-};
-
 const getGenderLabel = (value: string | null): string => {
   if (value === 'male') return '남성';
   if (value === 'female') return '여성';
@@ -114,7 +107,7 @@ function ProfileCard({
   profile: AdminReportProfile & { marriageHistory?: string | null };
   showMarriageHistory?: boolean;
 }) {
-  const imageUrl = getProfileImageUrl(profile.profileImage);
+  const imageUrl = resolveProfileImageUrl(profile.profileImage);
 
   return (
     <article className="rounded-2xl border border-gray-100 bg-gray-50 p-5">

@@ -371,7 +371,7 @@ export default function AiMatchPage() {
             <h2 className="text-xl font-bold text-gray-900">
               {isExpandedMode && !hasEnteredPreference
                 ? '선호조건을 입력하면 일치 결과를 확인할 수 있습니다.'
-                : '현재 조건에 맞는 추천 회원을 준비 중입니다.'}
+                : '현재 조건에 맞는 추천 회원이 없습니다.'}
             </h2>
             {isExpandedMode && !hasEnteredPreference ? (
               <p className="mt-3 text-sm leading-6 text-gray-500">

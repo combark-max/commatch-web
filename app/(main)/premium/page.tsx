@@ -19,44 +19,61 @@ import {
   Users,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import {
+  getPremiumAvailabilityState,
+  hasPremiumEntitlement,
+  parsePremiumAccessRpcResponse,
+  type PremiumAccess,
+  type PremiumFeatureKey,
+} from '@/lib/premium/access';
+
+const premiumStatusLabels = {
+  none: 'Premium 미활성',
+  active: 'Premium 이용 중',
+  suspended: 'Premium 이용 정지',
+  revoked: 'Premium 회수됨',
+  not_started: 'Premium 이용 시작 전',
+  expired: 'Premium 이용 기간 만료',
+  unavailable: 'Premium 이용 불가',
+} as const;
 
 const premiumBenefits = [
   {
+    featureKey: 'expanded_recommendations' as PremiumFeatureKey,
     title: 'AI Match Premium',
     description: '일반 추천보다 더 넓게 최대 20명의 회원을 확인하고, 선호조건 일치율과 추천 이유·공통점·확인할 점을 함께 살펴보세요.',
-    status: '이용 가능',
     icon: BrainCircuit,
     href: '/ai-match?expanded=1',
     cta: 'AI Match 이용하기',
   },
   {
+    featureKey: 'received_likes' as PremiumFeatureKey,
     title: '나에게 좋아요를 보낸 회원',
     description: '나에게 실제 좋아요를 보낸 회원을 확인하고, 마음이 있다면 좋아요로 답해 매칭으로 이어가세요.',
-    status: '이용 가능',
     icon: Heart,
     href: '/premium/received-likes',
     cta: '받은 좋아요 보기',
   },
   {
+    featureKey: 'advanced_member_search' as PremiumFeatureKey,
     title: '고급 회원 검색',
     description: '기본 검색 조건에 더해 키·학력·음주·취미까지 설정하고 원하는 회원을 더 세밀하게 찾아보세요.',
-    status: '이용 가능',
     icon: Users,
     href: '/members?advanced=1',
     cta: '고급 검색 이용하기',
   },
   {
+    featureKey: 'likes_received' as PremiumFeatureKey,
     title: '나를 관심목록에 저장한 회원',
     description: '나를 관심목록에 저장해 둔 회원을 확인해 보세요.',
-    status: '이용 가능',
     icon: BookmarkCheck,
     href: '/premium/likes-received?advanced=1',
     cta: '받은 관심 보기',
   },
   {
+    featureKey: 'priority_recommendation' as PremiumFeatureKey,
     title: '추천에서 먼저 발견될 기회',
     description: 'AI Match의 적합도 기준은 그대로 유지하면서, 비슷하게 잘 맞는 후보들 사이에서 내 프로필이 먼저 소개될 수 있습니다.',
-    status: '이용 가능',
     icon: Sparkles,
   },
 ];
@@ -71,8 +88,8 @@ const supportItems = [
   },
   {
     label: '환불 및 해지 정책',
-    description: '결제 방식과 이용권 정책이 확정된 후 환불 및 해지 기준을 안내할 예정입니다.',
-    status: '정책 준비 중',
+    description: '현재 자동 결제가 없어 환불 및 해지 절차가 적용되지 않습니다.',
+    status: '결제 없음',
     icon: ReceiptText,
   },
   {
@@ -89,6 +106,8 @@ export default function PremiumPage() {
   const supabase = useMemo(() => createClient(), []);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [premiumAccess, setPremiumAccess] = useState<PremiumAccess | null>(null);
+  const [premiumAccessError, setPremiumAccessError] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -103,6 +122,13 @@ export default function PremiumPage() {
         if (error || !user) {
           router.replace('/login');
           return;
+        }
+
+        const { data: premiumData, error: premiumError } = await supabase.rpc('get_my_premium_access');
+        const parsedPremiumAccess = premiumError ? null : parsePremiumAccessRpcResponse(premiumData);
+        if (isMounted) {
+          setPremiumAccess(parsedPremiumAccess);
+          setPremiumAccessError(Boolean(premiumError) || parsedPremiumAccess === null);
         }
 
         if (isMounted) setIsAuthenticated(true);
@@ -145,6 +171,17 @@ export default function PremiumPage() {
     );
   }
 
+  const membershipStatus = premiumAccessError
+    ? 'Premium 상태를 확인할 수 없습니다.'
+    : premiumStatusLabels[getPremiumAvailabilityState(premiumAccess)];
+  const dateFormatter = new Intl.DateTimeFormat('ko-KR', { dateStyle: 'long' });
+  const membershipPeriod = premiumAccess?.membershipExists && premiumAccess.startedAt
+    ? `${dateFormatter.format(new Date(premiumAccess.startedAt))} ~ ${premiumAccess.expiresAt
+      ? dateFormatter.format(new Date(premiumAccess.expiresAt))
+      : '만료일 없음'}`
+    : null;
+  const hasPremiumBadge = premiumAccess?.isAvailable === true;
+
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-8">
@@ -171,25 +208,36 @@ export default function PremiumPage() {
           <p className="mt-6 max-w-3xl text-sm leading-7 text-gray-600 sm:text-base">
             AI Match 확대 추천과 상세 분석, 받은 반응 확인, 고급 검색, 우선 추천 노출을 Premium 혜택으로 이용할 수 있습니다.
           </p>
+          <div className="mt-6 rounded-2xl bg-gray-50 px-5 py-4" aria-live="polite">
+            <p className="text-sm font-bold text-gray-900">{membershipStatus}</p>
+            {membershipPeriod ? <p className="mt-1 text-sm text-gray-600">이용 기간: {membershipPeriod}</p> : null}
+            {!premiumAccessError && premiumAccess?.isAvailable ? (
+              <p className="mt-1 text-sm text-gray-600">
+                현재 {premiumAccess.featureKeys.length}개 Premium 기능을 이용할 수 있습니다.
+              </p>
+            ) : null}
+          </div>
         </header>
 
         <section id="premium-benefits" className="scroll-mt-24" aria-labelledby="premium-benefits-heading">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="premium-benefits-heading" className="text-2xl font-bold text-gray-900">Premium 혜택</h2>
-            <span className="text-sm font-medium text-gray-500">현재 무료로 이용할 수 있는 Premium 핵심 혜택입니다.</span>
+            <span className="text-sm font-medium text-gray-500">회원별로 활성화된 Premium 혜택을 표시합니다.</span>
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {premiumBenefits.map((benefit) => {
-              const { title, description, status, icon: Icon } = benefit;
-              const href = 'href' in benefit && typeof benefit.href === 'string' ? benefit.href : null;
-              const cta = 'cta' in benefit && typeof benefit.cta === 'string' ? benefit.cta : null;
+              const { title, description, icon: Icon, featureKey } = benefit;
+              const isEntitled = hasPremiumEntitlement(premiumAccess, featureKey);
+              const status = premiumAccessError ? '확인 불가' : isEntitled ? '이용 가능' : '이용 불가';
+              const href = isEntitled && 'href' in benefit && typeof benefit.href === 'string' ? benefit.href : null;
+              const cta = isEntitled && 'cta' in benefit && typeof benefit.cta === 'string' ? benefit.cta : null;
               const content = (
                 <div className="flex h-full flex-col">
                   <div className="flex items-start justify-between gap-4">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-600">
                       <Icon size={21} />
                     </span>
-                    <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">{status}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${isEntitled ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{status}</span>
                   </div>
                   <h3 className="mt-5 text-lg font-bold text-gray-900">{title}</h3>
                   <p className="mt-2 text-sm leading-6 text-gray-600">{description}</p>
@@ -225,7 +273,7 @@ export default function PremiumPage() {
                 <Ticket className="text-green-600" size={23} /> Premium 무료 제공
               </h2>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600">
-                현재 Premium의 주요 혜택을 무료로 이용할 수 있습니다. 정식 이용권과 가격은 추후 안내할 예정입니다.
+                현재 활성화된 Premium 혜택은 무료 캠페인으로 제공되며 자동 결제가 발생하지 않습니다.
               </p>
               <p className="mt-1 text-sm font-medium text-gray-500">현재 자동 결제는 없습니다.</p>
             </div>
@@ -251,7 +299,9 @@ export default function PremiumPage() {
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-500">
                 <BadgeCheck size={21} />
               </span>
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-[#806B26]">이용 가능</span>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${hasPremiumBadge ? 'bg-amber-50 text-[#806B26]' : 'bg-gray-100 text-gray-500'}`}>
+                {premiumAccessError ? '확인 불가' : hasPremiumBadge ? '이용 가능' : '이용 불가'}
+              </span>
             </div>
             <h3 className="mt-5 text-lg font-bold text-gray-900">Premium 전용 배지</h3>
             <p className="mt-2 text-sm leading-6 text-gray-600">회원 상세 프로필에 Premium 회원임을 알 수 있는 전용 배지가 표시됩니다.</p>

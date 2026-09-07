@@ -19,7 +19,7 @@ import {
   parseAdminMemberDetail,
   type AdminMemberDetail,
 } from '@/lib/admin/members';
-import { normalizeProfileImagePath } from '@/lib/profile-image';
+import { resolveProfileImageUrl } from '@/lib/profile-image';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 type PreviewError = 'invalid_uuid' | 'not_found' | 'admin_target' | 'forbidden' | 'rpc' | 'parse' | 'unavailable';
@@ -50,19 +50,11 @@ function ErrorPanel({ error }: { error: PreviewError }) {
   );
 }
 
-const getProfileImageUrl = (storedValue: string): string | null => {
-  const path = normalizeProfileImagePath(storedValue.trim());
-  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!path || !baseUrl) return null;
-  const encodedPath = path.split('/').map(encodeURIComponent).join('/');
-  return `${baseUrl}/storage/v1/object/public/profile_images/${encodedPath}`;
-};
-
 const getProfileImageUrls = (member: AdminMemberDetail): string[] => {
   const storedValues = [member.profileImage, ...(member.profileImages ?? [])];
   const urls = storedValues.flatMap((value) => {
     if (typeof value !== 'string' || value.trim() === '') return [];
-    const url = getProfileImageUrl(value);
+    const url = resolveProfileImageUrl(value.trim());
     return url ? [url] : [];
   });
   return [...new Set(urls)];

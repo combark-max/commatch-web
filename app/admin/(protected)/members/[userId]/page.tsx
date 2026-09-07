@@ -27,7 +27,7 @@ import {
   type AdminMemberDetail,
 } from '@/lib/admin/members';
 import { getAdminRoleLabel } from '@/lib/admin/presentation';
-import { normalizeProfileImagePath } from '@/lib/profile-image';
+import { resolveProfileImageUrl } from '@/lib/profile-image';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 type MemberDetailError = 'invalid_uuid' | 'not_found' | 'admin_target' | 'forbidden' | 'rpc' | 'parse';
@@ -65,19 +65,11 @@ const formatBirthDate = (value: string | null): string => (
   value ? dateFormatter.format(new Date(`${value}T00:00:00+09:00`)) : '미입력'
 );
 
-const getProfileImageUrl = (storedValue: string): string | null => {
-  const path = normalizeProfileImagePath(storedValue.trim());
-  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!path || !baseUrl) return null;
-  const encodedPath = path.split('/').map(encodeURIComponent).join('/');
-  return `${baseUrl}/storage/v1/object/public/profile_images/${encodedPath}`;
-};
-
 const getProfileImageUrls = (member: AdminMemberDetail): string[] => {
   const storedValues = [member.profileImage, ...(member.profileImages ?? [])];
   const urls = storedValues.flatMap((value) => {
     if (typeof value !== 'string' || value.trim() === '') return [];
-    const url = getProfileImageUrl(value);
+    const url = resolveProfileImageUrl(value.trim());
     return url ? [url] : [];
   });
   return [...new Set(urls)];

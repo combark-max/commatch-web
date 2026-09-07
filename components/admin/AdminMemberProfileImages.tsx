@@ -39,7 +39,7 @@ export default function AdminMemberProfileImages({
                 onClick={() => setSelectedImageUrl(imageUrl)}
                 className="aspect-square overflow-hidden rounded-2xl bg-gray-100 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-green-600 focus:ring-offset-2"
               >
-                {/* Public storage URLs are generated at runtime and do not have fixed dimensions. */}
+                {/* Authenticated profile image URLs are generated at runtime and do not have fixed dimensions. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={imageUrl}

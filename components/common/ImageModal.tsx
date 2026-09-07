@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { User, X } from 'lucide-react';
 import {
   PROFILE_IMAGE_INTERACTION_CLASS,
+  preventProfileImageContextMenu,
   profileImageInteractionProps,
 } from '@/components/common/profile-image-interaction';
 
@@ -61,6 +62,7 @@ export default function ImageModal({ isOpen, imageUrl, alt, onClose }: ImageModa
       <div
         className="flex max-h-[85vh] max-w-[90vw] items-center justify-center"
         onClick={(event) => event.stopPropagation()}
+        onContextMenu={preventProfileImageContextMenu}
       >
         {hasImageError ? (
           <div className="flex h-64 w-64 max-w-[80vw] items-center justify-center rounded-2xl bg-white text-gray-300 shadow-2xl">

@@ -23,6 +23,7 @@ import { useProfileImageBatchUrls } from '@/lib/use-profile-image-batch';
 import ImageModal from '@/components/common/ImageModal';
 import {
   PROFILE_IMAGE_INTERACTION_CLASS,
+  preventProfileImageContextMenu,
   profileImageInteractionProps,
 } from '@/components/common/profile-image-interaction';
 import Button from '@/components/ui/Button';
@@ -594,6 +595,7 @@ export default function MatchesPage() {
                             url: match.profileImageUrl ?? '',
                             alt: `${match.nickname ?? '매칭 상대'} 프로필 사진`,
                           })}
+                          onContextMenu={preventProfileImageContextMenu}
                           className="h-32 w-32 max-w-full cursor-zoom-in rounded-2xl transition hover:opacity-95 focus:outline-none focus:ring-4 focus:ring-inset focus:ring-green-300 sm:h-full sm:w-full sm:max-w-none"
                         >
                           <Image

@@ -23,6 +23,7 @@ import Button from '@/components/ui/Button';
 import ImageModal from '@/components/common/ImageModal';
 import {
   PROFILE_IMAGE_INTERACTION_CLASS,
+  preventProfileImageContextMenu,
   profileImageInteractionProps,
 } from '@/components/common/profile-image-interaction';
 import ReportDialog from '@/components/reports/ReportDialog';
@@ -394,6 +395,7 @@ export default function MemberDetailPage() {
                     type="button"
                     aria-label={`${member.nickname ?? '회원'} 프로필 사진 크게 보기`}
                     onClick={() => setSelectedImageUrl(member.profile_image ?? null)}
+                    onContextMenu={preventProfileImageContextMenu}
                     className="absolute inset-0 h-full w-full cursor-zoom-in focus:outline-none focus:ring-4 focus:ring-inset focus:ring-green-300"
                   >
                     <img
@@ -427,6 +429,7 @@ export default function MemberDetailPage() {
                       type="button"
                       aria-label={`${member.nickname ?? '회원'}의 프로필 사진 ${index + 2} 크게 보기`}
                       onClick={() => setSelectedImageUrl(imageUrl)}
+                      onContextMenu={preventProfileImageContextMenu}
                       className="aspect-[4/5] overflow-hidden rounded-2xl bg-[#e8f5e9] shadow-sm transition hover:opacity-90 focus:outline-none focus-visible:ring-4 focus-visible:ring-green-300"
                     >
                       <img

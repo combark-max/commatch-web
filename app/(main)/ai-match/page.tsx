@@ -17,6 +17,7 @@ import {
 import Button from '@/components/ui/Button';
 import {
   PROFILE_IMAGE_INTERACTION_CLASS,
+  preventProfileImageContextMenu,
   profileImageInteractionProps,
 } from '@/components/common/profile-image-interaction';
 import {
@@ -397,7 +398,10 @@ export default function AiMatchPage() {
         ) : currentMember ? (
           <article className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
             <div className="grid md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-              <div className="relative flex h-80 items-center justify-center overflow-hidden bg-[#f0fdf4] md:h-[520px]">
+              <div
+                className="relative flex h-80 items-center justify-center overflow-hidden bg-[#f0fdf4] md:h-[520px]"
+                onContextMenu={preventProfileImageContextMenu}
+              >
                 {currentMember.profile_image && !failedImageIds.has(currentMember.id) ? (
                   <img
                     {...profileImageInteractionProps}

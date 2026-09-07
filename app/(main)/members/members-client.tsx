@@ -9,6 +9,7 @@ import { getProfileImageDisplayUrl } from '@/lib/profile-image-batch';
 import { useProfileImageBatchUrls } from '@/lib/use-profile-image-batch';
 import {
   PROFILE_IMAGE_INTERACTION_CLASS,
+  preventProfileImageContextMenu,
   profileImageInteractionProps,
 } from '@/components/common/profile-image-interaction';
 import {
@@ -654,7 +655,10 @@ export default function MembersClient({
                   key={member.id}
                   className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:border-green-500/20 hover:shadow-xl"
                 >
-                <div className="relative aspect-[4/5] overflow-hidden bg-gray-100">
+                <div
+                  className="relative aspect-[4/5] overflow-hidden bg-gray-100"
+                  onContextMenu={preventProfileImageContextMenu}
+                >
                   {member.profile_image && getProfileImageDisplayUrl(
                     member.profile_image_path,
                     member.profile_image,

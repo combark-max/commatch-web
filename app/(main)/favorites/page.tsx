@@ -10,6 +10,7 @@ import { getProfileImageDisplayUrl } from '@/lib/profile-image-batch';
 import { useProfileImageBatchUrls } from '@/lib/use-profile-image-batch';
 import {
   PROFILE_IMAGE_INTERACTION_CLASS,
+  preventProfileImageContextMenu,
   profileImageInteractionProps,
 } from '@/components/common/profile-image-interaction';
 import Button from '@/components/ui/Button';
@@ -827,7 +828,10 @@ export default function FavoritesPage() {
 
               return (
                 <article key={member.id} className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm transition hover:shadow-lg">
-                  <div className="relative flex h-56 items-center justify-center overflow-hidden bg-[#f0fdf4] p-4">
+                  <div
+                    className="relative flex h-56 items-center justify-center overflow-hidden bg-[#f0fdf4] p-4"
+                    onContextMenu={preventProfileImageContextMenu}
+                  >
                     {hasImage ? (
                       <img
                         {...profileImageInteractionProps}

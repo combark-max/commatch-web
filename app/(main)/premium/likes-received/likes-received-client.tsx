@@ -17,6 +17,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import {
   PROFILE_IMAGE_INTERACTION_CLASS,
+  preventProfileImageContextMenu,
   profileImageInteractionProps,
 } from '@/components/common/profile-image-interaction';
 import { resolveProfileImageUrl } from '@/lib/profile-image';
@@ -401,7 +402,10 @@ export default function LikesReceivedPage() {
                   className="group overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm transition hover:border-green-200 hover:shadow-lg"
                 >
                   <article>
-                    <div className="relative flex h-56 items-center justify-center overflow-hidden bg-[#f0fdf4] p-4">
+                    <div
+                      className="relative flex h-56 items-center justify-center overflow-hidden bg-[#f0fdf4] p-4"
+                      onContextMenu={preventProfileImageContextMenu}
+                    >
                       {hasImage ? (
                         <Image
                           {...profileImageInteractionProps}

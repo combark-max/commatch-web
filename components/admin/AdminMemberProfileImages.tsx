@@ -2,6 +2,11 @@
 
 import { useCallback, useState } from 'react';
 import ImageModal from '@/components/common/ImageModal';
+import {
+  PROFILE_IMAGE_INTERACTION_CLASS,
+  preventProfileImageContextMenu,
+  profileImageInteractionProps,
+} from '@/components/common/profile-image-interaction';
 
 type AdminMemberProfileImagesProps = {
   imageUrls: string[];
@@ -37,15 +42,17 @@ export default function AdminMemberProfileImages({
                 type="button"
                 aria-label={`${alt} 크게 보기`}
                 onClick={() => setSelectedImageUrl(imageUrl)}
+                onContextMenu={preventProfileImageContextMenu}
                 className="aspect-square overflow-hidden rounded-2xl bg-gray-100 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-green-600 focus:ring-offset-2"
               >
                 {/* Authenticated profile image URLs are generated at runtime and do not have fixed dimensions. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
+                  {...profileImageInteractionProps}
                   src={imageUrl}
                   alt={alt}
                   onError={() => handleImageError(imageUrl)}
-                  className="h-full w-full object-cover"
+                  className={`h-full w-full object-cover ${PROFILE_IMAGE_INTERACTION_CLASS}`}
                 />
               </button>
             );

@@ -11,6 +11,7 @@ import Toast from '@/components/ui/Toast';
 import ImageModal from '@/components/common/ImageModal';
 import {
   PROFILE_IMAGE_INTERACTION_CLASS,
+  preventProfileImageContextMenu,
   profileImageInteractionProps,
 } from '@/components/common/profile-image-interaction';
 import { createClient } from '@/lib/supabase/client';
@@ -799,6 +800,7 @@ export default function ProfileCreatePage() {
                         onClick={() => setModalImageUrl(photo.previewUrl)}
                         disabled={isLoading || Boolean(deletingPhotoId)}
                         aria-label={`${index === 0 ? '대표 ' : ''}프로필 사진 ${index + 1} 크게 보기`}
+                        onContextMenu={preventProfileImageContextMenu}
                         className="h-full w-full cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-green-500 disabled:cursor-not-allowed"
                       >
                         <img

@@ -28,6 +28,7 @@ import { createClient } from '@/lib/supabase/client';
 import ImageModal from '@/components/common/ImageModal';
 import {
   PROFILE_IMAGE_INTERACTION_CLASS,
+  preventProfileImageContextMenu,
   profileImageInteractionProps,
 } from '@/components/common/profile-image-interaction';
 import { useUnreadNotificationCount } from '@/components/common/AppShell';
@@ -291,7 +292,10 @@ export default function DashboardPage() {
 
         <section className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
           <div className="grid gap-7 p-7 md:grid-cols-[auto_minmax(0,1fr)_220px] md:items-center md:p-9">
-            <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-green-50 bg-gray-100 text-gray-300 shadow-sm">
+            <div
+              className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-green-50 bg-gray-100 text-gray-300 shadow-sm"
+              onContextMenu={preventProfileImageContextMenu}
+            >
               {profileImageUrl && !imageFailed ? (
                 <img
                   {...profileImageInteractionProps}
@@ -353,6 +357,7 @@ export default function DashboardPage() {
                     key={photoUrl}
                     type="button"
                     onClick={() => setModalImageUrl(photoUrl)}
+                    onContextMenu={preventProfileImageContextMenu}
                     aria-label={`${index === 0 ? '대표 ' : ''}프로필 사진 ${index + 1} 크게 보기`}
                     className="group relative aspect-[4/5] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
                   >

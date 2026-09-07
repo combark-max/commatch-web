@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseProfileImageRequestPath } from '@/lib/profile-image';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createProfileImageServerSupabaseClient } from '@/lib/supabase/profile-image-server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   const objectPath = parseProfileImageRequestPath(request.nextUrl.searchParams.get('path'));
   if (!objectPath) return errorResponse(400, 'Invalid profile image path');
 
-  const supabase = await createServerSupabaseClient();
+  const { supabase, applyAuthResponseHeaders } = await createProfileImageServerSupabaseClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) return errorResponse(401, 'Authentication required');
 
@@ -35,7 +35,8 @@ export async function GET(request: NextRequest) {
   if (error || !data?.signedUrl) return errorResponse(404, 'Profile image not found');
 
   const response = NextResponse.redirect(data.signedUrl, 307);
-  response.headers.set('Cache-Control', 'private, no-store');
+  response.headers.set('Cache-Control', 'private, max-age=45');
+  applyAuthResponseHeaders(response.headers);
   response.headers.set('Referrer-Policy', 'no-referrer');
   return response;
 }

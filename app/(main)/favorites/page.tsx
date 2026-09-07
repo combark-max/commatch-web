@@ -814,6 +814,7 @@ export default function FavoritesPage() {
                       <img
                         src={member.profile_image ?? ''}
                         alt={member.nickname ?? '프로필 이미지'}
+                        loading="lazy"
                         onError={() => setFailedImageIds((current) => new Set(current).add(member.id))}
                         className="h-full w-full rounded-2xl object-contain"
                       />

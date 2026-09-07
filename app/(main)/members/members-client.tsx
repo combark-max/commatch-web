@@ -644,7 +644,12 @@ export default function MembersClient({
                 >
                 <div className="relative aspect-[4/5] overflow-hidden bg-gray-100">
                   {member.profile_image ? (
-                    <img src={member.profile_image} alt={member.nickname ?? '프로필 이미지'} className="h-full w-full object-cover" />
+                    <img
+                      src={member.profile_image}
+                      alt={member.nickname ?? '프로필 이미지'}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-gray-400">
                       <User size={64} strokeWidth={1.5} />

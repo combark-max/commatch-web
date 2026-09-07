@@ -576,7 +576,7 @@ export default function MatchesPage() {
                             url: match.profileImageUrl ?? '',
                             alt: `${match.nickname ?? '매칭 상대'} 프로필 사진`,
                           })}
-                          className="h-full w-full cursor-zoom-in rounded-2xl transition hover:opacity-95 focus:outline-none focus:ring-4 focus:ring-inset focus:ring-green-300"
+                          className="h-full w-full max-w-[10rem] cursor-zoom-in rounded-2xl transition hover:opacity-95 focus:outline-none focus:ring-4 focus:ring-inset focus:ring-green-300 sm:max-w-none"
                         >
                           <Image
                             src={match.profileImageUrl ?? ''}

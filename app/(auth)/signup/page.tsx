@@ -6,14 +6,12 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { AlertCircle, ArrowLeft, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Eye, EyeOff, Loader2, Lock, Mail } from 'lucide-react';
 import { signUp } from '@/lib/auth/auth';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 
 const passwordMessage = '비밀번호는 8자 이상이며 영문과 숫자를 포함해야 합니다.';
-const identityVerificationAvailable = false;
-
 const signupSchema = z.object({
   email: z.string().trim().min(1, { message: '이메일을 입력해주세요.' }).email({
     message: '올바른 이메일 주소를 입력해주세요.',
@@ -175,36 +173,6 @@ export default function SignupPage() {
                 {errors.confirmPassword ? <p role="alert" className="mt-2 flex items-center gap-1 text-sm text-red-600"><AlertCircle size={14} />{errors.confirmPassword.message}</p> : null}
               </div>
             </div>
-
-            <section className="mt-9 rounded-2xl border border-gray-200 bg-gray-50 p-6" aria-labelledby="identity-verification-heading">
-              <div className="flex items-start justify-between gap-5">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm">
-                    <ShieldCheck size={21} aria-hidden="true" />
-                  </div>
-                  <div>
-                    <h2 id="identity-verification-heading" className="font-bold text-gray-900">본인인증 및 성인 확인 안내</h2>
-                    <p className="mt-2 text-sm leading-6 text-gray-600">
-                      현재는 휴대폰 본인인증을 제공하지 않습니다. 본인인증 서비스는 추후 도입할 예정입니다.
-                    </p>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-600">도입 예정</span>
-              </div>
-
-              <button
-                type="button"
-                disabled={!identityVerificationAvailable}
-                aria-describedby="identity-verification-notice"
-                className="mt-5 h-12 w-full cursor-not-allowed rounded-xl border border-gray-200 bg-gray-100 font-semibold text-gray-400"
-              >
-                휴대폰 본인인증
-              </button>
-
-              <div id="identity-verification-notice" className="mt-4 rounded-xl bg-white px-4 py-3 text-sm leading-6 text-gray-500">
-                <p>현재 만 19세 이상 여부는 가입자의 확인을 기준으로 합니다.</p>
-              </div>
-            </section>
 
             <div className="mt-9">
               <Button type="submit" className="h-14 w-full disabled:cursor-not-allowed disabled:opacity-60" disabled={isLoading}>

@@ -166,8 +166,6 @@ export default function LoginPage() {
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm">
-                <Link href="/find-email" className="font-semibold text-green-700 transition hover:text-green-800">가입 이메일 찾기</Link>
-                <span className="text-gray-300">|</span>
                 <Link href="/forgot-password" className="font-semibold text-green-700 transition hover:text-green-800">비밀번호 재설정</Link>
                 <span className="text-gray-300">|</span>
                 <Link href="/signup" className="font-bold text-green-700 transition hover:text-green-800">회원가입</Link>

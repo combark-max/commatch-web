@@ -509,7 +509,7 @@ export default function ProfileCreatePage() {
       } catch (error) {
         if (isMissingProfileColumnError(error)) {
           setToast({
-            message: '프로필 저장 구조가 아직 적용되지 않았습니다. Supabase SQL을 먼저 실행해 주세요.',
+            message: '프로필 정보를 불러오는 중 문제가 발생했습니다. 계속 문제가 발생하면 고객지원에 문의해주세요.',
             type: 'error',
           });
         } else {
@@ -669,7 +669,7 @@ export default function ProfileCreatePage() {
           setToast({ message: '이미 사용 중인 닉네임입니다. 다른 닉네임을 입력해 주세요.', type: 'error' });
         } else if (isMissingProfileColumnError(error)) {
           setToast({
-            message: '프로필 저장 구조가 아직 적용되지 않았습니다. Supabase SQL을 먼저 실행해 주세요.',
+            message: '프로필을 저장하는 중 문제가 발생했습니다. 계속 문제가 발생하면 고객지원에 문의해주세요.',
             type: 'error',
           });
         } else {
@@ -696,7 +696,7 @@ export default function ProfileCreatePage() {
       await cleanupUploadedFiles();
       if (isMissingProfileColumnError(err)) {
         setToast({
-          message: '프로필 저장 구조가 아직 적용되지 않았습니다. Supabase SQL을 먼저 실행해 주세요.',
+          message: '프로필을 저장하는 중 문제가 발생했습니다. 계속 문제가 발생하면 고객지원에 문의해주세요.',
           type: 'error',
         });
       } else {

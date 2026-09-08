@@ -36,6 +36,7 @@ const accountLinks = [
   { href: '/profile/create', label: '내 프로필 수정', icon: UserRound },
   { href: '/preference', label: '이상형 수정', icon: SlidersHorizontal },
   { href: '/favorites', label: '관심회원', icon: Heart },
+  { href: '/account#push-settings-heading', label: '알림 설정', icon: BellRing },
   { href: '/account', label: '계정 설정', icon: Settings },
 ];
 
@@ -356,16 +357,38 @@ export default function AppShell({ children }: AppShellProps) {
             )}
           </nav>
 
-          <button
-            type="button"
-            aria-label={isMobileMenuOpen ? '모바일 메뉴 닫기' : '모바일 메뉴 열기'}
-            aria-expanded={isMobileMenuOpen}
-            aria-controls="mobile-navigation"
-            onClick={() => setIsMobileMenuOpen((current) => !current)}
-            className="flex h-11 w-11 items-center justify-center rounded-xl text-gray-700 transition hover:bg-green-50 hover:text-green-600 lg:hidden"
-          >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          <div className="flex shrink-0 items-center gap-1 lg:hidden">
+            {isLoggedIn ? (
+              <Link
+                href="/notifications"
+                onClick={closeMenus}
+                aria-label={unreadNotificationCount > 0 ? `읽지 않은 알림 ${unreadNotificationCount}개` : '알림'}
+                aria-current={pathname === '/notifications' ? 'page' : undefined}
+                className={`relative flex h-11 w-11 items-center justify-center rounded-xl transition ${
+                  pathname === '/notifications'
+                    ? 'bg-green-100 text-green-700'
+                    : 'text-gray-700 hover:bg-green-50 hover:text-green-600'
+                }`}
+              >
+                <Bell size={20} />
+                {unreadNotificationCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black leading-none text-white">
+                    {unreadBadgeLabel}
+                  </span>
+                ) : null}
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              aria-label={isMobileMenuOpen ? '모바일 메뉴 닫기' : '모바일 메뉴 열기'}
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="mobile-navigation"
+              onClick={() => setIsMobileMenuOpen((current) => !current)}
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-gray-700 transition hover:bg-green-50 hover:text-green-600"
+            >
+              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
         </div>
 
         {isMobileMenuOpen ? (
@@ -379,20 +402,6 @@ export default function AppShell({ children }: AppShellProps) {
             {isLoggedIn ? (
               <>
                 <p className="px-4 pb-2 pt-4 text-xs font-bold text-green-600">{accountLabel}</p>
-                <Link
-                  href="/notifications"
-                  onClick={closeMenus}
-                  aria-current={pathname === '/notifications' ? 'page' : undefined}
-                  className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-700 hover:bg-green-50 hover:text-green-700"
-                >
-                  <Bell size={19} />
-                  <span className="flex-1">알림</span>
-                  {unreadNotificationCount > 0 ? (
-                    <span className="flex min-h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-black text-white">
-                      {unreadBadgeLabel}
-                    </span>
-                  ) : null}
-                </Link>
                 {accountLinks.map(({ href, label, icon: Icon }) => (
                   <Link key={href} href={href} onClick={closeMenus} className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-700 hover:bg-green-50 hover:text-green-700">
                     <Icon size={19} /> {label}

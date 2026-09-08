@@ -78,7 +78,6 @@ export default function PrivacyPage() {
                   <BulletList items={[
                     '이메일 주소',
                     '내부 회원 식별정보',
-                    '인증 휴대폰 번호 및 인증 상태·시각',
                   ]} />
                 </div>
                 <div>

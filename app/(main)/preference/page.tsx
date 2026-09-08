@@ -100,7 +100,6 @@ export default function PreferencePage() {
       );
 
       const { error } = result;
-      console.log("Upsert Result:", result);
 
       if (error) {
         throw error;

@@ -1,4 +1,5 @@
 export const NOTICE_RICH_PREFIX = 'commatch-rich-v1\n';
+const NOTICE_RICH_CRLF_PREFIX = 'commatch-rich-v1\r\n';
 export const NOTICE_BODY_MAX_LENGTH = 10000;
 export const NOTICE_MAX_NESTING_DEPTH = 12;
 
@@ -36,8 +37,14 @@ export type NoticeSelectionState = {
   selectionEnd: number;
 };
 
-const RICH_VERSION_PATTERN = /^commatch-rich-[^\r\n]*\r?\n/;
+const RICH_VERSION_PATTERN = /^commatch-rich-/;
 const RESERVED_CHARACTERS = new Set(['\\', '[', ']']);
+
+const normalizeRichPrefix = (body: string): string => (
+  body.startsWith(NOTICE_RICH_CRLF_PREFIX)
+    ? `${NOTICE_RICH_PREFIX}${body.slice(NOTICE_RICH_CRLF_PREFIX.length)}`
+    : body
+);
 
 const isAllowedValue = <T extends string>(values: readonly T[], value: string): value is T => (
   values.includes(value as T)
@@ -148,7 +155,8 @@ export const serializeRichNotice = (nodes: NoticeContentNode[]): string => (
 export const createRichNoticeBody = (source: string): string => `${NOTICE_RICH_PREFIX}${source}`;
 
 export const parseNoticeBody = (body: string): ParsedNoticeBody => {
-  if (!body.startsWith(NOTICE_RICH_PREFIX)) {
+  const normalizedBody = normalizeRichPrefix(body);
+  if (!normalizedBody.startsWith(NOTICE_RICH_PREFIX)) {
     return {
       format: 'plain',
       text: body,
@@ -156,7 +164,7 @@ export const parseNoticeBody = (body: string): ParsedNoticeBody => {
     };
   }
 
-  const source = body.slice(NOTICE_RICH_PREFIX.length);
+  const source = normalizedBody.slice(NOTICE_RICH_PREFIX.length);
   const nodes = parseRichSource(source);
   if (!nodes || serializeNodes(nodes) !== source) {
     return { format: 'plain', text: body, valid: false };
@@ -169,7 +177,8 @@ const getVisibleText = (nodes: NoticeContentNode[]): string => nodes.map((node) 
 )).join('');
 
 export const validateNoticeBody = (body: string): { ok: true; body: string } | { ok: false } => {
-  if (body.length < 1 || body.length > NOTICE_BODY_MAX_LENGTH) return { ok: false };
+  const normalizedBody = normalizeRichPrefix(body);
+  if (normalizedBody.length < 1 || normalizedBody.length > NOTICE_BODY_MAX_LENGTH) return { ok: false };
 
   const parsed = parseNoticeBody(body);
   if (!parsed.valid) return { ok: false };
@@ -179,14 +188,14 @@ export const validateNoticeBody = (body: string): { ok: true; body: string } | {
 
   if (getVisibleText(parsed.nodes).trim().length < 1) return { ok: false };
   const canonicalBody = serializeRichNotice(parsed.nodes);
-  return canonicalBody === body ? { ok: true, body: canonicalBody } : { ok: false };
+  return canonicalBody === normalizedBody ? { ok: true, body: canonicalBody } : { ok: false };
 };
 
 export const getNoticeEditorState = (body: string): { source: string; isRich: boolean } => {
   const parsed = parseNoticeBody(body);
   if (parsed.format !== 'rich') return { source: body, isRich: false };
   return {
-    source: body.slice(NOTICE_RICH_PREFIX.length),
+    source: normalizeRichPrefix(body).slice(NOTICE_RICH_PREFIX.length),
     isRich: true,
   };
 };

@@ -69,7 +69,6 @@ const PRIVACY_ITEMS = [
   'Premium 이용·관리 기록',
   'consent 및 탈퇴 후 보존되는 관련 이력',
   '관리자 조치·감사 기록',
-  'rate-limit용 가명 식별정보',
   '접속·보안 관련 정보',
 ] as const;
 

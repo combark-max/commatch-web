@@ -85,12 +85,12 @@ export default function Home() {
               aria-labelledby="push-notice-heading"
               className="mx-auto mt-10 max-w-4xl rounded-2xl border border-[#C8A951]/40 bg-white p-6 shadow-sm sm:p-8"
             >
-              <h3 id="push-notice-heading" className="text-xl font-black text-[#183B1B] sm:text-2xl">
+              <h3 id="push-notice-heading" className="text-center text-xl font-black text-[#183B1B] sm:text-2xl">
                 🔔 중요한 소식을 놓치지 마세요
               </h3>
-              <p className="mt-3 text-sm leading-7 text-gray-700 sm:text-base">
+              <p className="mt-3 text-left text-sm leading-7 text-gray-700 sm:text-base">
                 PUSH 알림을 켜두면 좋아요, 새로운 매칭, 새 메시지, 매칭 종료, 문의 답변 등 ComMatch의 주요 소식을 빠르게 확인할 수 있습니다.
-                <strong className="mt-3 block font-bold text-[#2E7D32]">
+                <strong className="mt-3 block text-center font-bold text-[#2E7D32]">
                   더 원활하고 신속한 서비스 이용을 위해 PUSH 알림 사용을 권장합니다.
                 </strong>
               </p>

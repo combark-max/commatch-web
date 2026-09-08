@@ -83,7 +83,7 @@ export default function Home() {
 
             <aside
               aria-labelledby="push-notice-heading"
-              className="mx-auto mt-10 max-w-4xl rounded-2xl border border-[#C8A951]/40 bg-white p-6 shadow-sm sm:p-8"
+              className="mx-auto mt-10 max-w-6xl rounded-2xl border border-[#C8A951]/40 bg-white p-6 shadow-sm sm:p-8"
             >
               <h3 id="push-notice-heading" className="text-center text-xl font-black text-[#183B1B] sm:text-2xl">
                 🔔 중요한 소식을 놓치지 마세요

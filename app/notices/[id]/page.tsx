@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Footer from '@/components/common/Footer';
+import NoticeBody from '@/components/notices/NoticeBody';
 import { isUuid, parsePublicNoticeDetail } from '@/lib/support/notices';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -67,7 +68,7 @@ export default async function NoticeDetailPage({
               {dateFormatter.format(new Date(notice.publishedAt))}
             </time>
           </header>
-          <div className="whitespace-pre-wrap break-words py-8 text-[15px] leading-8 text-gray-700">{notice.body}</div>
+          <NoticeBody body={notice.body} className="py-8 text-[15px] leading-8 text-gray-700" />
         </article>
       </div>
       <Footer />

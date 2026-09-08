@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { createAdminNoticeAction } from '@/app/admin/(protected)/notices/actions';
+import NoticeFormattingEditor from '@/components/admin/NoticeFormattingEditor';
 import { requireAdminAccess } from '@/lib/admin/access';
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -39,8 +40,7 @@ export default async function NewAdminNoticePage({
         </div>
         <div>
           <label htmlFor="notice-body" className="mb-2 block text-sm font-bold text-gray-800">본문</label>
-          <textarea id="notice-body" name="body" required maxLength={10000} rows={16} className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3 text-sm leading-7 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20" />
-          <p className="mt-2 text-xs text-gray-500">1자 이상 10,000자 이하</p>
+          <NoticeFormattingEditor />
         </div>
         <button type="submit" className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-600 px-6 text-sm font-bold text-white transition hover:bg-green-700">작성 중으로 저장</button>
       </form>

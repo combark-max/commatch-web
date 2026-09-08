@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireAdminAccess } from '@/lib/admin/access';
+import { validateNoticeBody } from '@/lib/support/notice-content';
 import {
   isNoticeStatus,
   isUuid,
@@ -35,10 +36,11 @@ const revalidateNoticePaths = (noticeId?: string) => {
 export async function createAdminNoticeAction(formData: FormData): Promise<void> {
   await requireAdminAccess('notices_manage');
   const title = getText(formData, 'title')?.trim() ?? '';
-  const body = getText(formData, 'body')?.trim() ?? '';
-  if (title.length < 1 || title.length > 150 || body.length < 1 || body.length > 10000) {
+  const bodyValidation = validateNoticeBody(getText(formData, 'body')?.trim() ?? '');
+  if (title.length < 1 || title.length > 150 || !bodyValidation.ok) {
     redirect('/admin/notices/new?error=validation');
   }
+  const body = bodyValidation.body;
 
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.rpc('create_admin_notice', {
@@ -59,7 +61,7 @@ export async function updateAdminNoticeAction(formData: FormData): Promise<void>
   const noticeId = getText(formData, 'noticeId');
   const expectedUpdatedAt = getText(formData, 'expectedUpdatedAt');
   const title = getText(formData, 'title')?.trim() ?? '';
-  const body = getText(formData, 'body')?.trim() ?? '';
+  const bodyValidation = validateNoticeBody(getText(formData, 'body')?.trim() ?? '');
   const fallbackPath = isUuid(noticeId) ? `/admin/notices/${noticeId}` : '/admin/notices';
 
   if (
@@ -68,9 +70,9 @@ export async function updateAdminNoticeAction(formData: FormData): Promise<void>
     || Number.isNaN(Date.parse(expectedUpdatedAt))
     || title.length < 1
     || title.length > 150
-    || body.length < 1
-    || body.length > 10000
+    || !bodyValidation.ok
   ) redirect(`${fallbackPath}?error=validation`);
+  const body = bodyValidation.body;
 
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.rpc('update_admin_notice', {

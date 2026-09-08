@@ -5,6 +5,8 @@ import {
   changeAdminNoticeStatusAction,
   updateAdminNoticeAction,
 } from '@/app/admin/(protected)/notices/actions';
+import NoticeFormattingEditor from '@/components/admin/NoticeFormattingEditor';
+import NoticeBody from '@/components/notices/NoticeBody';
 import { requireAdminAccess } from '@/lib/admin/access';
 import {
   getNoticeStatusClassName,
@@ -93,7 +95,7 @@ export default async function AdminNoticeDetailPage({
       {isArchived ? (
         <article className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
           <h2 className="break-words text-2xl font-black text-gray-900">{notice.title}</h2>
-          <p className="mt-5 whitespace-pre-wrap break-words text-sm leading-7 text-gray-700">{notice.body}</p>
+          <NoticeBody body={notice.body} className="mt-5 text-sm leading-7 text-gray-700" />
           <p className="mt-6 rounded-xl bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-600">보관된 공지는 수정하거나 다시 게시할 수 없습니다.</p>
         </article>
       ) : (
@@ -106,7 +108,7 @@ export default async function AdminNoticeDetailPage({
           </div>
           <div>
             <label htmlFor="notice-body" className="mb-2 block text-sm font-bold text-gray-800">본문</label>
-            <textarea id="notice-body" name="body" required maxLength={10000} rows={16} defaultValue={notice.body} className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3 text-sm leading-7 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-500/20" />
+            <NoticeFormattingEditor initialBody={notice.body} />
           </div>
           <button type="submit" className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-600 px-6 text-sm font-bold text-white transition hover:bg-green-700">내용 저장</button>
         </form>

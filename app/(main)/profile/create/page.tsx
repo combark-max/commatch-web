@@ -395,7 +395,7 @@ export default function ProfileCreatePage() {
 
       if (storageDeleteError) {
         logSupabaseError('프로필 사진 Storage 정리 실패:', storageDeleteError);
-        setToast({ message: '사진 정보는 삭제되었지만 Storage 파일 정리에 실패했습니다.', type: 'error' });
+        setToast({ message: '사진 정보는 삭제되었지만 파일 정리 중 문제가 발생했습니다. 계속 문제가 발생하면 고객지원에 문의해주세요.', type: 'error' });
         return;
       }
 

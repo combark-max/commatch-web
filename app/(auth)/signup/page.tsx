@@ -183,10 +183,9 @@ export default function SignupPage() {
                     <ShieldCheck size={21} aria-hidden="true" />
                   </div>
                   <div>
-                    <h2 id="identity-verification-heading" className="font-bold text-gray-900">본인 및 성인 인증</h2>
+                    <h2 id="identity-verification-heading" className="font-bold text-gray-900">본인인증 및 성인 확인 안내</h2>
                     <p className="mt-2 text-sm leading-6 text-gray-600">
-                      안전한 회원 가입을 위해 향후 PASS 본인인증이 제공될 예정입니다.<br />
-                      PASS 도입 후 본인 명의와 만 19세 이상 여부를 확인합니다.
+                      현재는 휴대폰 본인인증을 제공하지 않습니다. 본인인증 서비스는 추후 도입할 예정입니다.
                     </p>
                   </div>
                 </div>
@@ -199,12 +198,11 @@ export default function SignupPage() {
                 aria-describedby="identity-verification-notice"
                 className="mt-5 h-12 w-full cursor-not-allowed rounded-xl border border-gray-200 bg-gray-100 font-semibold text-gray-400"
               >
-                PASS 본인인증
+                휴대폰 본인인증
               </button>
 
               <div id="identity-verification-notice" className="mt-4 rounded-xl bg-white px-4 py-3 text-sm leading-6 text-gray-500">
-                <p>현재는 PASS 본인인증 서비스 준비 중입니다.</p>
-                <p>정식 서비스 도입 전까지 만 19세 이상 여부는 가입자의 확인을 기준으로 합니다.</p>
+                <p>현재 만 19세 이상 여부는 가입자의 확인을 기준으로 합니다.</p>
               </div>
             </section>
 

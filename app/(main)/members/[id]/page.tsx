@@ -50,9 +50,14 @@ type MemberProfile = {
 
 type Notice = { message: string; type: 'info' | 'success' | 'error' } | null;
 
+const getProfileDisplayValue = (value: string | null) => {
+  const normalizedValue = value?.trim() ?? '';
+  return normalizedValue === '' || normalizedValue === '미입력' ? '미입력' : normalizedValue;
+};
+
 const getIntroductionPreview = (introduction: string | null) => {
-  const text = introduction?.trim();
-  if (!text) return '아직 소개 문구를 작성하지 않았습니다.';
+  const text = getProfileDisplayValue(introduction);
+  if (text === '미입력') return text;
 
   const firstSentence = text.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim();
   if (firstSentence && firstSentence.length <= 90) return firstSentence;
@@ -60,17 +65,10 @@ const getIntroductionPreview = (introduction: string | null) => {
   return `${text.slice(0, 87).trimEnd()}...`;
 };
 
-const getVisibleProfileValue = (value: string | null) => {
-  const normalizedValue = value?.trim() ?? '';
-  return normalizedValue && !['미입력', '선택하지 않음', '공개하지 않음'].includes(normalizedValue)
-    ? normalizedValue
-    : '';
-};
-
 const getMarriageHistoryLabel = (value: string | null) => {
   if (value === 'first_marriage') return '초혼';
   if (value === 'remarriage') return '재혼';
-  return '정보 미입력';
+  return '미입력';
 };
 
 const resolveProfileImageUrls = (profileImage: unknown, profileImages: unknown) => {
@@ -346,12 +344,13 @@ export default function MemberDetailPage() {
   }
 
   const age = member.age;
-  const introduction = member.introduction?.trim() || '';
-  const introductionText = introduction
+  const introduction = getProfileDisplayValue(member.introduction);
+  const introductionText = introduction !== '미입력'
     ? `${introduction.slice(0, 500)}${introduction.length > 500 ? '...' : ''}`
-    : '아직 자기소개를 작성하지 않았습니다.';
-  const visibleSmoking = getVisibleProfileValue(member.smoking);
-  const marriageValues = getVisibleProfileValue(member.marriage_values);
+    : '미입력';
+  const visibleSmoking = getProfileDisplayValue(member.smoking);
+  const marriageValues = getProfileDisplayValue(member.marriage_values);
+  const hasMarriageValues = marriageValues !== '미입력';
   const isOwnProfile = currentUserId === member.id;
   const additionalProfileImages = (member.profile_images ?? [])
     .slice(1)
@@ -467,11 +466,11 @@ export default function MemberDetailPage() {
                     ) : null}
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-base font-semibold text-[#16a34a] sm:text-lg">
-                    <span>{age !== null ? `만 ${age}세` : '나이 정보 미입력'}</span>
+                    <span>{age !== null ? `만 ${age}세` : '미입력'}</span>
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
-                    <span>{member.region || '지역 정보 미입력'}</span>
+                    <span>{getProfileDisplayValue(member.region)}</span>
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
-                    <span>{member.job || '직업 정보 미입력'}</span>
+                    <span>{getProfileDisplayValue(member.job)}</span>
                   </div>
                 </div>
                 {isOwnProfile ? (
@@ -482,9 +481,9 @@ export default function MemberDetailPage() {
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <ProfileFact icon={<User size={18} />} label="성별" value={member.gender || '정보 미입력'} />
-                <ProfileFact icon={<Ruler size={18} />} label="키" value={member.height ? `${member.height}cm` : '정보 미입력'} />
-                <ProfileFact icon={<GraduationCap size={18} />} label="학력" value={member.education || '정보 미입력'} />
+                <ProfileFact icon={<User size={18} />} label="성별" value={getProfileDisplayValue(member.gender)} />
+                <ProfileFact icon={<Ruler size={18} />} label="키" value={member.height ? `${member.height}cm` : '미입력'} />
+                <ProfileFact icon={<GraduationCap size={18} />} label="학력" value={getProfileDisplayValue(member.education)} />
                 <ProfileFact icon={<Heart size={18} />} label="결혼 이력" value={getMarriageHistoryLabel(member.marriage_history)} />
               </div>
             </section>
@@ -508,21 +507,21 @@ export default function MemberDetailPage() {
             <section aria-labelledby="lifestyle-heading">
               <h2 id="lifestyle-heading" className="text-xl font-bold text-gray-900">생활 스타일</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <ProfileFact icon={<Palette size={18} />} label="취미" value={member.hobby || '정보 미입력'} />
-                <ProfileFact icon={<Wine size={18} />} label="음주 여부" value={member.drinking || '정보 미입력'} />
-                <ProfileFact icon={<Cigarette size={18} />} label="흡연 여부" value={visibleSmoking || '정보 없음'} />
+                <ProfileFact icon={<Palette size={18} />} label="취미" value={getProfileDisplayValue(member.hobby)} />
+                <ProfileFact icon={<Wine size={18} />} label="음주 여부" value={getProfileDisplayValue(member.drinking)} />
+                <ProfileFact icon={<Cigarette size={18} />} label="흡연 여부" value={visibleSmoking} />
               </div>
             </section>
 
             <section className="rounded-[1.75rem] border border-gray-200 bg-gray-50 p-6 sm:p-8" aria-labelledby="marriage-values-heading">
               <div className="flex items-center justify-between gap-3">
                 <h2 id="marriage-values-heading" className="text-xl font-bold text-gray-700">결혼 가치관</h2>
-                {!marriageValues ? (
-                  <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-500">정보 없음</span>
+                {!hasMarriageValues ? (
+                  <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-500">미입력</span>
                 ) : null}
               </div>
               <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-gray-600">
-                {marriageValues || '등록된 결혼 가치관 정보가 없습니다.'}
+                {marriageValues}
               </p>
             </section>
 

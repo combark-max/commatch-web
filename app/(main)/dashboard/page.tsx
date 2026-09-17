@@ -68,6 +68,11 @@ const normalizeUnreadCount = (value: unknown) => {
   return Math.floor(parsed);
 };
 
+const isCompletedProfileText = (value: string | null) => {
+  const normalized = value?.trim() ?? '';
+  return normalized !== '' && normalized !== '미입력';
+};
+
 const calculateProfileCompleteness = (profile: Profile | null) => {
   if (!profile) return 0;
 
@@ -75,19 +80,19 @@ const calculateProfileCompleteness = (profile: Profile | null) => {
     || Boolean(profile.profile_images?.some((image) => typeof image === 'string' && image.trim()));
   const completedFields = [
     hasProfilePhoto,
-    Boolean(profile.nickname?.trim()),
-    Boolean(profile.gender?.trim()),
-    Boolean(profile.birth_date?.trim()),
+    isCompletedProfileText(profile.nickname),
+    isCompletedProfileText(profile.gender),
+    isCompletedProfileText(profile.birth_date),
     typeof profile.height === 'number' && Number.isFinite(profile.height) && profile.height > 0,
-    Boolean(profile.region?.trim()),
-    Boolean(profile.job?.trim()),
-    Boolean(profile.education?.trim()),
-    Boolean(profile.hobby?.trim()),
-    Boolean(profile.drinking?.trim()),
-    Boolean(profile.smoking?.trim()),
-    Boolean(profile.marriage_history?.trim()),
-    (profile.introduction?.trim().length ?? 0) >= 10,
-    (profile.marriage_values?.trim().length ?? 0) >= 10,
+    isCompletedProfileText(profile.region),
+    isCompletedProfileText(profile.job),
+    isCompletedProfileText(profile.education),
+    isCompletedProfileText(profile.hobby),
+    isCompletedProfileText(profile.drinking),
+    isCompletedProfileText(profile.smoking),
+    isCompletedProfileText(profile.marriage_history),
+    isCompletedProfileText(profile.introduction) && (profile.introduction?.trim().length ?? 0) >= 10,
+    isCompletedProfileText(profile.marriage_values) && (profile.marriage_values?.trim().length ?? 0) >= 10,
   ].filter(Boolean).length;
 
   return Math.round((completedFields / 14) * 100);

@@ -65,28 +65,76 @@ const UNAVAILABLE_COMPARISON_VALUES = new Set([
   '상관없음',
 ]);
 
+const isCompletedProfileText = (value: string | null) => {
+  const normalized = value?.trim() ?? '';
+  return normalized !== '' && normalized !== '미입력';
+};
+
 const calculateProfileCompleteness = (profile: Profile, hasAgeInformation: boolean) => {
   const hasProfilePhoto = Boolean(profile.profile_image?.trim())
     || Boolean(profile.profile_images?.some((image) => typeof image === 'string' && image.trim()));
   const completedFields = [
     hasProfilePhoto,
-    Boolean(profile.nickname?.trim()),
-    Boolean(profile.gender?.trim()),
+    isCompletedProfileText(profile.nickname),
+    isCompletedProfileText(profile.gender),
     hasAgeInformation,
     typeof profile.height === 'number' && Number.isFinite(profile.height) && profile.height > 0,
-    Boolean(profile.region?.trim()),
-    Boolean(profile.job?.trim()),
-    Boolean(profile.education?.trim()),
-    Boolean(profile.hobby?.trim()),
-    Boolean(profile.drinking?.trim()),
-    Boolean(profile.smoking?.trim()),
-    Boolean(profile.marriage_history?.trim()),
-    (profile.introduction?.trim().length ?? 0) >= 10,
-    (profile.marriage_values?.trim().length ?? 0) >= 10,
+    isCompletedProfileText(profile.region),
+    isCompletedProfileText(profile.job),
+    isCompletedProfileText(profile.education),
+    isCompletedProfileText(profile.hobby),
+    isCompletedProfileText(profile.drinking),
+    isCompletedProfileText(profile.smoking),
+    isCompletedProfileText(profile.marriage_history),
+    isCompletedProfileText(profile.introduction) && (profile.introduction?.trim().length ?? 0) >= 10,
+    isCompletedProfileText(profile.marriage_values) && (profile.marriage_values?.trim().length ?? 0) >= 10,
   ].filter(Boolean).length;
 
   return Math.round((completedFields / 14) * 100);
 };
+
+const isAdultBirthDate = (birthDate: string | null, today = new Date()) => {
+  if (!birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return false;
+
+  const [year, month, day] = birthDate.split('-').map(Number);
+  const parsedBirthDate = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsedBirthDate.getUTCFullYear() !== year
+    || parsedBirthDate.getUTCMonth() !== month - 1
+    || parsedBirthDate.getUTCDate() !== day
+  ) {
+    return false;
+  }
+
+  const cutoffYear = today.getUTCFullYear() - 19;
+  const cutoffMonth = today.getUTCMonth();
+  const cutoffDay = Math.min(
+    today.getUTCDate(),
+    new Date(Date.UTC(cutoffYear, cutoffMonth + 1, 0)).getUTCDate(),
+  );
+  const maximumAdultBirthDate = new Date(Date.UTC(cutoffYear, cutoffMonth, cutoffDay));
+  return parsedBirthDate <= maximumAdultBirthDate;
+};
+
+const hasMinimumAiProfile = (
+  profile: CurrentProfile | null,
+): profile is CurrentProfile & { nickname: string; gender: '남성' | '여성'; birth_date: string } => Boolean(
+  profile?.id
+  && isCompletedProfileText(profile.nickname)
+  && (profile.gender === '남성' || profile.gender === '여성')
+  && isAdultBirthDate(profile.birth_date),
+);
+
+const hasMinimumAiCandidate = (
+  profile: CandidateProfile,
+): profile is CandidateProfile & { nickname: string; gender: '남성' | '여성'; age: number } => Boolean(
+  profile.id
+  && isCompletedProfileText(profile.nickname)
+  && (profile.gender === '남성' || profile.gender === '여성')
+  && profile.age !== null
+  && Number.isInteger(profile.age)
+  && profile.age >= 19
+);
 
 const isSpecified = (value: string | null) => Boolean(value && value !== '상관없음');
 
@@ -342,23 +390,13 @@ export async function GET(request: NextRequest) {
         || isSpecified(preference.preferred_job)
     ));
 
-    if (!currentProfile?.gender || !['남성', '여성'].includes(currentProfile.gender)) {
+    if (!hasMinimumAiProfile(currentProfile)) {
       return jsonResponse({
         status: 'setup',
         mode,
         currentUserId: user.id,
         hasEnteredPreference,
         setupTarget: 'profile',
-      });
-    }
-
-    if (calculateProfileCompleteness(currentProfile, Boolean(currentProfile.birth_date?.trim())) < 80) {
-      return jsonResponse({
-        status: 'setup',
-        mode,
-        currentUserId: user.id,
-        hasEnteredPreference,
-        setupTarget: 'profile-incomplete',
       });
     }
 
@@ -377,6 +415,7 @@ export async function GET(request: NextRequest) {
     if (membersError) throw membersError;
 
     const scoredCandidates = ((data as CandidateProfile[]) ?? [])
+      .filter(hasMinimumAiCandidate)
       .map((member) => {
         const age = member.age;
         let score = 0;

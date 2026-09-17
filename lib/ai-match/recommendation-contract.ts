@@ -86,7 +86,6 @@ export const selectRecommendationCandidates = <Candidate extends ScoredRecommend
   candidates: Candidate[],
   mode: RecommendationMode,
 ): Candidate[] => [...candidates]
-  .filter((candidate) => candidate.score > 0)
   .sort((a, b) => (
     b.score - a.score
     || Number(b.isPriorityRecommendation) - Number(a.isPriorityRecommendation)
@@ -162,7 +161,7 @@ const parseBaseRecommendedMember = (
     || !isNullableString(value.introduction)
     || !isNullableString(value.profile_image)
     || !isNullableNumber(value.age)
-    || !isIntegerInRange(value.score, 1, 4)
+    || !isIntegerInRange(value.score, 0, 4)
     || reasons === null
     || !isIntegerInRange(value.completeness, 0, 100)
   ) return null;

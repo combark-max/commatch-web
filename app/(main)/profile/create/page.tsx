@@ -42,6 +42,18 @@ const isAdultBirthDate = (birthDate: string): boolean => (
   && birthDate <= getMaximumAdultBirthDate()
 );
 
+const optionalTrimmedTextSchema = z.string().optional().transform((value) => value?.trim() ?? '');
+const optionalHeightSchema = optionalTrimmedTextSchema.refine((value) => (
+  value === '' || (Number.isInteger(Number(value)) && Number(value) > 0)
+), { message: '키는 1 이상의 정수로 입력해주세요.' });
+const optionalLongTextSchema = (minMessage: string, maxMessage: string) => optionalTrimmedTextSchema
+  .refine((value) => value === '' || value.length >= 10, {
+    message: minMessage,
+  })
+  .refine((value) => value.length <= 500, {
+    message: maxMessage,
+  });
+
 const profileSchema = z.object({
   nickname: nicknameSchema,
   gender: z.enum(['남성', '여성']).refine((value) => value !== undefined, {
@@ -50,26 +62,26 @@ const profileSchema = z.object({
   birth_date: z.string()
     .min(1, { message: "생년월일을 입력해주세요." })
     .refine(isAdultBirthDate, { message: MINIMUM_AGE_MESSAGE }),
-  height: z.string().min(1, { message: "키를 입력해주세요." }),
-  region: z.string().min(1, { message: "거주지역을 선택해주세요." }),
-  job: z.string().min(1, { message: "직업을 선택해주세요." }),
-  job_other: z.string().optional(),
-  education: z.string().min(1, { message: "학력을 선택해주세요." }),
-  hobby: z.string().min(1, { message: "취미를 입력해주세요." }),
-  drinking: z.string().min(1, { message: "음주 여부를 선택해주세요." }),
-  smoking: z.string().trim().min(1, { message: "흡연 정보를 선택해 주세요." }),
+  height: optionalHeightSchema,
+  region: optionalTrimmedTextSchema,
+  job: optionalTrimmedTextSchema,
+  job_other: optionalTrimmedTextSchema,
+  education: optionalTrimmedTextSchema,
+  hobby: optionalTrimmedTextSchema,
+  drinking: optionalTrimmedTextSchema,
+  smoking: optionalTrimmedTextSchema,
   marriage_history: z.preprocess(
-    (value) => value === '' ? undefined : value,
-    z.enum(["first_marriage", "remarriage"], {
-      message: "결혼 이력을 선택해 주세요.",
-    }),
+    (value) => value === '' || value === undefined ? null : value,
+    z.enum(["first_marriage", "remarriage"]).nullable(),
   ),
-  marriage_values: z.string().trim()
-    .min(10, { message: "결혼 가치관을 10자 이상 작성해 주세요." })
-    .max(500, { message: "결혼 가치관은 최대 500자까지 작성할 수 있습니다." }),
-  introduction: z.string().trim()
-    .min(10, { message: "한줄소개는 최소 10자 이상 작성해주세요." })
-    .max(500, { message: "자기소개는 최대 500자까지 작성할 수 있습니다." }),
+  marriage_values: optionalLongTextSchema(
+    "결혼 가치관을 10자 이상 작성해 주세요.",
+    "결혼 가치관은 최대 500자까지 작성할 수 있습니다.",
+  ),
+  introduction: optionalLongTextSchema(
+    "한줄소개는 최소 10자 이상 작성해주세요.",
+    "자기소개는 최대 500자까지 작성할 수 있습니다.",
+  ),
 }).superRefine((data, context) => {
   if (data.job === '기타' && !data.job_other?.trim()) {
     context.addIssue({
@@ -103,6 +115,77 @@ type ProfilePhoto = StoredPhoto | PendingPhoto;
 
 const MAX_PROFILE_PHOTOS = 5;
 const PROFILE_PHOTO_BUCKET = 'profile_images';
+const LEGACY_MISSING_PROFILE_VALUE = '미입력';
+
+const isCompletedProfileText = (value: unknown): boolean => (
+  typeof value === 'string'
+  && value.trim() !== ''
+  && value.trim() !== LEGACY_MISSING_PROFILE_VALUE
+);
+
+const toNullableProfileText = (value: string | null | undefined): string | null => {
+  const normalized = value?.trim() ?? '';
+  return normalized === '' || normalized === LEGACY_MISSING_PROFILE_VALUE ? null : normalized;
+};
+
+const buildProfilePayload = (
+  userId: string,
+  data: ProfileFormValues,
+  finalPhotoPaths: string[],
+) => {
+  const finalJob = data.job === '기타' ? data.job_other : data.job;
+
+  return {
+    id: userId,
+    nickname: data.nickname.trim(),
+    gender: data.gender,
+    birth_date: data.birth_date,
+    height: data.height === '' ? null : Number(data.height),
+    region: toNullableProfileText(data.region),
+    job: toNullableProfileText(finalJob),
+    education: toNullableProfileText(data.education),
+    hobby: toNullableProfileText(data.hobby),
+    drinking: toNullableProfileText(data.drinking),
+    smoking: toNullableProfileText(data.smoking),
+    marriage_history: data.marriage_history || null,
+    marriage_values: toNullableProfileText(data.marriage_values),
+    introduction: toNullableProfileText(data.introduction),
+    profile_image: finalPhotoPaths[0] ?? null,
+    profile_images: finalPhotoPaths,
+  };
+};
+
+const calculateProfileFormCompleteness = (
+  values: Partial<Record<keyof ProfileFormInput, unknown>>,
+  photoCount: number,
+) => {
+  const completionFields = [
+    photoCount > 0,
+    isCompletedProfileText(values.nickname),
+    isCompletedProfileText(values.gender),
+    isCompletedProfileText(values.birth_date),
+    Number(values.height) > 0,
+    isCompletedProfileText(values.region),
+    isCompletedProfileText(values.job),
+    isCompletedProfileText(values.education),
+    isCompletedProfileText(values.hobby),
+    isCompletedProfileText(values.drinking),
+    isCompletedProfileText(values.smoking),
+    isCompletedProfileText(values.marriage_history),
+    typeof values.introduction === 'string'
+      && values.introduction.trim() !== LEGACY_MISSING_PROFILE_VALUE
+      && values.introduction.trim().length >= 10,
+    typeof values.marriage_values === 'string'
+      && values.marriage_values.trim() !== LEGACY_MISSING_PROFILE_VALUE
+      && values.marriage_values.trim().length >= 10,
+  ];
+  const completedFieldCount = completionFields.filter(Boolean).length;
+
+  return {
+    completedFieldCount,
+    profileCompletion: Math.round((completedFieldCount / completionFields.length) * 100),
+  };
+};
 
 const isMissingProfileColumnError = (error: unknown) => {
   const normalized = error as { code?: string; message?: string } | undefined;
@@ -176,24 +259,7 @@ export default function ProfileCreatePage() {
   const selectedJob = formValues.job;
   const introductionLength = formValues.introduction?.length ?? 0;
   const marriageValuesLength = formValues.marriage_values?.length ?? 0;
-  const completionFields = [
-    photos.length > 0,
-    Boolean(formValues.nickname?.trim()),
-    Boolean(formValues.gender?.trim()),
-    Boolean(formValues.birth_date?.trim()),
-    Number(formValues.height) > 0,
-    Boolean(formValues.region?.trim()),
-    Boolean(formValues.job?.trim()),
-    Boolean(formValues.education?.trim()),
-    Boolean(formValues.hobby?.trim()),
-    Boolean(formValues.drinking?.trim()),
-    Boolean(formValues.smoking?.trim()),
-    typeof formValues.marriage_history === 'string' && Boolean(formValues.marriage_history.trim()),
-    (formValues.introduction?.trim().length ?? 0) >= 10,
-    (formValues.marriage_values?.trim().length ?? 0) >= 10,
-  ];
-  const completedFieldCount = completionFields.filter(Boolean).length;
-  const profileCompletion = Math.round((completedFieldCount / completionFields.length) * 100);
+  const { completedFieldCount, profileCompletion } = calculateProfileFormCompleteness(formValues, photos.length);
 
   useEffect(() => {
     const currentNicknameInput = formValues.nickname ?? '';
@@ -623,25 +689,7 @@ export default function ProfileCreatePage() {
         return;
       }
 
-      const finalJob = data.job === '기타' ? data.job_other?.trim() ?? '' : data.job;
-      const profileData = {
-        id: user.id,
-        nickname: data.nickname.trim(),
-        gender: data.gender,
-        birth_date: data.birth_date,
-        height: parseInt(data.height, 10),
-        region: data.region,
-        job: finalJob,
-        education: data.education,
-        hobby: data.hobby,
-        drinking: data.drinking,
-        smoking: data.smoking.trim(),
-        marriage_history: data.marriage_history,
-        marriage_values: data.marriage_values.trim(),
-        introduction: data.introduction.trim(),
-        profile_image: finalPhotoPaths[0] ?? null,
-        profile_images: finalPhotoPaths,
-      };
+      const profileData = buildProfilePayload(user.id, data, finalPhotoPaths);
 
       const { data: savedProfile, error } = hasExistingProfile
         ? await supabase
@@ -741,7 +789,7 @@ export default function ProfileCreatePage() {
           </div>
           <div className="mt-5 flex items-center justify-between gap-4">
             <p className="text-sm font-bold text-gray-800">프로필 완성도 {profileCompletion}%</p>
-            <span className="text-xs text-gray-500">{completedFieldCount} / {completionFields.length} 항목</span>
+            <span className="text-xs text-gray-500">{completedFieldCount} / 14 항목</span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
             <div className="h-full rounded-full bg-[#16a34a] transition-[width]" style={{ width: `${profileCompletion}%` }} />
@@ -753,7 +801,7 @@ export default function ProfileCreatePage() {
           <section id="photos" className="scroll-mt-24 rounded-2xl border border-gray-200 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">프로필 사진</h2>
+                <h2 className="text-lg font-bold text-gray-900">프로필 사진 <span className="text-xs font-normal text-gray-400">선택</span></h2>
                 <p className="mt-1 text-xs leading-5 text-gray-500">첫 번째 사진이 대표사진으로 표시됩니다. 최대 5장까지 등록할 수 있습니다.</p>
               </div>
               <span className="rounded-full bg-green-50 px-3 py-1.5 text-sm font-bold text-green-700">
@@ -871,7 +919,7 @@ export default function ProfileCreatePage() {
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
                 <User size={16} className="mr-2 text-[#16a34a]" />
-                닉네임
+                닉네임 <span className="ml-1 text-red-500">*</span>
               </label>
               <div className="flex items-stretch gap-2">
                 <input
@@ -909,7 +957,7 @@ export default function ProfileCreatePage() {
             {/* 3. Gender */}
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
-                성별
+                성별 <span className="ml-1 text-red-500">*</span>
               </label>
               <div className="flex gap-4">
                 {['남성', '여성'].map((gender) => (
@@ -939,7 +987,7 @@ export default function ProfileCreatePage() {
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
                 <Calendar size={16} className="mr-2 text-[#16a34a]" />
-                생년월일
+                생년월일 <span className="ml-1 text-red-500">*</span>
               </label>
               <input
                 {...register("birth_date")}
@@ -954,7 +1002,7 @@ export default function ProfileCreatePage() {
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
                 <Ruler size={16} className="mr-2 text-[#16a34a]" />
-                키 (cm)
+                키 (cm) <span className="ml-1 text-xs font-normal text-gray-400">선택</span>
               </label>
               <input
                 {...register("height")}
@@ -969,7 +1017,7 @@ export default function ProfileCreatePage() {
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
                 <MapPin size={16} className="mr-2 text-[#16a34a]" />
-                거주지역
+                거주지역 <span className="ml-1 text-xs font-normal text-gray-400">선택</span>
               </label>
               <select
                 {...register("region")}
@@ -988,7 +1036,7 @@ export default function ProfileCreatePage() {
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
                 <Briefcase size={16} className="mr-2 text-[#16a34a]" />
-                직업
+                직업 <span className="ml-1 text-xs font-normal text-gray-400">선택</span>
               </label>
               <select
                 {...register("job")}
@@ -1017,7 +1065,7 @@ export default function ProfileCreatePage() {
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
                 <GraduationCap size={16} className="mr-2 text-[#16a34a]" />
-                학력
+                학력 <span className="ml-1 text-xs font-normal text-gray-400">선택</span>
               </label>
               <select
                 {...register("education")}
@@ -1042,7 +1090,7 @@ export default function ProfileCreatePage() {
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
                 <Palette size={16} className="mr-2 text-[#16a34a]" />
-                취미
+                취미 <span className="ml-1 text-xs font-normal text-gray-400">선택</span>
               </label>
               <input
                 {...register("hobby")}
@@ -1057,7 +1105,7 @@ export default function ProfileCreatePage() {
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
                 <Wine size={16} className="mr-2 text-[#16a34a]" />
-                음주 여부
+                음주 여부 <span className="ml-1 text-xs font-normal text-gray-400">선택</span>
               </label>
               <select
                 {...register("drinking")}
@@ -1073,7 +1121,7 @@ export default function ProfileCreatePage() {
 
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
-                흡연 <span className="text-red-500 ml-1">*</span>
+                흡연 <span className="ml-1 text-xs font-normal text-gray-400">선택</span>
               </label>
               <select
                 {...register("smoking")}
@@ -1092,11 +1140,11 @@ export default function ProfileCreatePage() {
           </section>
 
           <section id="marriage-values" className="scroll-mt-24 rounded-2xl border border-gray-200 p-5 sm:p-6">
-            <h2 className="text-lg font-bold text-gray-900">결혼 가치관 <span className="text-red-500">*</span></h2>
+            <h2 className="text-lg font-bold text-gray-900">결혼 가치관 <span className="text-xs font-normal text-gray-400">선택</span></h2>
             <p className="mt-2 text-xs leading-5 text-gray-500">서로 존중하는 관계, 결혼 시기, 자녀 계획 등 중요하게 생각하는 내용을 자유롭게 작성해 주세요.</p>
             <div className="mt-4">
               <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
-                결혼 이력 <span className="text-red-500 ml-1">*</span>
+                결혼 이력 <span className="ml-1 text-xs font-normal text-gray-400">선택</span>
               </label>
               <select
                 {...register("marriage_history")}
@@ -1124,7 +1172,7 @@ export default function ProfileCreatePage() {
 
           {/* 12. Introduction */}
           <section id="introduction" className="scroll-mt-24 rounded-2xl border border-gray-200 p-5 sm:p-6">
-            <h2 className="mb-6 text-lg font-bold text-gray-900">자기소개</h2>
+            <h2 className="mb-6 text-lg font-bold text-gray-900">자기소개 <span className="text-xs font-normal text-gray-400">선택</span></h2>
             <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
               <Quote size={16} className="mr-2 text-[#16a34a]" />
               한줄소개

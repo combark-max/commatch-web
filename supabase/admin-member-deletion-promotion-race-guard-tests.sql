@@ -204,8 +204,10 @@ begin
     raise exception 'FAIL deletion-request ACL changed';
   end if;
 
-  if not pg_catalog.has_function_privilege('public', v_create_oid, 'EXECUTE')
-     or not pg_catalog.has_function_privilege('authenticated', v_create_oid, 'EXECUTE') then
+  if pg_catalog.has_function_privilege('public', v_create_oid, 'EXECUTE')
+     or pg_catalog.has_function_privilege('anon', v_create_oid, 'EXECUTE')
+     or not pg_catalog.has_function_privilege('authenticated', v_create_oid, 'EXECUTE')
+     or pg_catalog.has_function_privilege('service_role', v_create_oid, 'EXECUTE') then
     raise exception 'FAIL create-admin ACL changed';
   end if;
 

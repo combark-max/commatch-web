@@ -82,10 +82,10 @@ begin
     raise exception 'request_admin_member_deletion ACL differs from the approved HEAD definition';
   end if;
 
-  if not pg_catalog.has_function_privilege('public', v_create_oid, 'EXECUTE')
-     or not pg_catalog.has_function_privilege('anon', v_create_oid, 'EXECUTE')
+  if pg_catalog.has_function_privilege('public', v_create_oid, 'EXECUTE')
+     or pg_catalog.has_function_privilege('anon', v_create_oid, 'EXECUTE')
      or not pg_catalog.has_function_privilege('authenticated', v_create_oid, 'EXECUTE')
-     or not pg_catalog.has_function_privilege('service_role', v_create_oid, 'EXECUTE') then
+     or pg_catalog.has_function_privilege('service_role', v_create_oid, 'EXECUTE') then
     raise exception 'create_admin_account ACL differs from the approved HEAD definition';
   end if;
 
@@ -448,10 +448,10 @@ revoke all on function public.request_admin_member_deletion(uuid, uuid, text, uu
 grant execute on function public.request_admin_member_deletion(uuid, uuid, text, uuid)
   to authenticated;
 
-revoke all on function public.create_admin_account(uuid, text, uuid, text)
+revoke execute on function public.create_admin_account(uuid, text, uuid, text)
   from public, anon, authenticated, service_role;
 grant execute on function public.create_admin_account(uuid, text, uuid, text)
-  to public, authenticated;
+  to authenticated;
 
 do $postflight$
 declare
@@ -499,10 +499,10 @@ begin
      or pg_catalog.has_function_privilege('anon', v_request_oid, 'EXECUTE')
      or not pg_catalog.has_function_privilege('authenticated', v_request_oid, 'EXECUTE')
      or pg_catalog.has_function_privilege('service_role', v_request_oid, 'EXECUTE')
-     or not pg_catalog.has_function_privilege('public', v_create_oid, 'EXECUTE')
-     or not pg_catalog.has_function_privilege('anon', v_create_oid, 'EXECUTE')
+     or pg_catalog.has_function_privilege('public', v_create_oid, 'EXECUTE')
+     or pg_catalog.has_function_privilege('anon', v_create_oid, 'EXECUTE')
      or not pg_catalog.has_function_privilege('authenticated', v_create_oid, 'EXECUTE')
-     or not pg_catalog.has_function_privilege('service_role', v_create_oid, 'EXECUTE') then
+     or pg_catalog.has_function_privilege('service_role', v_create_oid, 'EXECUTE') then
     raise exception 'Race-guard RPC ACL validation failed';
   end if;
 

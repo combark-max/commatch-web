@@ -233,6 +233,7 @@ $func$;
 
 COMMENT ON FUNCTION public.get_admin_account_summary() IS 'commatch_admin_account_management_v1';
 
+REVOKE EXECUTE ON FUNCTION public.get_admin_account_summary() FROM public, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_admin_account_summary() TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.get_admin_accounts(
@@ -321,6 +322,7 @@ END
 $func$;
 
 COMMENT ON FUNCTION public.get_admin_accounts(text,text,text,integer,integer,text,text) IS 'commatch_admin_account_management_v1';
+REVOKE EXECUTE ON FUNCTION public.get_admin_accounts(text,text,text,integer,integer,text,text) FROM public, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_admin_accounts(text,text,text,integer,integer,text,text) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.get_admin_account_detail(p_target_user_id uuid)
@@ -356,6 +358,7 @@ END
 $func$;
 
 COMMENT ON FUNCTION public.get_admin_account_detail(uuid) IS 'commatch_admin_account_management_v1';
+REVOKE EXECUTE ON FUNCTION public.get_admin_account_detail(uuid) FROM public, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_admin_account_detail(uuid) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.get_admin_account_actions(p_target_user_id uuid, p_limit integer default 20, p_offset integer default 0)
@@ -394,6 +397,7 @@ END
 $func$;
 
 COMMENT ON FUNCTION public.get_admin_account_actions(uuid,integer,integer) IS 'commatch_admin_account_management_v1';
+REVOKE EXECUTE ON FUNCTION public.get_admin_account_actions(uuid,integer,integer) FROM public, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_admin_account_actions(uuid,integer,integer) TO authenticated;
 
 -- -------------------------
@@ -573,6 +577,7 @@ END
 $func$;
 
 COMMENT ON FUNCTION public.create_admin_account(uuid,text,uuid,text) IS 'commatch_admin_account_management_v1';
+REVOKE EXECUTE ON FUNCTION public.create_admin_account(uuid,text,uuid,text) FROM public, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.create_admin_account(uuid,text,uuid,text) TO authenticated;
 
 -- 2) change_admin_account_role
@@ -726,6 +731,7 @@ END
 $func$;
 
 COMMENT ON FUNCTION public.change_admin_account_role(uuid,text,timestamptz,uuid,text) IS 'commatch_admin_account_management_v1';
+REVOKE EXECUTE ON FUNCTION public.change_admin_account_role(uuid,text,timestamptz,uuid,text) FROM public, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.change_admin_account_role(uuid,text,timestamptz,uuid,text) TO authenticated;
 
 -- 3) change_admin_account_status
@@ -885,6 +891,7 @@ END
 $func$;
 
 COMMENT ON FUNCTION public.change_admin_account_status(uuid,text,timestamptz,uuid,text) IS 'commatch_admin_account_management_v1';
+REVOKE EXECUTE ON FUNCTION public.change_admin_account_status(uuid,text,timestamptz,uuid,text) FROM public, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.change_admin_account_status(uuid,text,timestamptz,uuid,text) TO authenticated;
 
 -- Final validation: ensure no direct grants to browser roles remain

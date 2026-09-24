@@ -138,6 +138,30 @@ END$$;
 
 -- === Tests (single-run with context switching) ===
 
+-- ACL contract: only authenticated may execute the public admin-account RPCs.
+DO $$
+DECLARE
+  v_function oid;
+  v_functions oid[] := ARRAY[
+    'public.create_admin_account(uuid,text,uuid,text)'::regprocedure::oid,
+    'public.change_admin_account_role(uuid,text,timestamptz,uuid,text)'::regprocedure::oid,
+    'public.change_admin_account_status(uuid,text,timestamptz,uuid,text)'::regprocedure::oid,
+    'public.get_admin_account_actions(uuid,integer,integer)'::regprocedure::oid,
+    'public.get_admin_account_detail(uuid)'::regprocedure::oid,
+    'public.get_admin_account_summary()'::regprocedure::oid,
+    'public.get_admin_accounts(text,text,text,integer,integer,text,text)'::regprocedure::oid
+  ];
+BEGIN
+  FOREACH v_function IN ARRAY v_functions LOOP
+    IF pg_catalog.has_function_privilege('public', v_function, 'EXECUTE')
+       OR pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+       OR pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'FAIL admin-account RPC ACL changed: %', v_function::regprocedure;
+    END IF;
+  END LOOP;
+END$$;
+
 -- Permission checks: ordinary authenticated -> 42501
 DO $$
 DECLARE v_target uuid;

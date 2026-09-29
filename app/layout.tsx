@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import AppShell from '@/components/common/AppShell';
+import PublicWebAnalytics from '@/components/analytics/PublicWebAnalytics';
 import ServiceWorkerRegistration from '@/components/push/ServiceWorkerRegistration';
 import "./globals.css";
 
@@ -37,6 +38,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ServiceWorkerRegistration />
         <AppShell>{children}</AppShell>
+        <PublicWebAnalytics />
       </body>
     </html>
   );

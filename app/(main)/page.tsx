@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import Hero from '@/components/common/Hero';
 import Features from '@/components/common/Features';
 import Footer from '@/components/common/Footer';
@@ -80,6 +81,15 @@ export default function Home() {
                 </li>
               ))}
             </ol>
+
+            <div className="mt-7 text-center">
+              <Link
+                href="/how-to-use"
+                className="inline-flex text-sm font-bold text-green-700 transition-colors hover:text-green-800 hover:underline hover:underline-offset-4"
+              >
+                이용방법 자세히 보기 →
+              </Link>
+            </div>
 
             <aside
               aria-labelledby="push-notice-heading"

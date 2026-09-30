@@ -262,7 +262,7 @@ export default function AppShell({ children }: AppShellProps) {
           <nav aria-label="주요 내비게이션" className="hidden items-center gap-6 whitespace-nowrap text-sm font-semibold text-gray-600 lg:flex">
             <div className="flex items-center gap-5">
               <Link href="/#about" className="transition-colors hover:text-green-600">서비스 소개</Link>
-              <Link href="/#how-it-works" className="transition-colors hover:text-green-600">이용방법</Link>
+              <Link href="/how-to-use" className="transition-colors hover:text-green-600">이용방법</Link>
               {isLoggedIn ? <Link href="/premium" className="transition-colors hover:text-green-600">Premium</Link> : null}
               <Link href="/notices" className="transition-colors hover:text-green-600">공지사항</Link>
               <Link href="/faq" className="transition-colors hover:text-green-600">FAQ</Link>
@@ -395,7 +395,7 @@ export default function AppShell({ children }: AppShellProps) {
           <nav id="mobile-navigation" aria-label="모바일 내비게이션" className="absolute left-0 right-0 top-full z-[70] border-t border-gray-100 bg-white p-4 shadow-xl lg:hidden">
             <Link href="/" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">홈</Link>
             <Link href="/#about" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">서비스 소개</Link>
-            <Link href="/#how-it-works" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">이용방법</Link>
+            <Link href="/how-to-use" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">이용방법</Link>
             {isLoggedIn ? <Link href="/premium" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">Premium</Link> : null}
             <Link href="/notices" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">공지사항</Link>
             <Link href="/faq" onClick={closeMenus} className="block rounded-xl px-4 py-3 font-semibold text-gray-700 hover:bg-green-50">FAQ</Link>

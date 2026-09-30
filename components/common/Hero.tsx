@@ -20,6 +20,14 @@ const Hero = () => {
             <br />
             셀프 결혼정보 플랫폼
           </p>
+          <aside
+            aria-label="첫 회원 모집 안내"
+            className="mt-6 max-w-xl rounded-2xl border border-[#C8A951]/40 bg-white/80 px-5 py-4 shadow-sm"
+          >
+            <p className="text-base font-black text-[#183B1B] sm:text-lg">ComMatch 첫 회원 20명을 찾습니다</p>
+            <p className="mt-1.5 text-sm font-medium leading-6 text-gray-700 sm:text-base">남성 10명 · 여성 10명부터 시작합니다.</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-[#2E7D32] sm:text-base">현재 무료로 이용하실 수 있습니다.</p>
+          </aside>
           <Link
             href="/match-test"
             className="mt-9 inline-flex min-h-14 w-full items-center justify-center rounded-xl bg-[#2E7D32] px-8 py-4 text-lg font-bold text-white shadow-lg shadow-green-900/15 transition-colors hover:bg-[#256729] focus:outline-none focus:ring-4 focus:ring-[#2E7D32]/20 sm:w-auto"

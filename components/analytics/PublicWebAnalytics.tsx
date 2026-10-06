@@ -9,6 +9,7 @@ const PUBLIC_PATHS = new Set([
   '/',
   '/about',
   '/faq',
+  '/match-test',
   '/notices',
   '/privacy',
   '/terms',

@@ -1,63 +1,51 @@
+import Image from 'next/image';
 import Link from 'next/link';
 
 const Hero = () => {
   return (
-    <section className="overflow-hidden bg-[#F4F8F4] py-16 sm:py-20 lg:py-28">
-      <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:px-8">
-        <div>
-          <p className="mb-5 inline-flex rounded-full border border-[#C8A951]/40 bg-white px-4 py-2 text-base font-bold text-[#806B26]">
-            셀프 결혼정보 플랫폼 ComMatch
+    <section className="overflow-hidden bg-[#F4F8F4] py-14 sm:py-20 lg:py-24">
+      <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14 lg:px-8">
+        <div className="max-w-2xl">
+          <p className="inline-flex rounded-full border border-[#C8A951]/35 bg-white px-4 py-2 text-sm font-bold text-[#806B26] sm:text-base">
+            셀프 결혼매칭 ComMatch
           </p>
-          <h1 className="text-4xl font-black leading-[1.25] tracking-tight text-[#183B1B] sm:text-5xl lg:text-6xl">
-            진지한 만남,
-            <br />
-            <span className="text-[#2E7D32]">믿을 수 있는 매칭</span>
+          <h1 className="mt-6 text-4xl font-black leading-[1.2] tracking-tight text-[#183B1B] sm:text-5xl lg:text-[3.5rem]">
+            결혼 상대, 이제 내가 직접 찾아보세요.
           </h1>
-          <p className="mt-7 text-xl font-medium leading-8 text-gray-700 sm:text-2xl sm:leading-10">
-            상담사가 아닌,
-            <br />
-            당신이 직접 선택하는
-            <br />
-            셀프 결혼정보 플랫폼
+          <p className="mt-6 max-w-xl text-lg font-medium leading-8 text-gray-700 sm:text-xl sm:leading-9">
+            조건과 가치관을 확인하고 원하는 상대에게 직접 관심을 표현하는 셀프 결혼매칭 서비스
           </p>
-          <aside
-            aria-label="첫 회원 모집 안내"
-            className="mt-6 max-w-xl rounded-2xl border border-[#C8A951]/40 bg-white/80 px-5 py-4 shadow-sm"
-          >
-            <p className="text-base font-black text-[#183B1B] sm:text-lg">ComMatch 첫 회원 20명을 찾습니다</p>
-            <p className="mt-1.5 text-sm font-medium leading-6 text-gray-700 sm:text-base">남성 10명 · 여성 10명부터 시작합니다.</p>
-            <p className="mt-1 text-sm font-bold leading-6 text-[#2E7D32] sm:text-base">현재 무료로 이용하실 수 있습니다.</p>
-          </aside>
-          <Link
-            href="/match-test"
-            className="mt-9 inline-flex min-h-14 w-full items-center justify-center rounded-xl bg-[#2E7D32] px-8 py-4 text-lg font-bold text-white shadow-lg shadow-green-900/15 transition-colors hover:bg-[#256729] focus:outline-none focus:ring-4 focus:ring-[#2E7D32]/20 sm:w-auto"
-          >
-            무료로 시작하기
-          </Link>
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/match-test"
+              className="inline-flex min-h-14 items-center justify-center rounded-xl bg-[#2E7D32] px-7 py-4 text-base font-bold text-white shadow-md shadow-green-900/15 transition-colors hover:bg-[#256729] focus:outline-none focus:ring-4 focus:ring-[#2E7D32]/20 sm:text-lg"
+            >
+              내 매칭 성향 알아보기
+            </Link>
+            <Link
+              href="/how-to-use"
+              className="inline-flex min-h-14 items-center justify-center rounded-xl border border-[#2E7D32]/35 bg-white px-7 py-4 text-base font-bold text-[#245F28] transition-colors hover:border-[#2E7D32] hover:bg-green-50 focus:outline-none focus:ring-4 focus:ring-[#2E7D32]/15 sm:text-lg"
+            >
+              이용방법 보기
+            </Link>
+          </div>
+
+          <p className="mt-4 flex items-center gap-2 text-sm font-bold text-[#2E7D32]">
+            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#C8A951]" />
+            현재 무료 이용
+          </p>
         </div>
 
-        <div aria-hidden="true" className="relative mx-auto w-full max-w-lg">
-          <div className="absolute -left-8 -top-8 h-28 w-28 rounded-full border border-[#C8A951]/40" />
-          <div className="absolute -bottom-10 -right-8 h-40 w-40 rounded-full bg-[#C8A951]/15" />
-          <div className="relative rounded-[2rem] border border-[#2E7D32]/15 bg-white p-7 shadow-xl shadow-green-900/10 sm:p-10">
-            <div className="mb-8 flex items-center justify-between border-b border-gray-100 pb-5">
-              <span className="text-lg font-black text-[#2E7D32]">ComMatch</span>
-              <span className="rounded-full bg-[#F4F8F4] px-3 py-1.5 text-sm font-bold text-[#2E7D32]">SELF MATCHING</span>
-            </div>
-            <div className="space-y-4">
-              {['내 프로필을 직접 작성하고', '원하는 조건을 직접 선택하고', 'AI 추천으로 인연을 발견해요'].map((item, index) => (
-                <div key={item} className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#2E7D32] text-base font-black text-white">
-                    {index + 1}
-                  </span>
-                  <span className="text-base font-bold text-gray-700 sm:text-lg">{item}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 h-2 rounded-full bg-gray-100">
-              <div className="h-2 w-3/4 rounded-full bg-[#C8A951]" />
-            </div>
-          </div>
+        <div className="relative mx-auto aspect-[4/3] w-full max-w-2xl overflow-hidden rounded-[2rem] bg-[#DCEADB] shadow-lg shadow-green-950/10">
+          <Image
+            src="/images/hero/commatch-hero-couple.png"
+            alt="밝은 공간에서 편안하게 대화하는 남녀"
+            fill
+            preload
+            sizes="(max-width: 1024px) 100vw, 46vw"
+            className="object-cover object-center"
+          />
         </div>
       </div>
     </section>

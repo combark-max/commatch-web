@@ -63,26 +63,37 @@ const publicPageStubs = {
   '@/components/common/Hero': { __esModule: true, default: 'hero' },
   '@/components/common/Features': { __esModule: true, default: 'features' },
   '@/components/common/Footer': { __esModule: true, default: 'footer' },
+  '@/components/landing/LandingSections': {
+    LandingBenefits: 'landing-benefits',
+    MatchTestPromo: 'match-test-promo',
+    ServiceJourney: 'service-journey',
+    MatchingComparison: 'matching-comparison',
+    TrustSafety: 'trust-safety',
+    LandingHowToUse: 'landing-how-to-use',
+    FinalMatchCta: 'final-match-cta',
+  },
 };
 
-test('home keeps the approved eight-step sequence and links to the detailed guide', () => {
+test('home renders the approved landing sections in order and keeps the about anchor', () => {
   const home = loadModule('app/(main)/page.tsx', publicPageStubs);
   const tree = home.default();
-  const text = collectText(tree);
-  const hrefs = [];
+  const sectionTypes = [];
+  const ids = [];
   walk(tree, (node) => {
-    if (typeof node.props?.href === 'string') hrefs.push(node.props.href);
+    if (typeof node.type === 'string' && node.type.includes('-')) sectionTypes.push(node.type);
+    if (typeof node.props?.id === 'string') ids.push(node.props.id);
   });
 
-  const titles = ['회원가입', '프로필 작성', 'AI 분석', '추천 받기', '좋아요', '매칭', '채팅', '만남'];
-  let lastIndex = -1;
-  for (const title of titles) {
-    const index = text.indexOf(title, lastIndex + 1);
-    assert.ok(index > lastIndex, `${title} 단계가 승인된 순서에 있어야 합니다.`);
-    lastIndex = index;
-  }
-  assert.ok(hrefs.includes('/how-to-use'));
-  assert.match(text, /이용방법 자세히 보기/);
+  assert.deepEqual(sectionTypes, [
+    'landing-benefits',
+    'match-test-promo',
+    'service-journey',
+    'matching-comparison',
+    'trust-safety',
+    'landing-how-to-use',
+    'final-match-cta',
+  ]);
+  assert.ok(ids.includes('about'));
 });
 
 test('desktop and mobile navigation both open the dedicated how-to-use page', () => {

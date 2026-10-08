@@ -4,7 +4,7 @@ import Link from 'next/link';
 const Hero = () => {
   return (
     <section className="relative isolate overflow-hidden bg-[#F4F8F4] lg:min-h-[680px]">
-      <div className="relative z-20 mx-auto flex max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:min-h-[680px] lg:items-center lg:px-8 lg:py-24">
+      <div className="relative z-20 mx-auto flex max-w-7xl px-4 pt-14 pb-5 sm:px-6 sm:pt-20 sm:pb-8 lg:min-h-[680px] lg:items-center lg:px-8 lg:py-24">
         <div className="max-w-2xl lg:max-w-[56%] xl:max-w-[54%]">
           <p className="inline-flex rounded-full border border-[#C8A951]/35 bg-white px-4 py-2 text-sm font-bold text-[#806B26] sm:text-base">
             셀프 결혼매칭 ComMatch
@@ -41,10 +41,10 @@ const Hero = () => {
 
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-10 hidden bg-[linear-gradient(90deg,rgba(244,248,244,0.98)_0%,rgba(244,248,244,0.94)_34%,rgba(244,248,244,0.72)_48%,rgba(244,248,244,0.12)_68%,transparent_82%)] lg:block"
+        className="pointer-events-none absolute inset-0 z-10 hidden bg-[linear-gradient(90deg,rgba(244,248,244,0.97)_0%,rgba(244,248,244,0.90)_30%,rgba(244,248,244,0.62)_48%,rgba(244,248,244,0.10)_66%,transparent_80%)] lg:block"
       />
 
-      <div className="relative z-0 aspect-[3/2] w-full overflow-hidden bg-[#DCEADB] lg:absolute lg:inset-0 lg:aspect-auto">
+      <div className="relative z-0 mx-4 mb-4 aspect-[3/2] w-auto overflow-hidden rounded-[1.5rem] bg-[#DCEADB] sm:mx-6 sm:mb-6 lg:absolute lg:inset-0 lg:m-0 lg:aspect-auto lg:rounded-none">
         <Image
           src="/images/hero/commatch-hero-couple.png"
           alt="밝은 공간에서 편안하게 대화하는 남녀"
@@ -52,6 +52,10 @@ const Hero = () => {
           preload
           sizes="100vw"
           className="object-cover object-center lg:object-[center_35%]"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-[linear-gradient(180deg,rgba(244,248,244,0.55)_0%,rgba(244,248,244,0.18)_45%,transparent_100%)] lg:hidden"
         />
       </div>
     </section>

@@ -101,12 +101,18 @@ test('Hero uses an isolated desktop background stack with non-blocking overlay',
     tree,
     (node) => typeof node.props?.className === 'string'
       && node.props.className.includes('pointer-events-none')
-      && node.props.className.includes('z-10'),
+      && node.props.className.includes('z-10')
+      && node.props.className.includes('hidden')
+      && node.props.className.includes('lg:block'),
   );
   assert.equal(overlays.length, 1);
   assert.equal(overlays[0].props['aria-hidden'], 'true');
   assert.match(overlays[0].props.className, /\bhidden\b/);
   assert.match(overlays[0].props.className, /\blg:block\b/);
+  assert.match(
+    overlays[0].props.className,
+    /linear-gradient\(90deg,rgba\(244,248,244,0\.97\)_0%,rgba\(244,248,244,0\.90\)_30%,rgba\(244,248,244,0\.62\)_48%,rgba\(244,248,244,0\.10\)_66%,transparent_80%\)/,
+  );
 
   const contentLayers = findAll(
     tree,
@@ -134,8 +140,27 @@ test('Hero keeps mobile copy before the single 3:2 image and prevents horizontal
       && findAll(node, (child) => child.type === 'img').length === 1,
   );
   assert.equal(imageLayers.length, 1);
-  assert.match(imageLayers[0].props.className, /\bw-full\b/);
+  assert.match(imageLayers[0].props.className, /\bmx-4\b/);
+  assert.match(imageLayers[0].props.className, /\bw-auto\b/);
+  assert.match(imageLayers[0].props.className, /rounded-\[1\.5rem\]/);
+  assert.match(imageLayers[0].props.className, /\blg:m-0\b/);
+  assert.match(imageLayers[0].props.className, /\blg:rounded-none\b/);
   assert.match(imageLayers[0].props.className, /\bz-0\b/);
   assert.match(imageLayers[0].props.className, /\blg:absolute\b/);
   assert.match(imageLayers[0].props.className, /\blg:inset-0\b/);
+});
+
+test('Hero blends the mobile image into the copy with a non-blocking fade', () => {
+  const fades = findAll(
+    tree,
+    (node) => typeof node.props?.className === 'string'
+      && node.props.className.includes('pointer-events-none')
+      && node.props.className.includes('lg:hidden')
+      && node.props.className.includes('linear-gradient(180deg'),
+  );
+
+  assert.equal(fades.length, 1);
+  assert.equal(fades[0].props['aria-hidden'], 'true');
+  assert.match(fades[0].props.className, /\bh-12\b/);
+  assert.match(fades[0].props.className, /\btop-0\b/);
 });

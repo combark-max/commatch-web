@@ -77,11 +77,65 @@ test('Hero links to the match test and detailed usage guide', () => {
   assert.equal(destinations['이용방법 보기'], '/how-to-use');
 });
 
-test('Hero renders the approved local image with responsive sizing', () => {
+test('Hero renders one full-width responsive LCP image', () => {
   const images = findAll(tree, (node) => node.type === 'img');
 
   assert.equal(images.length, 1);
   assert.equal(images[0].props.src, '/images/hero/commatch-hero-couple.png');
   assert.match(images[0].props.alt, /대화하는 남녀/);
-  assert.ok(images[0].props.sizes);
+  assert.equal(images[0].props.fill, true);
+  assert.equal(images[0].props.preload, true);
+  assert.equal(images[0].props.sizes, '100vw');
+  assert.match(images[0].props.className, /\bobject-cover\b/);
+  assert.match(images[0].props.className, /object-\[/);
+});
+
+test('Hero uses an isolated desktop background stack with non-blocking overlay', () => {
+  assert.equal(tree.type, 'section');
+  assert.match(tree.props.className, /\brelative\b/);
+  assert.match(tree.props.className, /\bisolate\b/);
+  assert.match(tree.props.className, /\boverflow-hidden\b/);
+  assert.match(tree.props.className, /lg:min-h-\[680px\]/);
+
+  const overlays = findAll(
+    tree,
+    (node) => typeof node.props?.className === 'string'
+      && node.props.className.includes('pointer-events-none')
+      && node.props.className.includes('z-10'),
+  );
+  assert.equal(overlays.length, 1);
+  assert.equal(overlays[0].props['aria-hidden'], 'true');
+  assert.match(overlays[0].props.className, /\bhidden\b/);
+  assert.match(overlays[0].props.className, /\blg:block\b/);
+
+  const contentLayers = findAll(
+    tree,
+    (node) => typeof node.props?.className === 'string'
+      && node.props.className.includes('z-20')
+      && collectText(node).includes('내 매칭 성향 알아보기'),
+  );
+  assert.equal(contentLayers.length, 1);
+});
+
+test('Hero keeps mobile copy before the single 3:2 image and prevents horizontal overflow', () => {
+  const sectionChildren = Array.isArray(tree.props.children)
+    ? tree.props.children
+    : [tree.props.children];
+  const copyIndex = sectionChildren.findIndex((child) => collectText(child).includes('결혼 상대, 이제 내가 직접 찾아보세요.'));
+  const imageIndex = sectionChildren.findIndex((child) => findAll(child, (node) => node.type === 'img').length === 1);
+
+  assert.ok(copyIndex >= 0);
+  assert.ok(imageIndex > copyIndex);
+
+  const imageLayers = findAll(
+    tree,
+    (node) => typeof node.props?.className === 'string'
+      && node.props.className.includes('aspect-[3/2]')
+      && findAll(node, (child) => child.type === 'img').length === 1,
+  );
+  assert.equal(imageLayers.length, 1);
+  assert.match(imageLayers[0].props.className, /\bw-full\b/);
+  assert.match(imageLayers[0].props.className, /\bz-0\b/);
+  assert.match(imageLayers[0].props.className, /\blg:absolute\b/);
+  assert.match(imageLayers[0].props.className, /\blg:inset-0\b/);
 });

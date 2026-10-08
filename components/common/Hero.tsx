@@ -3,14 +3,15 @@ import Link from 'next/link';
 
 const Hero = () => {
   return (
-    <section className="overflow-hidden bg-[#F4F8F4] py-14 sm:py-20 lg:py-24">
-      <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14 lg:px-8">
-        <div className="max-w-2xl">
+    <section className="relative isolate overflow-hidden bg-[#F4F8F4] lg:min-h-[680px]">
+      <div className="relative z-20 mx-auto flex max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:min-h-[680px] lg:items-center lg:px-8 lg:py-24">
+        <div className="max-w-2xl lg:max-w-[56%] xl:max-w-[54%]">
           <p className="inline-flex rounded-full border border-[#C8A951]/35 bg-white px-4 py-2 text-sm font-bold text-[#806B26] sm:text-base">
             셀프 결혼매칭 ComMatch
           </p>
-          <h1 className="mt-6 text-4xl font-black leading-[1.2] tracking-tight text-[#183B1B] sm:text-5xl lg:text-[3.5rem]">
-            결혼 상대, 이제 내가 직접 찾아보세요.
+          <h1 className="mt-6 text-4xl font-black leading-[1.2] tracking-tight text-[#183B1B] sm:text-5xl lg:text-[3.25rem]">
+            <span className="block">결혼 상대,</span>{' '}
+            <span className="block">이제 내가 직접 찾아보세요.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg font-medium leading-8 text-gray-700 sm:text-xl sm:leading-9">
             조건과 가치관을 확인하고 원하는 상대에게 직접 관심을 표현하는 셀프 결혼매칭 서비스
@@ -36,17 +37,22 @@ const Hero = () => {
             현재 무료 이용
           </p>
         </div>
+      </div>
 
-        <div className="relative mx-auto aspect-[4/3] w-full max-w-2xl overflow-hidden rounded-[2rem] bg-[#DCEADB] shadow-lg shadow-green-950/10">
-          <Image
-            src="/images/hero/commatch-hero-couple.png"
-            alt="밝은 공간에서 편안하게 대화하는 남녀"
-            fill
-            preload
-            sizes="(max-width: 1024px) 100vw, 46vw"
-            className="object-cover object-center"
-          />
-        </div>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-10 hidden bg-[linear-gradient(90deg,rgba(244,248,244,0.98)_0%,rgba(244,248,244,0.94)_34%,rgba(244,248,244,0.72)_48%,rgba(244,248,244,0.12)_68%,transparent_82%)] lg:block"
+      />
+
+      <div className="relative z-0 aspect-[3/2] w-full overflow-hidden bg-[#DCEADB] lg:absolute lg:inset-0 lg:aspect-auto">
+        <Image
+          src="/images/hero/commatch-hero-couple.png"
+          alt="밝은 공간에서 편안하게 대화하는 남녀"
+          fill
+          preload
+          sizes="100vw"
+          className="object-cover object-center lg:object-[center_35%]"
+        />
       </div>
     </section>
   );

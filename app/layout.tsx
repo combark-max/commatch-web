@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://www.commatch.net'),
   title: "ComMatch - AI 기반 셀프 매칭 서비스",
   description: "ComMatch와 함께 스마트한 AI 기반 매칭을 경험해보세요.",
+  verification: {
+    other: {
+      'naver-site-verification': '56116f760bd381e6ba3300f8eac8d0fd37ce6f7c',
+    },
+  },
 };
 
 export const viewport: Viewport = {

@@ -48,31 +48,31 @@ export function MatchTestPromo() {
       <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16 lg:px-8">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.18em] text-[#E0C872]">Match Test</p>
-          <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">나는 어떤 사람과 잘 맞을까?</h2>
-          <p className="mt-5 max-w-xl text-lg leading-8 text-white/75">10개의 간단한 질문으로 나의 결혼 매칭 성향을 알아보세요.</p>
+          <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">나는 관계에서 무엇을 중요하게 생각할까?</h2>
+          <p className="mt-5 max-w-xl text-lg leading-8 text-white/75">18개 질문으로 감정 표현, 갈등 대화, 생활 조율 등 6가지 관계 성향을 살펴보세요.</p>
           <ul className="mt-7 flex flex-wrap gap-2" aria-label="매칭 테스트 정보">
-            {['약 1분', '10문항', '회원가입 없이 이용 가능'].map((item) => (
+            {['18문항', '6가지 관계 성향', '회원가입 없이 이용 가능'].map((item) => (
               <li key={item} className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-white/90">{item}</li>
             ))}
           </ul>
           <Link href="/match-test" className="mt-8 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-white px-7 py-4 text-base font-black text-[#183B1B] transition-colors hover:bg-[#F4F8F4] focus:outline-none focus:ring-4 focus:ring-white/25 sm:w-auto sm:text-lg">
-            1분 매칭 테스트 시작 <ArrowRight aria-hidden="true" size={20} />
+            관계 성향 테스트 시작 <ArrowRight aria-hidden="true" size={20} />
           </Link>
         </div>
 
         <div className="rounded-[2rem] bg-white p-6 text-gray-900 shadow-lg shadow-black/10 sm:p-8">
           <div className="flex items-center justify-between gap-4">
-            <span className="rounded-full bg-[#EDF5ED] px-3 py-1.5 text-sm font-black text-[#2E7D32]">가치관</span>
+            <span className="rounded-full bg-[#EDF5ED] px-3 py-1.5 text-sm font-black text-[#2E7D32]">감정 공유 개방성</span>
             <span className="text-sm font-bold text-gray-500">미리보기</span>
           </div>
-          <div className="mt-5 h-2 overflow-hidden rounded-full bg-gray-100"><div className="h-full w-2/5 rounded-full bg-[#C8A951]" /></div>
-          <p className="mt-7 text-2xl font-black leading-9 text-[#183B1B]">데이트에서 더 중요한 것은?</p>
-          <div className="mt-6 space-y-3" aria-label="매칭 테스트 정적 미리보기">
-            {['편안한 대화', '새로운 경험'].map((option, index) => (
-              <div key={option} className={`flex min-h-14 items-center justify-between rounded-xl border-2 px-5 py-4 font-bold ${index === 0 ? 'border-[#2E7D32] bg-[#F4F8F4] text-[#183B1B]' : 'border-gray-200 text-gray-600'}`}>
+          <div className="mt-5 h-2 overflow-hidden rounded-full bg-gray-100"><div className="h-full w-1/3 rounded-full bg-[#C8A951]" /></div>
+          <p className="mt-7 text-2xl font-black leading-9 text-[#183B1B]">마음이 힘들 때 연인에게 내 감정을 솔직하게 이야기하고 싶습니다.</p>
+          <div className="mt-6 grid gap-2 sm:grid-cols-5" aria-label="5점 척도 매칭 테스트 정적 미리보기">
+            {['전혀 그렇지 않다', '그렇지 않은 편이다', '보통이다', '그런 편이다', '매우 그렇다'].map((option, index) => (
+              <div key={option} className={`flex min-h-14 items-center justify-between gap-2 rounded-xl border-2 px-3 py-3 text-sm font-bold sm:flex-col sm:justify-center sm:text-center ${index === 2 ? 'border-[#2E7D32] bg-[#F4F8F4] text-[#183B1B]' : 'border-gray-200 text-gray-600'}`}>
                 <span>{option}</span>
-                <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${index === 0 ? 'border-[#2E7D32] bg-[#2E7D32] text-white' : 'border-gray-300'}`}>
-                  {index === 0 ? <Check aria-hidden="true" size={14} strokeWidth={3} /> : null}
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${index === 2 ? 'border-[#2E7D32] bg-[#2E7D32] text-white' : 'border-gray-300'}`}>
+                  {index === 2 ? <Check aria-hidden="true" size={14} strokeWidth={3} /> : null}
                 </span>
               </div>
             ))}

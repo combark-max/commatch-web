@@ -73,14 +73,19 @@ test('match-test promotion is a static preview that links to the real test', () 
   const text = collectText(tree);
   const links = findAll(tree, (node) => node.type === 'a');
 
-  assert.match(text, /나는 어떤 사람과 잘 맞을까\?/);
-  assert.match(text, /약 1분/);
-  assert.match(text, /10문항/);
+  assert.match(text, /나는 관계에서 무엇을 중요하게 생각할까\?/);
+  assert.match(text, /18개 질문으로 감정 표현, 갈등 대화, 생활 조율 등 6가지 관계 성향을 살펴보세요\./);
+  assert.match(text, /18문항/);
+  assert.match(text, /6가지 관계 성향/);
   assert.match(text, /회원가입 없이 이용 가능/);
-  assert.match(text, /데이트에서 더 중요한 것은\?/);
+  assert.match(text, /마음이 힘들 때 연인에게 내 감정을 솔직하게 이야기하고 싶습니다\./);
+  for (const label of ['전혀 그렇지 않다', '그렇지 않은 편이다', '보통이다', '그런 편이다', '매우 그렇다']) {
+    assert.match(text, new RegExp(label));
+  }
+  assert.doesNotMatch(text, /약 1분|1분 매칭 테스트|10문항|데이트에서 더 중요한 것은|편안한 대화|새로운 경험/);
   const matchTestLink = links.find((link) => link.props.href === '/match-test');
   assert.ok(matchTestLink);
-  assert.match(collectText(matchTestLink), /1분 매칭 테스트 시작/);
+  assert.match(collectText(matchTestLink), /관계 성향 테스트 시작/);
 });
 
 test('service journey renders four clearly labelled example screens with synthetic content', () => {

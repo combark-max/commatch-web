@@ -1,448 +1,438 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, Heart, House, RotateCcw, Users } from 'lucide-react';
+import { ArrowLeft, ChevronDown, RotateCcw } from 'lucide-react';
+import { getCurrentUser } from '@/lib/auth/auth';
+import { analyzeMatchTest, type MatchTestAnalysis } from '@/lib/match-test/analysis';
+import { LIKERT_OPTIONS, MATCH_TEST_DOMAINS, MATCH_TEST_QUESTIONS } from '@/lib/match-test/questions';
+import { scoreMatchTest } from '@/lib/match-test/scoring';
+import {
+  clearMatchTestSession,
+  MATCH_TEST_DISPLAY_ORDER,
+  readMatchTestSession,
+  writeMatchTestSession,
+  type MatchTestSessionState,
+} from '@/lib/match-test/session';
+import type { DomainId, LikertValue, MatchTestQuestion, QuestionId } from '@/lib/match-test/types';
 
-type Category = 'values' | 'partner' | 'marriage';
+type AuthState = 'checking' | 'anonymous' | 'authenticated' | 'error';
 
-type Question = {
-  category: Category;
-  categoryLabel: string;
-  prompt: string;
-  options: Array<{
-    label: string;
-    trait: string;
-  }>;
-};
+type MatchTestAction =
+  | { readonly type: 'answer'; readonly value: LikertValue }
+  | { readonly type: 'next' }
+  | { readonly type: 'previous' }
+  | { readonly type: 'restart' };
 
-type ResultProfile = {
-  title: string;
-  description: string[];
-};
+const DOMAIN_LABELS = Object.fromEntries(
+  MATCH_TEST_DOMAINS.map(({ id, label }) => [id, label]),
+) as Readonly<Record<DomainId, string>>;
 
-const questions: Question[] = [
-  {
-    category: 'values',
-    categoryLabel: '가치관',
-    prompt: '결혼생활에서 가장 중요하다고 생각하는 것은?',
-    options: [
-      { label: '신뢰와 정직', trait: 'stability' },
-      { label: '경제적 안정', trait: 'stability' },
-      { label: '대화와 공감', trait: 'communication' },
-      { label: '개인의 자유 존중', trait: 'balance' },
-    ],
-  },
-  {
-    category: 'values',
-    categoryLabel: '가치관',
-    prompt: '배우자와 의견이 다를 때 선호하는 방식은?',
-    options: [
-      { label: '충분히 대화한다', trait: 'communication' },
-      { label: '서로 시간을 가진다', trait: 'balance' },
-      { label: '빠르게 타협한다', trait: 'stability' },
-      { label: '한쪽이 양보한다', trait: 'stability' },
-    ],
-  },
-  {
-    category: 'partner',
-    categoryLabel: '이성관',
-    prompt: '이상적인 배우자의 성향은?',
-    options: [
-      { label: '따뜻하고 다정한 사람', trait: 'warmth' },
-      { label: '책임감 있고 안정적인 사람', trait: 'reality' },
-      { label: '활발하고 긍정적인 사람', trait: 'energy' },
-      { label: '지적이고 대화가 잘 통하는 사람', trait: 'warmth' },
-    ],
-  },
-  {
-    category: 'partner',
-    categoryLabel: '이성관',
-    prompt: '배우자의 직업이나 경제력에 대한 생각은?',
-    options: [
-      { label: '매우 중요하다', trait: 'reality' },
-      { label: '어느 정도 중요하다', trait: 'reality' },
-      { label: '성실함이 더 중요하다', trait: 'warmth' },
-      { label: '크게 중요하지 않다', trait: 'energy' },
-    ],
-  },
-  {
-    category: 'marriage',
-    categoryLabel: '결혼관',
-    prompt: '결혼 후 개인 시간에 대한 생각은?',
-    options: [
-      { label: '서로 충분히 존중해야 한다', trait: 'partnership' },
-      { label: '대부분의 시간을 함께 보내고 싶다', trait: 'family' },
-      { label: '상황에 따라 조절해야 한다', trait: 'practical' },
-      { label: '크게 생각해보지 않았다', trait: 'practical' },
-    ],
-  },
-  {
-    category: 'marriage',
-    categoryLabel: '결혼관',
-    prompt: '자녀 계획에 대한 생각은?',
-    options: [
-      { label: '꼭 원한다', trait: 'family' },
-      { label: '가능하면 원한다', trait: 'family' },
-      { label: '배우자와 상의하고 싶다', trait: 'partnership' },
-      { label: '원하지 않는다', trait: 'practical' },
-    ],
-  },
-  {
-    category: 'marriage',
-    categoryLabel: '결혼관',
-    prompt: '부모님이나 가족과의 관계는 어느 정도가 적당한가?',
-    options: [
-      { label: '자주 교류하고 가깝게 지낸다', trait: 'family' },
-      { label: '필요할 때 서로 돕는다', trait: 'partnership' },
-      { label: '일정한 거리를 유지한다', trait: 'practical' },
-      { label: '부부 중심의 생활이 중요하다', trait: 'partnership' },
-    ],
-  },
-  {
-    category: 'values',
-    categoryLabel: '가치관',
-    prompt: '갈등이 생겼을 때 가장 중요한 것은?',
-    options: [
-      { label: '솔직한 대화', trait: 'communication' },
-      { label: '감정 진정', trait: 'balance' },
-      { label: '빠른 해결', trait: 'stability' },
-      { label: '서로의 입장 존중', trait: 'communication' },
-    ],
-  },
-  {
-    category: 'partner',
-    categoryLabel: '이성관',
-    prompt: '데이트나 여가생활에서 선호하는 방식은?',
-    options: [
-      { label: '여행과 야외 활동', trait: 'energy' },
-      { label: '문화생활과 취미', trait: 'warmth' },
-      { label: '집에서 편안하게 보내기', trait: 'reality' },
-      { label: '다양한 경험을 함께하기', trait: 'energy' },
-    ],
-  },
-  {
-    category: 'marriage',
-    categoryLabel: '결혼관',
-    prompt: '결혼을 결정할 때 가장 중요한 기준은?',
-    options: [
-      { label: '사랑과 정서적 교감', trait: 'partnership' },
-      { label: '가치관의 일치', trait: 'partnership' },
-      { label: '경제적 안정', trait: 'practical' },
-      { label: '책임감과 신뢰', trait: 'family' },
-    ],
-  },
-];
+const QUESTION_BY_ID = new Map<QuestionId, MatchTestQuestion>(
+  MATCH_TEST_QUESTIONS.map((question) => [question.id, question]),
+);
 
-const resultProfiles: Record<Category, Record<string, ResultProfile>> = {
-  values: {
-    stability: {
-      title: '신뢰와 안정된 관계를 중요하게 생각하는 안정형',
-      description: [
-        '관계의 기본은 서로에 대한 믿음과 책임감이라고 생각하는 편입니다.',
-        '예측 가능한 약속과 차분한 해결 방식에서 편안함을 느낄 가능성이 높습니다.',
-      ],
-    },
-    communication: {
-      title: '대화와 공감을 중요하게 생각하는 소통형',
-      description: [
-        '생각과 감정을 솔직하게 나누는 관계를 중요하게 여기는 편입니다.',
-        '서로의 입장을 이해하며 함께 답을 찾아가는 상대와 잘 맞을 수 있습니다.',
-      ],
-    },
-    balance: {
-      title: '서로의 자율성을 존중하는 균형형',
-      description: [
-        '가까운 관계 안에서도 각자의 시간과 감정을 존중하는 편입니다.',
-        '서로에게 여유를 주면서 안정적으로 관계를 이어가는 방식을 선호할 수 있습니다.',
-      ],
-    },
-  },
-  partner: {
-    warmth: {
-      title: '따뜻하고 대화가 잘 통하는 상대를 선호하는 교감형',
-      description: [
-        '조건보다 다정한 태도와 정서적인 교감을 중요하게 보는 편입니다.',
-        '일상의 이야기를 편안히 나누고 서로를 격려하는 상대에게 끌릴 수 있습니다.',
-      ],
-    },
-    reality: {
-      title: '책임감 있고 안정적인 상대를 선호하는 현실형',
-      description: [
-        '성실함과 생활의 안정감을 중요한 매력으로 생각하는 편입니다.',
-        '미래를 함께 계획하고 약속을 지키는 상대에게 신뢰를 느낄 가능성이 높습니다.',
-      ],
-    },
-    energy: {
-      title: '긍정적이고 새로운 경험을 즐기는 상대를 선호하는 활력형',
-      description: [
-        '함께 다양한 경험을 만들 수 있는 밝고 적극적인 상대를 선호하는 편입니다.',
-        '일상에 즐거움과 변화를 더해주는 관계에서 매력을 느낄 수 있습니다.',
-      ],
-    },
-  },
-  marriage: {
-    partnership: {
-      title: '부부가 함께 조율하는 결혼생활을 원하는 동반자형',
-      description: [
-        '결혼은 두 사람이 대화하며 함께 만들어가는 과정이라고 생각하는 편입니다.',
-        '중요한 선택을 함께 의논하고 서로의 삶을 존중하는 관계를 지향합니다.',
-      ],
-    },
-    family: {
-      title: '가족의 유대와 미래를 중요하게 생각하는 가족형',
-      description: [
-        '부부뿐 아니라 가족 간의 책임과 유대도 중요하게 생각하는 편입니다.',
-        '안정적인 가정을 함께 만들고 미래를 준비하는 관계를 선호할 수 있습니다.',
-      ],
-    },
-    practical: {
-      title: '현실적인 기반과 생활의 균형을 중시하는 실용형',
-      description: [
-        '정해진 답보다 두 사람의 상황에 맞는 현실적인 선택을 중요하게 여깁니다.',
-        '각자의 생활을 존중하면서 무리 없이 지속할 수 있는 결혼을 지향합니다.',
-      ],
-    },
-  },
-};
+const MATCH_TEST_DISPLAY_QUESTIONS = MATCH_TEST_DISPLAY_ORDER.map((questionId) => {
+  const question = QUESTION_BY_ID.get(questionId);
+  if (!question) throw new Error(`Missing match-test question: ${questionId}`);
+  return question;
+});
 
-const categoryMeta: Record<Category, { label: string; icon: typeof Heart }> = {
-  values: { label: '가치관', icon: Heart },
-  partner: { label: '이성관', icon: Users },
-  marriage: { label: '결혼관', icon: House },
-};
+const createInitialMatchTestState = (): MatchTestSessionState => ({
+  schemaVersion: 1,
+  testVersion: '2.0',
+  phase: 'questions',
+  currentQuestionId: MATCH_TEST_DISPLAY_ORDER[0],
+  answers: {},
+});
 
-const storageKey = 'commatch-match-test';
+const hasAllAnswers = (answers: MatchTestSessionState['answers']) => (
+  MATCH_TEST_DISPLAY_ORDER.every((questionId) => answers[questionId] !== undefined)
+);
 
-function calculateResults(answers: Array<string | null>) {
-  const scores: Record<Category, Record<string, number>> = {
-    values: { stability: 0, communication: 0, balance: 0 },
-    partner: { warmth: 0, reality: 0, energy: 0 },
-    marriage: { partnership: 0, family: 0, practical: 0 },
-  };
+const reduceMatchTestState = (
+  state: MatchTestSessionState,
+  action: MatchTestAction,
+): MatchTestSessionState => {
+  if (action.type === 'restart') return createInitialMatchTestState();
 
-  questions.forEach((question, index) => {
-    const selectedOption = question.options.find((option) => option.label === answers[index]);
-    if (selectedOption) scores[question.category][selectedOption.trait] += 1;
-  });
-
-  return (Object.keys(scores) as Category[]).reduce((results, category) => {
-    const traitOrder = Object.keys(resultProfiles[category]);
-    const topTrait = traitOrder.reduce((top, trait) => (
-      scores[category][trait] > scores[category][top] ? trait : top
-    ));
-    results[category] = resultProfiles[category][topTrait];
-    return results;
-  }, {} as Record<Category, ResultProfile>);
-}
-
-export default function MatchTestPage() {
-  const [answers, setAnswers] = useState<Array<string | null>>(() => Array(questions.length).fill(null));
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [showResult, setShowResult] = useState(false);
-  const [isRestored, setIsRestored] = useState(false);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      try {
-        const saved = window.sessionStorage.getItem(storageKey);
-        if (saved) {
-          const parsed = JSON.parse(saved) as {
-            answers?: unknown;
-            currentIndex?: unknown;
-            showResult?: unknown;
-          };
-          const rawAnswers = Array.isArray(parsed.answers) ? parsed.answers : null;
-          const savedAnswers = rawAnswers
-            ? questions.map((question, index) => (
-              question.options.some((option) => option.label === rawAnswers[index])
-                ? String(rawAnswers[index])
-                : null
-            ))
-            : Array(questions.length).fill(null);
-          const hasAllAnswers = savedAnswers.every((answer) => answer !== null);
-          const savedIndex = typeof parsed.currentIndex === 'number'
-            ? Math.min(Math.max(Math.trunc(parsed.currentIndex), 0), questions.length - 1)
-            : 0;
-
-          setAnswers(savedAnswers);
-          setCurrentIndex(savedIndex);
-          setShowResult(parsed.showResult === true && hasAllAnswers);
-        }
-      } catch {
-        window.sessionStorage.removeItem(storageKey);
-      } finally {
-        setIsRestored(true);
-      }
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, []);
-
-  useEffect(() => {
-    if (!isRestored) return;
-    window.sessionStorage.setItem(storageKey, JSON.stringify({ answers, currentIndex, showResult }));
-  }, [answers, currentIndex, isRestored, showResult]);
-
-  const results = useMemo(() => calculateResults(answers), [answers]);
-  const question = questions[currentIndex];
-  const progress = ((currentIndex + 1) / questions.length) * 100;
-  const isLastQuestion = currentIndex === questions.length - 1;
-
-  const selectAnswer = (answer: string) => {
-    setAnswers((current) => current.map((value, index) => (index === currentIndex ? answer : value)));
-  };
-
-  const goNext = () => {
-    if (!answers[currentIndex]) return;
-    if (isLastQuestion) {
-      setShowResult(true);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    setCurrentIndex((index) => index + 1);
-  };
-
-  const goPrevious = () => {
-    setCurrentIndex((index) => Math.max(index - 1, 0));
-  };
-
-  const restart = () => {
-    setAnswers(Array(questions.length).fill(null));
-    setCurrentIndex(0);
-    setShowResult(false);
-    window.sessionStorage.removeItem(storageKey);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  if (!isRestored) {
-    return <div className="min-h-[calc(100vh-4rem)] bg-[#F4F8F4]" />;
+  if (action.type === 'answer') {
+    return {
+      ...state,
+      answers: { ...state.answers, [state.currentQuestionId]: action.value },
+    };
   }
 
-  if (showResult) {
-    return (
-      <div className="min-h-[calc(100vh-4rem)] bg-[#F4F8F4] px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-        <div className="mx-auto max-w-4xl">
-          <div className="mb-10 text-center">
-            <p className="mb-3 text-base font-black tracking-[0.16em] text-[#806B26]">MATCH TEST RESULT</p>
-            <h1 className="text-3xl font-black tracking-tight text-[#183B1B] sm:text-4xl">나의 결혼 성향 결과</h1>
-          </div>
+  const currentIndex = MATCH_TEST_DISPLAY_ORDER.indexOf(state.currentQuestionId);
+  if (action.type === 'previous') {
+    if (currentIndex <= 0) return state;
+    return {
+      ...state,
+      phase: 'questions',
+      currentQuestionId: MATCH_TEST_DISPLAY_ORDER[currentIndex - 1],
+    };
+  }
 
-          <div className="space-y-5">
-            {(Object.keys(categoryMeta) as Category[]).map((category) => {
-              const Icon = categoryMeta[category].icon;
-              const result = results[category];
+  if (state.answers[state.currentQuestionId] === undefined) return state;
+  if (currentIndex < MATCH_TEST_DISPLAY_ORDER.length - 1) {
+    return { ...state, currentQuestionId: MATCH_TEST_DISPLAY_ORDER[currentIndex + 1] };
+  }
+  if (!hasAllAnswers(state.answers)) return state;
+  return { ...state, phase: 'result' };
+};
+
+const createMatchTestResult = (answers: unknown): MatchTestAnalysis | null => {
+  const scoringResult = scoreMatchTest(answers);
+  if (!scoringResult.ok) return null;
+  return analyzeMatchTest(scoringResult);
+};
+
+type QuestionScreenProps = {
+  readonly question: MatchTestQuestion;
+  readonly questionNumber: number;
+  readonly selectedAnswer: LikertValue | undefined;
+  readonly onAnswer: (value: LikertValue) => void;
+  readonly onPrevious: () => void;
+  readonly onNext: () => void;
+  readonly headingRef?: React.RefObject<HTMLLegendElement | null>;
+};
+
+function QuestionScreen({
+  question,
+  questionNumber,
+  selectedAnswer,
+  onAnswer,
+  onPrevious,
+  onNext,
+  headingRef,
+}: QuestionScreenProps) {
+  const isLastQuestion = questionNumber === MATCH_TEST_DISPLAY_QUESTIONS.length;
+  const progress = (questionNumber / MATCH_TEST_DISPLAY_QUESTIONS.length) * 100;
+
+  return (
+    <div className="min-h-[calc(100vh-4rem)] bg-[#F4F8F4] px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div className="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-10">
+        <header className="mb-8">
+          <p className="text-sm font-black uppercase tracking-[0.16em] text-[#806B26]">Relationship Test</p>
+          <div className="mt-2 flex items-end justify-between gap-4">
+            <h1 className="text-2xl font-black text-[#183B1B] sm:text-3xl">관계 성향 테스트</h1>
+            <span className="shrink-0 text-base font-black text-gray-700 sm:text-lg">
+              {questionNumber} / {MATCH_TEST_DISPLAY_QUESTIONS.length}
+            </span>
+          </div>
+          <progress
+            className="mt-5 h-3 w-full overflow-hidden rounded-full accent-[#C8A951]"
+            value={progress}
+            max={100}
+            aria-label={`테스트 진행률 ${questionNumber} / ${MATCH_TEST_DISPLAY_QUESTIONS.length}`}
+          />
+        </header>
+
+        <fieldset>
+          <legend ref={headingRef} tabIndex={-1} className="w-full outline-none">
+            <span className="inline-flex rounded-full bg-[#F4F8F4] px-3 py-1.5 text-sm font-black text-[#2E7D32]">
+              {DOMAIN_LABELS[question.domainId]}
+            </span>
+            <span className="mt-4 block text-2xl font-black leading-9 text-[#183B1B] sm:text-3xl sm:leading-[1.4]">
+              {question.prompt}
+            </span>
+          </legend>
+
+          <div className="mt-8 space-y-3">
+            {LIKERT_OPTIONS.map((option) => {
+              const inputId = `match-test-${question.id}-${option.value}`;
+              const isSelected = selectedAnswer === option.value;
               return (
-                <section key={category} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#F4F8F4] text-[#2E7D32]">
-                      <Icon size={26} strokeWidth={1.8} />
-                    </div>
-                    <div>
-                      <p className="text-base font-black text-[#806B26]">{categoryMeta[category].label}</p>
-                      <h2 className="mt-1 text-xl font-black leading-8 text-gray-900 sm:text-2xl">{result.title}</h2>
-                    </div>
-                  </div>
-                  <div className="mt-5 space-y-2 border-t border-gray-100 pt-5 text-base leading-7 text-gray-600 sm:text-lg sm:leading-8">
-                    {result.description.map((line) => <p key={line}>{line}</p>)}
-                  </div>
-                </section>
+                <label
+                  key={option.value}
+                  htmlFor={inputId}
+                  className={`flex min-h-14 cursor-pointer items-center justify-between gap-4 rounded-xl border-2 px-4 py-3.5 text-left text-base font-bold transition-colors sm:min-h-16 sm:px-6 sm:text-lg ${
+                    isSelected
+                      ? 'border-[#2E7D32] bg-[#F4F8F4] text-[#183B1B]'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-[#2E7D32]/45 hover:bg-gray-50'
+                  }`}
+                >
+                  <span>{option.label}</span>
+                  <input
+                    id={inputId}
+                    name="match-test-answer"
+                    type="radio"
+                    value={option.value}
+                    checked={isSelected}
+                    onChange={() => onAnswer(option.value)}
+                    className="h-5 w-5 shrink-0 accent-[#2E7D32] sm:h-6 sm:w-6"
+                  />
+                </label>
               );
             })}
           </div>
-
-          <div className="mt-8 rounded-2xl border border-[#C8A951]/35 bg-white p-6 text-center sm:p-8">
-            <p className="text-base leading-7 text-gray-700 sm:text-lg sm:leading-8">
-              이 결과는 간단한 사전 성향 분석이며,
-              <br className="hidden sm:block" />
-              회원가입 후 더 자세한 프로필과 이상형 설정을 통해
-              <br className="hidden sm:block" />
-              더욱 정확한 추천을 받을 수 있습니다.
-            </p>
-            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link
-                href="/signup"
-                className="inline-flex min-h-14 items-center justify-center rounded-xl bg-[#2E7D32] px-7 py-4 text-lg font-bold text-white hover:bg-[#256729] focus:outline-none focus:ring-4 focus:ring-[#2E7D32]/20"
-              >
-                가입하고 매칭 시작하기
-              </Link>
-              <button
-                type="button"
-                onClick={restart}
-                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl border border-[#2E7D32] bg-white px-7 py-4 text-lg font-bold text-[#2E7D32] hover:bg-green-50"
-              >
-                <RotateCcw size={20} />
-                다시 테스트하기
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#F4F8F4] px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-      <div className="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-10">
-        <div className="mb-8">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <span className="rounded-full bg-[#F4F8F4] px-4 py-2 text-base font-black text-[#2E7D32]">
-              {question.categoryLabel}
-            </span>
-            <span className="text-lg font-black text-gray-700">{currentIndex + 1} / {questions.length}</span>
-          </div>
-          <div className="h-3 overflow-hidden rounded-full bg-gray-100" aria-label={`진행률 ${currentIndex + 1} / ${questions.length}`}>
-            <div className="h-full rounded-full bg-[#C8A951] transition-[width] duration-200" style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-
-        <h1 className="text-2xl font-black leading-9 text-[#183B1B] sm:text-3xl sm:leading-[1.4]">{question.prompt}</h1>
-
-        <div className="mt-8 space-y-3" role="radiogroup" aria-label={question.prompt}>
-          {question.options.map((option) => {
-            const isSelected = answers[currentIndex] === option.label;
-            return (
-              <button
-                key={option.label}
-                type="button"
-                role="radio"
-                aria-checked={isSelected}
-                onClick={() => selectAnswer(option.label)}
-                className={`flex min-h-16 w-full items-center justify-between gap-4 rounded-xl border-2 px-5 py-4 text-left text-lg font-bold transition-colors sm:px-6 ${
-                  isSelected
-                    ? 'border-[#2E7D32] bg-[#F4F8F4] text-[#183B1B]'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-[#2E7D32]/45 hover:bg-gray-50'
-                }`}
-              >
-                <span>{option.label}</span>
-                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 ${isSelected ? 'border-[#2E7D32] bg-[#2E7D32] text-white' : 'border-gray-300'}`}>
-                  {isSelected ? <Check size={17} strokeWidth={3} /> : null}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        </fieldset>
 
         <div className="mt-9 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
           <button
             type="button"
-            onClick={goPrevious}
-            disabled={currentIndex === 0}
+            onClick={onPrevious}
+            disabled={questionNumber === 1}
             className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl border border-gray-300 px-6 py-4 text-lg font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <ArrowLeft size={21} />
+            <ArrowLeft aria-hidden="true" size={21} />
             이전 질문
           </button>
           <button
             type="button"
-            onClick={goNext}
-            disabled={!answers[currentIndex]}
-            className="min-h-14 rounded-xl bg-[#2E7D32] px-8 py-4 text-lg font-bold text-white hover:bg-[#256729] disabled:cursor-not-allowed disabled:bg-gray-300"
+            onClick={onNext}
+            disabled={selectedAnswer === undefined}
+            className="min-h-14 rounded-xl bg-[#2E7D32] px-8 py-4 text-lg font-bold text-white hover:bg-[#256729] focus:outline-none focus:ring-4 focus:ring-[#2E7D32]/20 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {isLastQuestion ? '결과 보기' : '다음 질문'}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+type ResultScreenProps = {
+  readonly analysis: MatchTestAnalysis;
+  readonly authState: AuthState;
+  readonly onRestart: () => void;
+  readonly headingRef?: React.RefObject<HTMLHeadingElement | null>;
+};
+
+const getDomainLabel = (domainId: DomainId) => DOMAIN_LABELS[domainId];
+
+function ResultCta({ authState }: { readonly authState: AuthState }) {
+  if (authState === 'authenticated') {
+    return (
+      <div className="text-center">
+        <p className="text-base leading-7 text-gray-700">테스트 결과는 회원 추천에 자동 반영되지 않습니다. 기존 회원 기능은 마이페이지에서 계속 이용할 수 있습니다.</p>
+        <Link href="/dashboard" className="mt-5 inline-flex min-h-14 items-center justify-center rounded-xl bg-[#2E7D32] px-7 py-4 text-lg font-bold text-white hover:bg-[#256729]">
+          마이페이지로 이동
+        </Link>
+      </div>
+    );
+  }
+
+  if (authState === 'anonymous') {
+    return (
+      <div className="text-center">
+        <p className="text-base leading-7 text-gray-700">결과는 회원가입 없이 확인할 수 있습니다. ComMatch의 회원 기능을 이용하려면 가입하거나 로그인해 주세요.</p>
+        <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
+          <Link href="/signup" className="inline-flex min-h-14 items-center justify-center rounded-xl bg-[#2E7D32] px-7 py-4 text-lg font-bold text-white hover:bg-[#256729]">회원가입</Link>
+          <Link href="/login" className="inline-flex min-h-14 items-center justify-center rounded-xl border border-[#2E7D32] bg-white px-7 py-4 text-lg font-bold text-[#2E7D32] hover:bg-green-50">로그인</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === 'checking') {
+    return <p className="text-center text-base text-gray-600" role="status">회원 상태를 확인하고 있습니다.</p>;
+  }
+
+  return (
+    <div className="text-center">
+      <p className="text-base leading-7 text-gray-700">회원 상태를 확인하지 못했습니다. 테스트 결과는 현재 화면에서 계속 확인할 수 있습니다.</p>
+      <Link href="/" className="mt-5 inline-flex min-h-14 items-center justify-center rounded-xl border border-[#2E7D32] bg-white px-7 py-4 text-lg font-bold text-[#2E7D32] hover:bg-green-50">ComMatch 홈으로</Link>
+    </div>
+  );
+}
+
+function ResultScreen({ analysis, authState, onRestart, headingRef }: ResultScreenProps) {
+  const highlightedDomains = analysis.hasSimilarScores
+    ? []
+    : analysis.highestDomainIds.map(getDomainLabel);
+
+  return (
+    <div className="min-h-[calc(100vh-4rem)] bg-[#F4F8F4] px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
+      <div className="mx-auto max-w-5xl">
+        <header className="text-center">
+          <p className="text-sm font-black uppercase tracking-[0.16em] text-[#806B26]">Relationship Test Result</p>
+          <h1 ref={headingRef} tabIndex={-1} className="mt-3 text-3xl font-black tracking-tight text-[#183B1B] outline-none sm:text-4xl">나의 관계 성향 요약</h1>
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-gray-700 sm:text-lg sm:leading-8">{analysis.summary}</p>
+        </header>
+
+        <section aria-labelledby="scores-heading" className="mt-10 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-8">
+          <h2 id="scores-heading" className="text-2xl font-black text-[#183B1B]">6가지 관계 성향</h2>
+          <p className="mt-2 text-sm leading-6 text-gray-600">각 점수는 우열이나 궁합 확률이 아니라 응답이 해당 성향 방향에 가까운 정도를 나타냅니다.</p>
+          <div className="mt-7 space-y-6">
+            {analysis.domainResults.map((domain) => (
+              <div key={domain.domainId}>
+                <div className="mb-2 flex items-center justify-between gap-4">
+                  <span className="font-bold text-gray-800">{getDomainLabel(domain.domainId)}</span>
+                  <span className="shrink-0 font-black text-[#2E7D32]">{domain.displayScore} / 100</span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-label={`${getDomainLabel(domain.domainId)} ${domain.displayScore}점`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={domain.displayScore}
+                  className="h-3 overflow-hidden rounded-full bg-gray-100"
+                >
+                  <div className="h-full rounded-full bg-[#C8A951]" style={{ width: `${domain.displayScore}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section aria-labelledby="details-heading" className="mt-8">
+          <h2 id="details-heading" className="text-2xl font-black text-[#183B1B]">영역별 상세 분석</h2>
+          <div className="mt-5 space-y-4">
+            {analysis.domainResults.map((domain, index) => (
+              <details key={domain.domainId} open={index === 0} className="group rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 font-black text-gray-900">
+                  <span>
+                    <span className="block text-sm text-[#806B26]">{getDomainLabel(domain.domainId)}</span>
+                    <span className="mt-1 block text-lg sm:text-xl">{domain.title}</span>
+                  </span>
+                  <ChevronDown aria-hidden="true" className="shrink-0 transition-transform group-open:rotate-180" size={22} />
+                </summary>
+                <div className="mt-5 border-t border-gray-100 pt-5 text-base leading-7 text-gray-700">
+                  <p>{domain.description}</p>
+                  {domain.mixedDescription ? (
+                    <p className="mt-4 rounded-xl bg-[#F4F8F4] p-4 text-[#245F28]">
+                      <span className="font-black">응답 안에서 함께 나타난 모습</span><br />
+                      {domain.mixedDescription}
+                    </p>
+                  ) : null}
+                </div>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-[#C8A951]/35 bg-white p-6 sm:p-8" aria-labelledby="highlight-heading">
+          <h2 id="highlight-heading" className="text-2xl font-black text-[#183B1B]">응답에서 상대적으로 두드러진 영역</h2>
+          {analysis.hasSimilarScores ? (
+            <p className="mt-4 text-base leading-7 text-gray-700">전체 영역의 점수가 비슷해 특정 영역 하나를 강조하지 않았습니다. 여섯 영역의 설명을 함께 살펴보세요.</p>
+          ) : (
+            <>
+              <ul className="mt-4 flex flex-wrap gap-2">
+                {highlightedDomains.map((label) => <li key={label} className="rounded-full bg-[#F4F8F4] px-4 py-2 font-bold text-[#245F28]">{label}</li>)}
+              </ul>
+              <p className="mt-4 text-sm leading-6 text-gray-600">상대적으로 높은 점수는 더 좋은 성향이나 우월함을 의미하지 않습니다.</p>
+            </>
+          )}
+        </section>
+
+        <section className="mt-8 rounded-2xl bg-[#183B1B] p-6 text-white sm:p-8" aria-labelledby="conversation-heading">
+          <h2 id="conversation-heading" className="text-2xl font-black">상대방과 이야기해 볼 질문</h2>
+          <ol className="mt-6 grid gap-4 md:grid-cols-2">
+            {analysis.domainResults.map((domain) => (
+              <li key={domain.domainId} className="rounded-xl bg-white/10 p-4">
+                <span className="text-sm font-black text-[#E0C872]">{getDomainLabel(domain.domainId)}</span>
+                <p className="mt-2 leading-7 text-white/90">{domain.conversationQuestion}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8" aria-label="다음 행동 안내">
+          <ResultCta authState={authState} />
+        </section>
+
+        <aside className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-5 text-sm leading-6 text-gray-600 sm:p-6" aria-labelledby="limitation-heading">
+          <h2 id="limitation-heading" className="font-black text-gray-800">결과를 볼 때 참고해 주세요</h2>
+          <p className="mt-2">{analysis.limitation}</p>
+        </aside>
+
+        <div className="mt-8 text-center">
+          <button
+            type="button"
+            onClick={onRestart}
+            className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl border border-[#2E7D32] bg-white px-7 py-4 text-lg font-bold text-[#2E7D32] hover:bg-green-50"
+          >
+            <RotateCcw aria-hidden="true" size={20} />
+            다시 테스트하기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function MatchTestPage() {
+  const [testState, setTestState] = useState<MatchTestSessionState>(createInitialMatchTestState);
+  const [isRestored, setIsRestored] = useState(false);
+  const [authState, setAuthState] = useState<AuthState>('checking');
+  const questionHeadingRef = useRef<HTMLLegendElement>(null);
+  const resultHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const restored = readMatchTestSession(window.sessionStorage);
+      if (restored) setTestState(restored);
+      setIsRestored(true);
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  useEffect(() => {
+    if (!isRestored) return;
+    writeMatchTestSession(window.sessionStorage, testState, true);
+  }, [isRestored, testState]);
+
+  useEffect(() => {
+    let active = true;
+    void getCurrentUser()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setAuthState('error');
+          return;
+        }
+        setAuthState(data.user ? 'authenticated' : 'anonymous');
+      })
+      .catch(() => {
+        if (active) setAuthState('error');
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!isRestored) return;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const frame = window.requestAnimationFrame(() => {
+      if (testState.phase === 'result') resultHeadingRef.current?.focus();
+      else questionHeadingRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isRestored, testState.currentQuestionId, testState.phase]);
+
+  const currentIndex = MATCH_TEST_DISPLAY_ORDER.indexOf(testState.currentQuestionId);
+  const currentQuestion = MATCH_TEST_DISPLAY_QUESTIONS[currentIndex] ?? MATCH_TEST_DISPLAY_QUESTIONS[0];
+  const analysis = useMemo(
+    () => (testState.phase === 'result' ? createMatchTestResult(testState.answers) : null),
+    [testState.answers, testState.phase],
+  );
+
+  const dispatch = (action: MatchTestAction) => {
+    setTestState((current) => reduceMatchTestState(current, action));
+  };
+
+  const restart = () => {
+    clearMatchTestSession(window.sessionStorage);
+    dispatch({ type: 'restart' });
+  };
+
+  if (!isRestored) {
+    return <div className="min-h-[calc(100vh-4rem)] bg-[#F4F8F4]" aria-label="테스트 진행 상태 불러오는 중" />;
+  }
+
+  if (testState.phase === 'result' && analysis) {
+    return <ResultScreen analysis={analysis} authState={authState} onRestart={restart} headingRef={resultHeadingRef} />;
+  }
+
+  return (
+    <QuestionScreen
+      question={currentQuestion}
+      questionNumber={currentIndex + 1}
+      selectedAnswer={testState.answers[currentQuestion.id]}
+      onAnswer={(value) => dispatch({ type: 'answer', value })}
+      onPrevious={() => dispatch({ type: 'previous' })}
+      onNext={() => dispatch({ type: 'next' })}
+      headingRef={questionHeadingRef}
+    />
   );
 }

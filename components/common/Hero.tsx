@@ -1,61 +1,62 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
+const heroFacts = ['현재 무료 이용', '18문항 테스트', '6가지 관계 성향', '회원가입 없이 이용'] as const;
+
 const Hero = () => {
   return (
-    <section className="relative isolate overflow-hidden bg-[#F4F8F4] lg:min-h-[680px]">
-      <div className="relative z-20 mx-auto flex max-w-7xl px-4 pt-14 pb-5 sm:px-6 sm:pt-20 sm:pb-8 lg:min-h-[680px] lg:items-center lg:px-8 lg:py-24">
-        <div className="max-w-2xl lg:max-w-[56%] xl:max-w-[54%]">
-          <p className="inline-flex rounded-full border border-[#C8A951]/35 bg-white px-4 py-2 text-sm font-bold text-[#806B26] sm:text-base">
-            셀프 결혼매칭 ComMatch
+    <section className="relative isolate overflow-hidden bg-[#FFFDF8] text-[#173D29] lg:min-h-[520px]">
+      <div className="relative z-20 mx-auto flex max-w-7xl px-4 pb-7 pt-10 sm:px-6 sm:pb-9 sm:pt-14 lg:min-h-[520px] lg:items-center lg:px-8 lg:py-16">
+        <div className="max-w-xl lg:w-[47%]">
+          <p className="text-base font-black tracking-[-0.01em] text-[#E05D61] sm:text-lg">
+            좋은 사람을, 더 가까이!
           </p>
-          <h1 className="mt-6 text-4xl font-black leading-[1.2] tracking-tight text-[#183B1B] sm:text-5xl lg:text-[3.25rem]">
-            <span className="block">결혼 상대,</span>{' '}
-            <span className="block">이제 내가 직접 찾아보세요.</span>
+          <h1 className="mt-3 text-4xl font-black leading-[1.14] tracking-[-0.045em] text-[#123F27] sm:text-5xl lg:text-[3.45rem]">
+            진지한 만남이 좋은 인연이 됩니다.
           </h1>
-          <p className="mt-6 max-w-xl text-lg font-medium leading-8 text-gray-700 sm:text-xl sm:leading-9">
-            조건과 가치관을 확인하고 원하는 상대에게 직접 관심을 표현하는 셀프 결혼매칭 서비스
+          <p className="mt-5 max-w-lg text-base font-medium leading-7 text-[#405949] sm:text-lg sm:leading-8">
+            ComMatch는 가치관이 맞는 사람을 직접 찾아보고, 서로의 선택으로 인연을 이어가는 셀프매칭 서비스입니다.
           </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/match-test"
-              className="inline-flex min-h-14 items-center justify-center rounded-xl bg-[#2E7D32] px-7 py-4 text-base font-bold text-white shadow-md shadow-green-900/15 transition-colors hover:bg-[#256729] focus:outline-none focus:ring-4 focus:ring-[#2E7D32]/20 sm:text-lg"
+              className="inline-flex min-h-13 items-center justify-center rounded-full bg-[#175B35] px-7 py-3.5 font-black text-white shadow-lg shadow-[#175B35]/15 transition-colors hover:bg-[#104628] focus:outline-none focus:ring-4 focus:ring-[#175B35]/20"
             >
               내 매칭 성향 알아보기
             </Link>
             <Link
               href="/how-to-use"
-              className="inline-flex min-h-14 items-center justify-center rounded-xl border border-[#2E7D32]/35 bg-white px-7 py-4 text-base font-bold text-[#245F28] transition-colors hover:border-[#2E7D32] hover:bg-green-50 focus:outline-none focus:ring-4 focus:ring-[#2E7D32]/15 sm:text-lg"
+              className="inline-flex min-h-13 items-center justify-center rounded-full border border-[#175B35]/35 bg-[#FFFDF8]/90 px-7 py-3.5 font-black text-[#175B35] transition-colors hover:border-[#175B35] hover:bg-white focus:outline-none focus:ring-4 focus:ring-[#175B35]/15"
             >
               이용방법 보기
             </Link>
           </div>
 
-          <p className="mt-4 flex items-center gap-2 text-sm font-bold text-[#2E7D32]">
-            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#C8A951]" />
-            현재 무료 이용
-          </p>
+          <ul className="mt-6 grid grid-cols-2 gap-x-5 gap-y-2.5 text-xs font-bold text-[#53675A] sm:flex sm:flex-wrap sm:text-sm">
+            {heroFacts.map((fact) => (
+              <li key={fact} className="flex items-center gap-2">
+                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[#E77678]" />
+                {fact}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-10 hidden bg-[linear-gradient(90deg,rgba(244,248,244,0.97)_0%,rgba(244,248,244,0.90)_30%,rgba(244,248,244,0.62)_48%,rgba(244,248,244,0.10)_66%,transparent_80%)] lg:block"
+        className="pointer-events-none absolute inset-0 z-10 hidden bg-[linear-gradient(90deg,#FFFDF8_0%,rgba(255,253,248,0.98)_30%,rgba(255,253,248,0.7)_48%,rgba(255,253,248,0.05)_68%,transparent_78%)] lg:block"
       />
 
-      <div className="relative z-0 mx-4 mb-4 aspect-[3/2] w-auto overflow-hidden rounded-[1.5rem] bg-[#DCEADB] sm:mx-6 sm:mb-6 lg:absolute lg:inset-0 lg:m-0 lg:aspect-auto lg:rounded-none">
+      <div className="relative z-0 mx-4 mb-4 aspect-[3/2] overflow-hidden rounded-[1.5rem] bg-[#F0F6ED] sm:mx-6 sm:mb-6 lg:absolute lg:inset-0 lg:m-0 lg:aspect-auto lg:rounded-none">
         <Image
-          src="/images/hero/commatch-hero-couple.png"
-          alt="밝은 공간에서 편안하게 대화하는 남녀"
+          src="/images/landing/hero-couple-wide.webp"
+          alt="밝은 카페에서 편안하게 대화하는 커플"
           fill
           preload
           sizes="100vw"
-          className="object-cover object-center lg:object-[center_35%]"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-[linear-gradient(180deg,rgba(244,248,244,0.55)_0%,rgba(244,248,244,0.18)_45%,transparent_100%)] lg:hidden"
+          className="object-cover object-[62%_center] lg:object-center"
         />
       </div>
     </section>

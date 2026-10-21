@@ -26,6 +26,7 @@ const context = vm.createContext({
   require: (specifier) => {
     if (specifier === 'react/jsx-runtime') return { Fragment: Symbol('Fragment'), jsx, jsxs: jsx };
     if (specifier === 'next/link') return { __esModule: true, default: 'a' };
+    if (specifier === 'next/image') return { __esModule: true, default: 'img' };
     if (specifier === 'lucide-react') return new Proxy({}, { get: () => 'svg' });
     throw new Error(`Unexpected require: ${specifier}`);
   },
@@ -59,82 +60,135 @@ const findAll = (value, predicate, matches = []) => {
   return matches;
 };
 
-test('benefits keep the three approved self-matching promises', () => {
-  const tree = loadedModule.exports.LandingBenefits();
+const sampleDomainLabels = [
+  '감정 공유 개방성',
+  '갈등 대화와 공동 해결',
+  '공동생활 조율 선호',
+  '가족 교류 선호',
+  '개인 시간과 자율성',
+  '미래 계획의 구체성',
+];
+
+test('core approach keeps the about anchor and three factual service steps', () => {
+  const tree = loadedModule.exports.CoreApproach();
   const text = collectText(tree);
 
-  assert.match(text, /내가 직접 선택/);
-  assert.match(text, /가치관까지 확인/);
-  assert.match(text, /서로 관심이 있을 때 대화/);
+  assert.equal(tree.props.id, 'about');
+  assert.match(tree.props.className, /scroll-mt-/);
+  for (const copy of [
+    '직접 찾기',
+    '원하는 조건으로 상대방을 살펴봅니다.',
+    '서로 선택',
+    '일방적인 연결이 아닌 상호 관심을 바탕으로 매칭합니다.',
+    '매칭 후 대화',
+    '서로 연결된 뒤 대화를 시작합니다.',
+  ]) assert.match(text, new RegExp(copy));
+  assert.match(text, /프로필에서 상대방이 공개한 정보를 살펴보고, 관계 성향 테스트에서는 나의 관계 방식을 알아보세요\./);
 });
 
-test('match-test promotion is a static preview that links to the real test', () => {
+test('match-test promotion uses the approved three-part preview and factual copy', () => {
   const tree = loadedModule.exports.MatchTestPromo();
   const text = collectText(tree);
   const links = findAll(tree, (node) => node.type === 'a');
 
-  assert.match(text, /나는 관계에서 무엇을 중요하게 생각할까\?/);
-  assert.match(text, /18개 질문으로 감정 표현, 갈등 대화, 생활 조율 등 6가지 관계 성향을 살펴보세요\./);
-  assert.match(text, /18문항/);
-  assert.match(text, /6가지 관계 성향/);
-  assert.match(text, /회원가입 없이 이용 가능/);
-  assert.match(text, /마음이 힘들 때 연인에게 내 감정을 솔직하게 이야기하고 싶습니다\./);
-  for (const label of ['전혀 그렇지 않다', '그렇지 않은 편이다', '보통이다', '그런 편이다', '매우 그렇다']) {
-    assert.match(text, new RegExp(label));
+  for (const copy of [
+    '나와 맞는 사람은 어떤 사람일까요?',
+    '18가지 질문으로 나의 연애·결혼 관계 성향을 알아보세요.',
+    '감정 표현부터 갈등 대화, 생활 방식과 미래 계획까지 6가지 관계 성향을 살펴볼 수 있습니다.',
+    '회원가입 없이 결과를 확인할 수 있습니다.',
+    '질문 예시',
+    '가상 응답 결과 예시',
+  ]) {
+    assert.match(text, new RegExp(copy));
   }
-  assert.doesNotMatch(text, /약 1분|1분 매칭 테스트|10문항|데이트에서 더 중요한 것은|편안한 대화|새로운 경험/);
-  const matchTestLink = links.find((link) => link.props.href === '/match-test');
-  assert.ok(matchTestLink);
-  assert.match(collectText(matchTestLink), /관계 성향 테스트 시작/);
+  for (const domain of [
+    '감정 공유 개방성',
+    '갈등 대화와 공동 해결',
+    '공동생활 조율 선호',
+    '가족 교류 선호',
+    '개인 시간과 자율성',
+    '미래 계획의 구체성',
+  ]) assert.match(text, new RegExp(domain));
+  assert.match(text, /실제 회원 통계|궁합 확률|추천 점수가 아닙니다/);
+  assert.doesNotMatch(text, /프로필과 매칭 테스트를 통해 서로의 생각을 미리 확인할 수 있습니다/);
+  const testLink = links.find((link) => link.props.href === '/match-test');
+  assert.ok(testLink);
+  assert.match(collectText(testLink), /매칭테스트 시작하기/);
+
+  assert.match(tree.props.className, /py-8/);
+  const desktopGrid = findAll(tree, (node) => typeof node.props?.className === 'string'
+    && node.props.className.includes('lg:grid-cols-[0.74fr_1.08fr_1.18fr]'));
+  assert.equal(desktopGrid.length, 1);
+  const graphLabels = findAll(tree, (node) => node.type === 'span'
+    && typeof node.props?.className === 'string'
+    && node.props.className.includes('text-sm')
+    && sampleDomainLabels.some((label) => collectText(node) === label));
+  assert.equal(graphLabels.length, 6);
+  const graphBars = findAll(tree, (node) => node.props?.role === 'img');
+  assert.equal(graphBars.length, 6);
+  assert.ok(graphBars.every((bar) => bar.props.className.includes('h-full')));
 });
 
-test('service journey renders four clearly labelled example screens with synthetic content', () => {
+test('service journey renders the approved four factual steps and detailed guide link', () => {
   const tree = loadedModule.exports.ServiceJourney();
   const text = collectText(tree);
-  const exampleLabels = findAll(tree, (node) => collectText(node) === '서비스 화면 예시');
+  const links = findAll(tree, (node) => node.type === 'a');
 
-  for (const label of ['01 상대 찾기', '02 프로필 확인', '03 서로 관심 확인', '04 대화 시작']) {
+  assert.match(text, /이용방법은 간단합니다/);
+  for (const label of [
+    '01회원가입간단한 정보로 시작',
+    '02프로필 작성나와 원하는 인연에 관한 정보 입력',
+    '03조건 검색원하는 상대를 직접 탐색',
+    '04매칭 & 대화서로 연결되면 대화 시작',
+  ]) {
     assert.match(text, new RegExp(label));
   }
-  for (const syntheticContent of [
-    '예시 회원 · 38세',
-    '서울 · 기획 직군',
-    '대화와 배려를 중요하게 생각해요.',
-    '산책과 전시',
-    '함께 조율하기',
-    '서로 관심을 확인했어요',
-    '프로필의 여행 이야기가 인상적이었어요.',
-    '천천히 이야기 나눠봐요.',
-  ]) {
-    assert.match(text, new RegExp(syntheticContent));
-  }
-  assert.equal(exampleLabels.length, 4);
+  assert.ok(links.some((link) => link.props.href === '/how-to-use'));
+  assert.doesNotMatch(text, /매칭테스트.*필수|자동 매칭|즉시 채팅/);
+  const images = findAll(tree, (node) => node.type === 'img');
+  assert.equal(images.length, 1);
+  assert.equal(images[0].props.src, '/images/landing/journey-sunset-couple.webp');
+  assert.equal(images[0].props.sizes, '(min-width: 1024px) 34vw, 100vw');
 });
 
-test('comparison, trust, usage and final CTA expose only the approved landing claims', () => {
-  const comparisonText = collectText(loadedModule.exports.MatchingComparison());
-  const trustText = collectText(loadedModule.exports.TrustSafety());
-  const usageTree = loadedModule.exports.LandingHowToUse();
-  const usageText = collectText(usageTree);
-  const finalTree = loadedModule.exports.FinalMatchCta();
-  const finalText = collectText(finalTree);
-  const links = [usageTree, finalTree].flatMap((tree) => findAll(tree, (node) => node.type === 'a'));
+test('trust section preserves implemented protections and policy links without invented verification', () => {
+  const tree = loadedModule.exports.TrustSafety();
+  const text = collectText(tree);
+  const links = findAll(tree, (node) => node.type === 'a');
 
-  assert.match(comparisonText, /일반적인 소개 방식/);
-  assert.match(comparisonText, /ComMatch 셀프매칭/);
-  assert.match(comparisonText, /내 결혼 상대를 가장 잘 아는 사람은 결국 나 자신입니다\./);
-  for (const label of ['개인정보 보호', '상호 매칭', '신고 기능', '프로필·계정 관리']) {
-    assert.match(trustText, new RegExp(label));
+  assert.match(text, /안전하고 신뢰할 수 있는 ComMatch/);
+  for (const label of ['개인정보 보호', '신고 기능', '상호 매칭', '프로필·계정 관리']) {
+    assert.match(text, new RegExp(label));
   }
-  assert.doesNotMatch(trustText, /100%|완벽한 신원|휴대폰 본인인증 완료/);
-  for (const label of ['1회원가입', '2프로필 작성', '3상대 찾기', '4매칭 & 대화']) {
-    assert.match(usageText, new RegExp(label));
-  }
-  const howToUseLink = links.find((link) => link.props.href === '/how-to-use');
-  assert.ok(howToUseLink);
-  assert.match(collectText(howToUseLink), /자세한 이용방법 보기/);
-  assert.match(finalText, /좋은 인연을 기다리기만 하지 마세요\./);
-  const finalMatchTestLink = links.find((link) => link.props.href === '/match-test');
-  assert.ok(finalMatchTestLink);
-  assert.match(collectText(finalMatchTestLink), /내 매칭 성향 알아보기/);
+  assert.ok(links.some((link) => link.props.href === '/privacy'));
+  assert.ok(links.some((link) => link.props.href === '/terms'));
+  assert.doesNotMatch(text, /100%|완벽한 신원|신원 인증 완료|운영자가.*보증/);
+
+  assert.match(tree.props.className, /py-8/);
+  const cards = findAll(tree, (node) => node.type === 'article');
+  assert.equal(cards.length, 4);
+  assert.ok(cards.every((card) => /rounded-2xl/.test(card.props.className)));
+  assert.ok(cards.every((card) => /border/.test(card.props.className)));
+  const iconFrames = findAll(tree, (node) => node.type === 'span'
+    && typeof node.props?.className === 'string'
+    && node.props.className.includes('h-14')
+    && node.props.className.includes('w-14'));
+  assert.equal(iconFrames.length, 4);
+});
+
+test('final CTA uses the approved warm invitation and destinations', () => {
+  const tree = loadedModule.exports.FinalSignupCta();
+  const text = collectText(tree);
+  const links = findAll(tree, (node) => node.type === 'a');
+  const destinations = Object.fromEntries(links.map((link) => [collectText(link), link.props.href]));
+
+  assert.match(text, /지금, 좋은 인연을 시작해 보세요\./);
+  assert.match(text, /ComMatch가 당신의 새로운 시작을 응원합니다\./);
+  assert.equal(destinations['회원가입하기'], '/signup');
+  assert.equal(destinations['매칭테스트 먼저하기'], '/match-test');
+  assert.doesNotMatch(text, /영구 무료|평생 무료/);
+  const images = findAll(tree, (node) => node.type === 'img');
+  assert.equal(images.length, 1);
+  assert.equal(images[0].props.src, '/images/landing/cta-sunset-landscape.webp');
+  assert.equal(images[0].props.sizes, '100vw');
 });

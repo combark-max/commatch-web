@@ -63,37 +63,32 @@ const publicPageStubs = {
   '@/components/common/Hero': { __esModule: true, default: 'hero' },
   '@/components/common/Features': { __esModule: true, default: 'features' },
   '@/components/common/Footer': { __esModule: true, default: 'footer' },
+  '@/components/landing/BalanceGame': { __esModule: true, default: 'balance-game' },
   '@/components/landing/LandingSections': {
-    LandingBenefits: 'landing-benefits',
+    CoreApproach: 'core-approach',
     MatchTestPromo: 'match-test-promo',
     ServiceJourney: 'service-journey',
-    MatchingComparison: 'matching-comparison',
     TrustSafety: 'trust-safety',
-    LandingHowToUse: 'landing-how-to-use',
-    FinalMatchCta: 'final-match-cta',
+    FinalSignupCta: 'final-signup-cta',
   },
 };
 
-test('home renders the approved landing sections in order and keeps the about anchor', () => {
+test('home renders the approved landing sections in order', () => {
   const home = loadModule('app/(main)/page.tsx', publicPageStubs);
   const tree = home.default();
   const sectionTypes = [];
-  const ids = [];
   walk(tree, (node) => {
     if (typeof node.type === 'string' && node.type.includes('-')) sectionTypes.push(node.type);
-    if (typeof node.props?.id === 'string') ids.push(node.props.id);
   });
 
   assert.deepEqual(sectionTypes, [
-    'landing-benefits',
+    'core-approach',
     'match-test-promo',
+    'balance-game',
     'service-journey',
-    'matching-comparison',
     'trust-safety',
-    'landing-how-to-use',
-    'final-match-cta',
+    'final-signup-cta',
   ]);
-  assert.ok(ids.includes('about'));
 });
 
 test('desktop and mobile navigation both open the dedicated how-to-use page', () => {

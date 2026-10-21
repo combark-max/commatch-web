@@ -56,82 +56,33 @@ const findAll = (value, predicate, matches = []) => {
 
 const tree = loadedModule.exports.default();
 
-test('Hero presents the direct self-matching message without the founding-member notice', () => {
+test('Hero presents the approved bright relationship message and current-use notice once', () => {
   const text = collectText(tree);
 
-  assert.match(text, /셀프 결혼매칭 ComMatch/);
-  assert.match(text, /결혼 상대, 이제 내가 직접 찾아보세요\./);
-  assert.match(text, /조건과 가치관을 확인하고 원하는 상대에게 직접 관심을 표현하는 셀프 결혼매칭 서비스/);
-  assert.match(text, /현재 무료 이용/);
+  assert.match(text, /좋은 사람을, 더 가까이!/);
+  assert.match(text, /진지한 만남이 좋은 인연이 됩니다\./);
+  assert.match(text, /ComMatch는 가치관이 맞는 사람을 직접 찾아보고, 서로의 선택으로 인연을 이어가는 셀프매칭 서비스입니다\./);
+  assert.equal((text.match(/현재 무료 이용/g) ?? []).length, 1);
   assert.doesNotMatch(text, /첫 회원 20명|남성 10명|여성 10명/);
 });
 
-test('Hero links to the match test and detailed usage guide', () => {
-  const ctas = findAll(
-    tree,
-    (node) => node.type === 'a',
-  );
-
+test('Hero links to the relationship test and the detailed usage page', () => {
+  const ctas = findAll(tree, (node) => node.type === 'a');
   const destinations = Object.fromEntries(ctas.map((cta) => [collectText(cta), cta.props.href]));
+
   assert.equal(destinations['내 매칭 성향 알아보기'], '/match-test');
   assert.equal(destinations['이용방법 보기'], '/how-to-use');
 });
 
-test('Hero renders one full-width responsive LCP image', () => {
+test('Hero uses the generated full-width photograph with a separate mobile crop', () => {
   const images = findAll(tree, (node) => node.type === 'img');
-
   assert.equal(images.length, 1);
-  assert.equal(images[0].props.src, '/images/hero/commatch-hero-couple.png');
-  assert.match(images[0].props.alt, /대화하는 남녀/);
+  assert.equal(images[0].props.src, '/images/landing/hero-couple-wide.webp');
+  assert.match(images[0].props.alt, /대화하는 커플/);
   assert.equal(images[0].props.fill, true);
   assert.equal(images[0].props.preload, true);
   assert.equal(images[0].props.sizes, '100vw');
-  assert.match(images[0].props.className, /\bobject-cover\b/);
-  assert.match(images[0].props.className, /object-\[/);
-});
-
-test('Hero uses an isolated desktop background stack with non-blocking overlay', () => {
-  assert.equal(tree.type, 'section');
-  assert.match(tree.props.className, /\brelative\b/);
-  assert.match(tree.props.className, /\bisolate\b/);
-  assert.match(tree.props.className, /\boverflow-hidden\b/);
-  assert.match(tree.props.className, /lg:min-h-\[680px\]/);
-
-  const overlays = findAll(
-    tree,
-    (node) => typeof node.props?.className === 'string'
-      && node.props.className.includes('pointer-events-none')
-      && node.props.className.includes('z-10')
-      && node.props.className.includes('hidden')
-      && node.props.className.includes('lg:block'),
-  );
-  assert.equal(overlays.length, 1);
-  assert.equal(overlays[0].props['aria-hidden'], 'true');
-  assert.match(overlays[0].props.className, /\bhidden\b/);
-  assert.match(overlays[0].props.className, /\blg:block\b/);
-  assert.match(
-    overlays[0].props.className,
-    /linear-gradient\(90deg,rgba\(244,248,244,0\.97\)_0%,rgba\(244,248,244,0\.90\)_30%,rgba\(244,248,244,0\.62\)_48%,rgba\(244,248,244,0\.10\)_66%,transparent_80%\)/,
-  );
-
-  const contentLayers = findAll(
-    tree,
-    (node) => typeof node.props?.className === 'string'
-      && node.props.className.includes('z-20')
-      && collectText(node).includes('내 매칭 성향 알아보기'),
-  );
-  assert.equal(contentLayers.length, 1);
-});
-
-test('Hero keeps mobile copy before the single 3:2 image and prevents horizontal overflow', () => {
-  const sectionChildren = Array.isArray(tree.props.children)
-    ? tree.props.children
-    : [tree.props.children];
-  const copyIndex = sectionChildren.findIndex((child) => collectText(child).includes('결혼 상대, 이제 내가 직접 찾아보세요.'));
-  const imageIndex = sectionChildren.findIndex((child) => findAll(child, (node) => node.type === 'img').length === 1);
-
-  assert.ok(copyIndex >= 0);
-  assert.ok(imageIndex > copyIndex);
+  assert.match(images[0].props.className, /object-cover/);
 
   const imageLayers = findAll(
     tree,
@@ -140,27 +91,17 @@ test('Hero keeps mobile copy before the single 3:2 image and prevents horizontal
       && findAll(node, (child) => child.type === 'img').length === 1,
   );
   assert.equal(imageLayers.length, 1);
-  assert.match(imageLayers[0].props.className, /\bmx-4\b/);
-  assert.match(imageLayers[0].props.className, /\bw-auto\b/);
-  assert.match(imageLayers[0].props.className, /rounded-\[1\.5rem\]/);
-  assert.match(imageLayers[0].props.className, /\blg:m-0\b/);
-  assert.match(imageLayers[0].props.className, /\blg:rounded-none\b/);
-  assert.match(imageLayers[0].props.className, /\bz-0\b/);
-  assert.match(imageLayers[0].props.className, /\blg:absolute\b/);
-  assert.match(imageLayers[0].props.className, /\blg:inset-0\b/);
+  assert.match(imageLayers[0].props.className, /lg:absolute/);
+  assert.match(imageLayers[0].props.className, /lg:inset-0/);
+  assert.match(tree.props.className, /lg:min-h-/);
 });
 
-test('Hero blends the mobile image into the copy with a non-blocking fade', () => {
-  const fades = findAll(
-    tree,
-    (node) => typeof node.props?.className === 'string'
-      && node.props.className.includes('pointer-events-none')
-      && node.props.className.includes('lg:hidden')
-      && node.props.className.includes('linear-gradient(180deg'),
-  );
-
-  assert.equal(fades.length, 1);
-  assert.equal(fades[0].props['aria-hidden'], 'true');
-  assert.match(fades[0].props.className, /\bh-12\b/);
-  assert.match(fades[0].props.className, /\btop-0\b/);
+test('Hero uses the approved light palette without a dark full-screen overlay', () => {
+  assert.match(tree.props.className, /bg-\[#FFFDF8\]/);
+  assert.doesNotMatch(tree.props.className, /bg-\[#142B27\]/);
+  const darkOverlays = findAll(tree, (node) => typeof node.props?.className === 'string'
+    && node.props.className.includes('rgba(20,43,39,0.99)'));
+  assert.equal(darkOverlays.length, 0);
+  const ctas = findAll(tree, (node) => node.type === 'a');
+  assert.ok(ctas.every((cta) => /focus/.test(cta.props.className)));
 });

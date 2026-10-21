@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
 import Hero from '@/components/common/Hero';
 import Footer from '@/components/common/Footer';
+import BalanceGame from '@/components/landing/BalanceGame';
 import {
-  FinalMatchCta,
-  LandingBenefits,
-  LandingHowToUse,
-  MatchingComparison,
+  CoreApproach,
+  FinalSignupCta,
   MatchTestPromo,
   ServiceJourney,
   TrustSafety,
@@ -19,18 +18,15 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-white">
+    <div className="flex min-h-screen flex-col bg-[#FFFDF8]">
       <main className="flex-grow">
         <Hero />
-        <section id="about" className="bg-white">
-          <LandingBenefits />
-        </section>
+        <CoreApproach />
         <MatchTestPromo />
+        <BalanceGame />
         <ServiceJourney />
-        <MatchingComparison />
         <TrustSafety />
-        <LandingHowToUse />
-        <FinalMatchCta />
+        <FinalSignupCta />
       </main>
       <Footer />
     </div>

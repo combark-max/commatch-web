@@ -127,10 +127,13 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-black text-gray-900">5. 처리위탁 및 국외이전</h2>
-              <p className="mt-4">
-                ComMatch는 서비스 제공을 위해 외부 서비스를 이용하며, 이 과정에서 개인정보가 국외에서 처리될 수 있습니다.
-              </p>
+              <h2 className="text-xl font-black text-gray-900">5. 서비스 운영을 위한 외부 전문업체 이용</h2>
+              <div className="mt-4 space-y-3">
+                <p>ComMatch는 회원의 개인정보를 판매하거나 광고업체에 제공할 목적으로 외부업체를 이용하지 않습니다.</p>
+                <p>안정적인 서비스 제공을 위해 회원정보 보관, 로그인 인증, 인증 이메일 발송, 홈페이지 운영 등 일부 업무에 외부 전문업체의 서비스를 이용하고 있습니다.</p>
+                <p>이러한 업무는 서비스 운영에 필요한 범위에서 처리하며, 관련 법령에 따라 개인정보를 안전하게 관리하도록 노력하고 있습니다.</p>
+                <p>외부 전문업체의 업무 내용과 개인정보 처리에 관한 세부사항은 아래에서 안내합니다.</p>
+              </div>
               <div className="mt-5 space-y-6">
                 <div>
                   <h3 className="font-bold text-gray-900">Supabase</h3>

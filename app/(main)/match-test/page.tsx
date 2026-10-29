@@ -352,17 +352,32 @@ function ResultScreen({ analysis, authState, onRestart, headingRef }: ResultScre
   );
 }
 
+// Analytics loads separately; loading/transport errors cannot stop a test interaction.
+function trackTestEvent(name: 'match_test_start' | 'match_test_complete') {
+  void import('@/lib/analytics/promotion')
+    .then(({ trackPromotionEvent }) => trackPromotionEvent(name))
+    .catch(() => {});
+}
+
 export default function MatchTestPage() {
   const [testState, setTestState] = useState<MatchTestSessionState>(createInitialMatchTestState);
   const [isRestored, setIsRestored] = useState(false);
   const [authState, setAuthState] = useState<AuthState>('checking');
   const questionHeadingRef = useRef<HTMLLegendElement>(null);
   const resultHeadingRef = useRef<HTMLHeadingElement>(null);
+  const analyticsAttempt = useRef({ started: false, completed: false });
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       const restored = readMatchTestSession(window.sessionStorage);
-      if (restored) setTestState(restored);
+      if (restored) {
+        // Existing progress represents an existing attempt, not a new interaction.
+        analyticsAttempt.current = {
+          started: Object.keys(restored.answers).length > 0,
+          completed: restored.phase === 'result',
+        };
+        setTestState(restored);
+      }
       setIsRestored(true);
     }, 0);
     return () => window.clearTimeout(timeoutId);
@@ -407,12 +422,19 @@ export default function MatchTestPage() {
     [testState.answers, testState.phase],
   );
 
+  useEffect(() => {
+    if (!isRestored || !analysis || analyticsAttempt.current.completed) return;
+    analyticsAttempt.current.completed = true;
+    trackTestEvent('match_test_complete');
+  }, [isRestored, analysis]);
+
   const dispatch = (action: MatchTestAction) => {
     setTestState((current) => reduceMatchTestState(current, action));
   };
 
   const restart = () => {
     clearMatchTestSession(window.sessionStorage);
+    analyticsAttempt.current = { started: false, completed: false };
     dispatch({ type: 'restart' });
   };
 
@@ -429,7 +451,13 @@ export default function MatchTestPage() {
       question={currentQuestion}
       questionNumber={currentIndex + 1}
       selectedAnswer={testState.answers[currentQuestion.id]}
-      onAnswer={(value) => dispatch({ type: 'answer', value })}
+      onAnswer={(value) => {
+        if (!analyticsAttempt.current.started && Number.isInteger(value) && value >= 1 && value <= 5) {
+          analyticsAttempt.current.started = true;
+          trackTestEvent('match_test_start');
+        }
+        dispatch({ type: 'answer', value });
+      }}
       onPrevious={() => dispatch({ type: 'previous' })}
       onNext={() => dispatch({ type: 'next' })}
       headingRef={questionHeadingRef}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { trackPromotionEvent } from '@/lib/analytics/promotion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -43,6 +44,14 @@ const getSignupErrorMessage = (code?: string, status?: number) => {
 
 export default function SignupPage() {
   const router = useRouter();
+  const signupStarted = useRef(false);
+  const signupSubmitted = useRef(false);
+
+  useEffect(() => {
+    if (signupStarted.current) return;
+    signupStarted.current = true;
+    trackPromotionEvent('signup_start');
+  }, []);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -79,6 +88,11 @@ export default function SignupPage() {
         return;
       }
 
+      if (signUpData.user && !signupSubmitted.current) {
+        signupSubmitted.current = true;
+        trackPromotionEvent('signup_submitted');
+      }
+
       sessionStorage.setItem('commatch.pendingEmail', email);
       router.push(`/verify-email?email=${encodeURIComponent(email)}`);
     } catch {
@@ -112,7 +126,7 @@ export default function SignupPage() {
             </div>
           </header>
 
-          <form className="p-8 lg:p-14" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <form className="p-8 lg:p-14" onSubmit={(event) => handleSubmit(onSubmit)(event)} noValidate>
             <div className="grid gap-x-10 gap-y-7 lg:grid-cols-2">
               <div className="lg:col-span-2">
                 <label htmlFor="email" className="mb-2 block text-sm font-semibold text-gray-800">이메일</label>

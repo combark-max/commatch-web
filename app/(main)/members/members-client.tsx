@@ -47,6 +47,7 @@ export default function MembersClient({
   const router = useRouter();
   const supabase = createClient();
   const [isLoading, setIsLoading] = useState(true);
+  const [hasProfile, setHasProfile] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [advancedSearchState, setAdvancedSearchState] = useState<AdvancedSearchState>({
@@ -79,6 +80,7 @@ export default function MembersClient({
     const fetchMembers = async () => {
       setIsLoading(true);
       setError(null);
+      setHasProfile(null);
 
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -102,6 +104,14 @@ export default function MembersClient({
 
         if (profileError) {
           throw profileError;
+        }
+
+        if (!isMounted) return;
+        setHasProfile(currentProfile !== null);
+        if (currentProfile === null) {
+          setMembers([]);
+          setFavoriteIds(new Set());
+          return;
         }
 
         const expectedGender = currentProfile?.gender === '남성' ? '여성' : '남성';
@@ -248,7 +258,8 @@ export default function MembersClient({
     || selectedDrinking !== '전체'
     || hobbySearch.trim() !== '';
 
-  const shouldRunAdvancedSearch = canUseAdvancedSearch
+  const shouldRunAdvancedSearch = hasProfile === true
+    && canUseAdvancedSearch
     && hasAdvancedFilters
     && !heightFilterError;
   const advancedRequestKey = useMemo(() => JSON.stringify([
@@ -451,6 +462,17 @@ export default function MembersClient({
           <p className="mt-2 text-gray-600">ComMatch에서 활동 중인 멋진 회원들을 만나보세요.</p>
         </div>
 
+        {hasProfile === false ? (
+          <section className="rounded-[2rem] border border-green-100 bg-white p-6 shadow-sm sm:p-8" aria-labelledby="members-profile-onboarding-heading">
+            <h2 id="members-profile-onboarding-heading" className="text-xl font-bold text-gray-900">프로필을 작성하고 새로운 인연을 만나보세요</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-600">
+              아직 프로필이 등록되지 않았습니다. 닉네임, 성별, 생년월일 등 기본 정보부터 입력해 보세요.
+            </p>
+            <Link href="/profile/create" className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-green-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-green-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2">
+              프로필 작성 시작하기
+            </Link>
+          </section>
+        ) : <>
         <section className="mb-8 rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1.2fr]">
             <div className="space-y-2">
@@ -743,6 +765,7 @@ export default function MembersClient({
               ))}
           </div>
         )}
+        </>}
       </div>
 
       {toast && (

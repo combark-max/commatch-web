@@ -387,3 +387,259 @@ test('AI completeness excludes legacy missing but counts explicit privacy', () =
   assert.equal(calculateProfileCompleteness(profile, true), 100);
   assert.equal(calculateProfileCompleteness({ ...profile, drinking: '미입력' }, true), 93);
 });
+
+const onboardingTitle = '프로필을 작성하고 새로운 인연을 만나보세요';
+const onboardingDescription = '아직 프로필이 등록되지 않았습니다. 닉네임, 성별, 생년월일 등 기본 정보부터 입력해 보세요.';
+const walkElements = (value, predicate, found = []) => {
+  if (Array.isArray(value)) value.forEach((child) => walkElements(child, predicate, found));
+  else if (value && typeof value === 'object') {
+    if (typeof value.type === 'function') walkElements(value.type(value.props), predicate, found);
+    else {
+      if (predicate(value)) found.push(value);
+      walkElements(value.props?.children, predicate, found);
+    }
+  }
+  return found;
+};
+const pageText = (value) => {
+  if (Array.isArray(value)) return value.map(pageText).join('');
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (!value || typeof value !== 'object') return '';
+  return typeof value.type === 'function' ? pageText(value.type(value.props)) : pageText(value.props?.children);
+};
+
+// Exercise the actual page effects and re-render their state using isolated,
+// in-memory Supabase responses. No real auth, database or timers are used.
+const createPageHarness = (page, {
+  profile = null, profileError = null, profileThrows = false, profilePromise,
+  members = [], listError = null, advancedError = null, advancedThrows = false,
+  advancedMembers = [], canUseAdvancedSearch = true, user = { id: 'fixture-user' },
+} = {}) => {
+  const states = [], dependencies = [], cleanups = [], pendingEffects = [], calls = [], redirects = [];
+  const timers = new Map();
+  let slot = 0, timerId = 0;
+  const hooks = {
+    ...reactStub,
+    default: {},
+    useState(initial) {
+      const index = slot++;
+      if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial;
+      return [states[index], (value) => { states[index] = typeof value === 'function' ? value(states[index]) : value; }];
+    },
+    useRef(initial) {
+      const index = slot++;
+      return states[index] ??= { current: initial };
+    },
+    useEffect(effect, deps) {
+      const index = slot++;
+      if (!dependencies[index] || deps.some((dep, i) => !Object.is(dep, dependencies[index][i]))) {
+        dependencies[index] = deps;
+        pendingEffects.push(() => { cleanups[index]?.(); cleanups[index] = effect(); });
+      }
+    },
+  };
+  const supabase = {
+    auth: { getUser: async () => ({ data: { user }, error: null }) },
+    from(table) {
+      calls.push(table);
+      const query = {
+        select: () => query,
+        eq: () => query,
+        maybeSingle: async () => {
+          if (profileThrows) throw new Error('profile network failure');
+          return profilePromise ? await profilePromise : { data: profile, error: profileError };
+        },
+        then: (resolveResult) => Promise.resolve({ data: [], count: 0, error: null }).then(resolveResult),
+      };
+      return query;
+    },
+    async rpc(name) {
+      calls.push(name);
+      if (name === 'get_visible_member_summaries') return { data: members, error: listError };
+      if (name === 'search_members_advanced') {
+        if (advancedThrows) throw new Error('advanced network failure');
+        return { data: advancedMembers, error: advancedError };
+      }
+      return { data: name === 'get_my_premium_access' ? [{ is_available: false }] : [], error: null };
+    },
+  };
+  const pageModule = loadModule(page === 'dashboard' ? 'app/(main)/dashboard/page.tsx' : 'app/(main)/members/members-client.tsx', {
+    ...uiStubs,
+    react: hooks,
+    'next/link': { __esModule: true, default: 'a' },
+    'next/navigation': { useRouter: () => router },
+    '@/components/ui/Button': { __esModule: true, default: ({ children, ...props }) => jsx('button', { ...props, children }) },
+    '@/lib/supabase/client': { createClient: () => supabase },
+    '@/lib/profile-image': { ...uiStubs['@/lib/profile-image'], resolveProfileImagePath: (value) => value },
+    '@/lib/profile-image-batch': { getProfileImageDisplayUrl: () => null },
+    '@/lib/use-profile-image-batch': { useProfileImageBatchUrls: () => null },
+    '@/lib/member/advanced-search-parser': loadModule('lib/member/advanced-search-parser.ts', {
+      '@/lib/profile-image': loadModule('lib/profile-image.ts', {}, { process: { env: {} } }),
+    }),
+    '@/constants/regions': { REGIONS: ['상관없음'] },
+    '@/constants/jobs': { JOBS: ['상관없음'], STANDARD_JOB_VALUES: [] },
+  }, {
+    console: { error() {} },
+    window: { setTimeout(callback) { timers.set(++timerId, callback); return timerId; }, clearTimeout(id) { timers.delete(id); } },
+  });
+  let router = { replace: (path) => redirects.push(path), push: (path) => redirects.push(path) };
+  let tree;
+  const render = () => { slot = 0; tree = pageModule.default({ canUseAdvancedSearch, initialAdvancedOpen: true }); return tree; };
+  const flush = async () => {
+    for (const effect of pendingEffects.splice(0)) effect();
+    await new Promise((resolveTurn) => setImmediate(resolveTurn));
+    render();
+  };
+  const change = (placeholder, value) => {
+    const input = walkElements(tree, (node) => node.props?.placeholder === placeholder)[0];
+    assert.ok(input, placeholder + ' input');
+    input.props.onChange({ target: { value } });
+    render();
+  };
+  return { render, flush, change, calls, redirects, get tree() { return tree; },
+    async recheckProfile(promise) { profilePromise = promise; router = { ...router }; render(); await flush(); await flush(); },
+    async runTimers() {
+    for (const [id, callback] of [...timers]) { timers.delete(id); callback(); }
+    await new Promise((resolveTurn) => setImmediate(resolveTurn));
+    render();
+  } };
+};
+
+const assertOnboarding = (tree) => {
+  const text = pageText(tree);
+  assert.ok(text.includes(onboardingTitle));
+  assert.ok(text.includes(onboardingDescription));
+  const link = walkElements(tree, (node) => node.type === 'a' && pageText(node).trim() === '프로필 작성 시작하기');
+  assert.equal(link.length, 1);
+  assert.equal(link[0].props.href, '/profile/create');
+};
+
+test('dashboard shows onboarding only after a successful missing-profile response and preserves activity links', async () => {
+  const h = createPageHarness('dashboard');
+  assert.ok(!pageText(h.render()).includes(onboardingTitle));
+  await h.flush();
+  assertOnboarding(h.tree);
+  for (const href of ['/ai-match', '/favorites', '/matches', '/members', '/preference']) {
+    assert.ok(walkElements(h.tree, (node) => node.type === 'a' && node.props.href === href).length, href);
+  }
+  assert.equal(h.calls.filter((name) => name === 'profiles').length, 1);
+});
+
+test('dashboard preserves low and zero completeness profiles and never labels a failed lookup as missing', async () => {
+  for (const profile of [{}, { nickname: '기존회원', gender: '남성', birth_date: '1990-01-01' }]) {
+    const h = createPageHarness('dashboard', { profile }); h.render(); await h.flush();
+    assert.ok(!pageText(h.tree).includes(onboardingTitle));
+    assert.ok(pageText(h.tree).includes('프로필을 조금만 더 작성하면 더 좋은 추천을 받을 수 있습니다.'));
+  }
+  for (const options of [{ profileError: { message: 'offline' } }, { profileThrows: true }]) {
+    const h = createPageHarness('dashboard', options); h.render(); await h.flush();
+    assert.ok(!pageText(h.tree).includes(onboardingTitle));
+    assert.ok(pageText(h.tree).includes('프로필 정보를 확인할 수 없습니다.'));
+  }
+});
+
+test('members missing-profile onboarding skips list, favorites and advanced requests', async () => {
+  const h = createPageHarness('members'); h.render(); await h.flush();
+  assertOnboarding(h.tree);
+  assert.ok(pageText(h.tree).includes('회원 둘러보기'));
+  assert.equal(walkElements(h.tree, (node) => node.type === 'input').length, 0);
+  await h.runTimers();
+  assert.deepEqual(h.calls, ['profiles']);
+});
+
+const memberFixture = { id: '00000000-0000-4000-8000-000000000002', nickname: '후보회원', age: 30,
+  gender: '여성', region: '서울', job: '연구원', introduction: '', profile_image: null };
+
+test('members preserve normal cards, filters, favorites and advanced search for an existing profile', async () => {
+  const h = createPageHarness('members', { profile: { gender: '남성' }, members: [memberFixture], advancedMembers: [memberFixture] });
+  h.render(); await h.flush();
+  assert.ok(pageText(h.tree).includes('후보회원'));
+  assert.ok(h.calls.includes('favorites'));
+  h.change('닉네임으로 검색하세요', '없는이름');
+  assert.ok(pageText(h.tree).includes('검색 결과가 없습니다.'));
+  h.change('닉네임으로 검색하세요', '');
+  h.change('최소 키', '160'); await h.flush(); await h.runTimers();
+  assert.ok(h.calls.includes('search_members_advanced'));
+  assert.ok(pageText(h.tree).includes('후보회원'));
+  assert.ok(!pageText(h.tree).includes(onboardingTitle));
+});
+
+test('members distinguish a missing profile from an existing null-gender profile and an empty member list', async () => {
+  for (const profile of [{ gender: null }, { gender: '남성' }]) {
+    const h = createPageHarness('members', { profile }); h.render(); await h.flush();
+    assert.ok(!pageText(h.tree).includes(onboardingTitle));
+    assert.ok(h.calls.includes('get_visible_member_summaries'));
+    assert.ok(pageText(h.tree).includes('아직 등록된 회원이 없습니다.'));
+  }
+});
+
+test('members keep profile and list errors separate from missing-profile onboarding', async () => {
+  for (const options of [{ profileError: { message: 'offline' } }, { profileThrows: true },
+    { profile: { gender: '남성' }, listError: { code: '42501' } }]) {
+    const h = createPageHarness('members', options); h.render(); await h.flush();
+    assert.ok(pageText(h.tree).includes('회원 목록을 불러오는 중 오류가 발생했습니다.'));
+    assert.ok(!pageText(h.tree).includes(onboardingTitle));
+    if (!options.listError) {
+      h.change('최소 키', '160'); await h.flush(); await h.runTimers();
+      assert.deepEqual(h.calls, ['profiles']);
+    }
+  }
+});
+
+test('members defer advanced search while the profile lookup is pending', async () => {
+  let resolveProfile;
+  const h = createPageHarness('members', { profile: { gender: '남성' }, members: [memberFixture] });
+  h.render(); await h.flush();
+  h.change('최소 키', '160'); await h.flush();
+  await h.recheckProfile(new Promise((resolveResult) => { resolveProfile = resolveResult; }));
+  await h.runTimers();
+  assert.ok(pageText(h.tree).includes('회원 목록을 불러오는 중...'));
+  assert.ok(!h.calls.includes('search_members_advanced'));
+  resolveProfile({ data: null, error: null }); await h.flush(); await h.runTimers();
+  assertOnboarding(h.tree);
+  assert.ok(!h.calls.includes('search_members_advanced'));
+});
+
+test('members preserve advanced RPC and network errors with retry and the Premium gate', async () => {
+  for (const options of [{ advancedError: { code: '42501' } }, { advancedThrows: true }]) {
+    const h = createPageHarness('members', { profile: { gender: '남성' }, members: [memberFixture], ...options });
+    h.render(); await h.flush(); h.change('최소 키', '160'); await h.flush(); await h.runTimers();
+    assert.ok(pageText(h.tree).includes('고급 검색 결과를 불러오지 못했습니다.'));
+    const retry = walkElements(h.tree, (node) => node.type === 'button' && pageText(node) === '다시 시도')[0];
+    assert.ok(retry); retry.props.onClick(); h.render(); await h.flush(); await h.runTimers();
+    assert.equal(h.calls.filter((name) => name === 'search_members_advanced').length, 2);
+  }
+  const h = createPageHarness('members', { profile: { gender: '남성' }, canUseAdvancedSearch: false });
+  h.render(); await h.flush(); h.change('최소 키', '160'); await h.flush(); await h.runTimers();
+  assert.ok(!h.calls.includes('search_members_advanced'));
+});
+
+test('anonymous pages retain login navigation without onboarding or member queries', async () => {
+  for (const page of ['dashboard', 'members']) {
+    const h = createPageHarness(page, { user: null }); h.render(); await h.flush();
+    assert.deepEqual(h.redirects, ['/login']);
+    assert.deepEqual(h.calls, []);
+    assert.ok(!pageText(h.tree).includes(onboardingTitle));
+  }
+});
+
+test('existing server access guards retain login, consent and suspension destinations', async () => {
+  for (const [kind, destination] of [['anonymous', '/login'], ['error', '/account-suspended'],
+    ['suspended', '/account-suspended'], ['consent_required', '/consent'], ['allowed', null]]) {
+    const accessModule = loadModule('lib/member/access.ts', {
+      'server-only': {},
+      'next/navigation': { redirect: (path) => { throw new Error(path); } },
+      '@/lib/supabase/server': { createServerSupabaseClient: async () => ({
+        auth: { getUser: async () => ({ data: { user: kind === 'anonymous' ? null : { id: 'fixture-user' } }, error: null }) },
+        rpc: async () => ({ data: [], error: kind === 'error' ? {} : null }),
+      }) },
+      '@/lib/member/access-parser': { parseMemberAccessRpcResponse: () => ({ isAllowed: kind !== 'suspended' }) },
+      '@/lib/consent/server': {
+        getCurrentConsentStatus: async () => ({ kind: 'valid', user: { createdAt: '' }, latestByType: {} }),
+        assessConsentAccess: () => ({ canAccess: kind !== 'consent_required' }),
+      },
+    });
+    if (destination) await assert.rejects(accessModule.requireMemberServiceAccess(), { message: destination });
+    else assert.equal((await accessModule.requireMemberServiceAccess()).isAllowed, true);
+  }
+});

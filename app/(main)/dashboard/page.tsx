@@ -355,7 +355,17 @@ export default function DashboardPage() {
             </div>
           ) : null}
 
-          {!profileError && profileCompletion < 80 ? (
+          {!profileError && profile === null ? (
+            <div className="border-t border-green-100 bg-green-50 px-7 py-5 md:px-9">
+              <h3 className="text-lg font-bold text-green-900">프로필을 작성하고 새로운 인연을 만나보세요</h3>
+              <p className="mt-2 text-sm leading-6 text-gray-700">
+                아직 프로필이 등록되지 않았습니다. 닉네임, 성별, 생년월일 등 기본 정보부터 입력해 보세요.
+              </p>
+              <Link href="/profile/create" className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-green-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-green-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2">
+                프로필 작성 시작하기 <ChevronRight className="h-5 w-5 shrink-0" aria-hidden="true" />
+              </Link>
+            </div>
+          ) : !profileError && profileCompletion < 80 ? (
             <Link
               href="/profile/create"
               className="flex items-center justify-between gap-4 border-t border-green-100 bg-green-50 px-7 py-5 text-sm font-semibold text-green-800 transition hover:bg-green-100 md:px-9"

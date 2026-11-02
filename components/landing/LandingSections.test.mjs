@@ -61,12 +61,12 @@ const findAll = (value, predicate, matches = []) => {
 };
 
 const sampleDomainLabels = [
-  '감정 공유 개방성',
-  '갈등 대화와 공동 해결',
-  '공동생활 조율 선호',
-  '가족 교류 선호',
+  '감정 표현과 소통',
+  '갈등과 화해',
+  '결혼생활 조율',
+  '가족 교류',
   '개인 시간과 자율성',
-  '미래 계획의 구체성',
+  '미래 계획',
 ];
 
 test('core approach keeps the about anchor and three factual service steps', () => {
@@ -101,14 +101,7 @@ test('match-test promotion uses the approved three-part preview and factual copy
   ]) {
     assert.match(text, new RegExp(copy));
   }
-  for (const domain of [
-    '감정 공유 개방성',
-    '갈등 대화와 공동 해결',
-    '공동생활 조율 선호',
-    '가족 교류 선호',
-    '개인 시간과 자율성',
-    '미래 계획의 구체성',
-  ]) assert.match(text, new RegExp(domain));
+  for (const domain of sampleDomainLabels) assert.match(text, new RegExp(domain));
   assert.match(text, /실제 회원 통계|궁합 확률|추천 점수가 아닙니다/);
   assert.doesNotMatch(text, /프로필과 매칭 테스트를 통해 서로의 생각을 미리 확인할 수 있습니다/);
   const testLink = links.find((link) => link.props.href === '/match-test');
@@ -119,14 +112,93 @@ test('match-test promotion uses the approved three-part preview and factual copy
   const desktopGrid = findAll(tree, (node) => typeof node.props?.className === 'string'
     && node.props.className.includes('lg:grid-cols-[0.74fr_1.08fr_1.18fr]'));
   assert.equal(desktopGrid.length, 1);
-  const graphLabels = findAll(tree, (node) => node.type === 'span'
-    && typeof node.props?.className === 'string'
-    && node.props.className.includes('text-sm')
-    && sampleDomainLabels.some((label) => collectText(node) === label));
-  assert.equal(graphLabels.length, 6);
-  const graphBars = findAll(tree, (node) => node.props?.role === 'img');
-  assert.equal(graphBars.length, 6);
-  assert.ok(graphBars.every((bar) => bar.props.className.includes('h-full')));
+  assert.equal(findAll(tree, (node) => node.type === 'svg' && node.props.role === 'img').length, 1);
+});
+
+test('sample radar preserves ordered v3 labels, exact scores and the fictional-result notice', () => {
+  const tree = loadedModule.exports.MatchTestPromo();
+  const list = findAll(tree, (node) => node.type === 'dl');
+  assert.equal(list.length, 1);
+  assert.deepEqual(findAll(list[0], (node) => node.type === 'dt').map(collectText), sampleDomainLabels);
+  assert.deepEqual(findAll(list[0], (node) => node.type === 'dd').map(collectText),
+    ['75점', '58점', '67점', '42점', '83점', '58점']);
+  assert.ok(collectText(tree).includes('화면 이해를 위한 가상 예시이며 실제 회원 통계·궁합 확률·추천 점수가 아닙니다.'));
+  const svg = findAll(tree, (node) => node.type === 'svg' && node.props.role === 'img')[0];
+  assert.equal(svg.props.viewBox, '0 0 400 400');
+  assert.match(svg.props.className, /w-full/);
+  const ids = new Map(findAll(svg, (node) => node.props?.id).map((node) => [node.props.id, node]));
+  const labelledBy = svg.props['aria-labelledby'].split(' ');
+  assert.equal(labelledBy.length, 2);
+  assert.equal(ids.get(labelledBy[0])?.type, 'title');
+  assert.match(collectText(ids.get(labelledBy[0])), /가상.*예시/);
+  const description = ids.get(labelledBy[1]);
+  assert.equal(description?.type, 'desc');
+  const text = collectText(description);
+  assert.match(text, /가상.*예시/);
+  assert.match(text, /위.*시계 방향/);
+  sampleDomainLabels.forEach((label, i) => assert.ok(text.includes(label + ' ' + [75, 58, 67, 42, 83, 58][i] + '점')));
+});
+
+test('sample radar plots proportional vertices clockwise from the top and fixed grid levels', () => {
+  const tree = loadedModule.exports.MatchTestPromo();
+  const data = findAll(tree, (node) => node.props?.['data-sample-radar'] === 'data');
+  assert.equal(data.length, 1);
+  // Hand-checked Cartesian fixtures, independent of the production coordinate helper.
+  const expected = [[200, 110], [260.275368103397, 165.2], [269.628442464267, 240.2],
+    [200, 250.4], [113.743869782886, 249.8], [139.724631896603, 165.2]];
+  const vertices = data[0].props.points.split(' ').map((pair) => pair.split(',').map(Number));
+  assert.equal(vertices.length, 6);
+  vertices.forEach(([x, y], i) => {
+    assert.ok(Math.abs(x - expected[i][0]) < 1e-6, 'x coordinate on axis ' + i);
+    assert.ok(Math.abs(y - expected[i][1]) < 1e-6, 'y coordinate on axis ' + i);
+  });
+  const grids = findAll(tree, (node) => node.type === 'polygon' && node.props['data-grid']);
+  assert.deepEqual(grids.map((node) => node.props['data-grid']), [25, 50, 75, 100]);
+  grids.forEach((grid, i) => {
+    const points = grid.props.points.split(' ').map((pair) => pair.split(',').map(Number));
+    assert.equal(points.length, 6);
+    points.forEach(([x, y]) => assert.ok(Math.abs(Math.hypot(x - 200, y - 200) - [30, 60, 90, 120][i]) < 1e-8));
+  });
+  const dots = findAll(tree, (node) => node.props?.['data-sample-radar'] === 'vertex');
+  assert.equal(dots.length, 6);
+  dots.forEach((dot, i) => {
+    assert.equal(dot.props.cx, vertices[i][0]);
+    assert.equal(dot.props.cy, vertices[i][1]);
+  });
+  const badges = findAll(tree, (node) => node.props?.['data-sample-axis'] !== undefined);
+  assert.equal(badges.length, 6);
+  assert.deepEqual(badges.map(collectText), ['75', '58', '67', '42', '83', '58']);
+});
+
+test('sample radar resolves paint and accessibility IDs locally and clips gloss to the exact data polygon', () => {
+  const tree = loadedModule.exports.MatchTestPromo();
+  const svg = findAll(tree, (node) => node.type === 'svg' && node.props.role === 'img')[0];
+  assert.ok(svg);
+  const idNodes = findAll(svg, (node) => node.props?.id);
+  const ids = new Map(idNodes.map((node) => [node.props.id, node]));
+  assert.equal(ids.size, idNodes.length);
+  assert.ok([...ids.keys()].every((id) => id.startsWith('landing-sample-radar-')));
+  for (const node of findAll(svg, () => true)) {
+    for (const key of ['fill', 'stroke', 'filter', 'clipPath']) {
+      const reference = /^url\(#(.+)\)$/.exec(node.props[key] ?? '');
+      if (reference) assert.ok(ids.has(reference[1]), 'unresolved ' + key + ' reference');
+    }
+  }
+  const data = findAll(svg, (node) => node.props?.['data-sample-radar'] === 'data')[0];
+  const paint = ids.get(/^url\(#(.+)\)$/.exec(data.props.fill)?.[1]);
+  assert.equal(paint?.type, 'linearGradient');
+  assert.deepEqual(findAll(paint, (node) => node.type === 'stop').map((node) => node.props.stopColor),
+    ['#86EFAC', '#FDE68A', '#93C5FD', '#C4B5FD', '#99F6E4', '#FDA4AF']);
+  assert.ok(findAll(paint, (node) => node.type === 'stop').every((node) => Number(node.props.stopOpacity) > 0 && Number(node.props.stopOpacity) < 1));
+  const shadow = ids.get(/^url\(#(.+)\)$/.exec(data.props.filter)?.[1]);
+  assert.equal(findAll(shadow, (node) => node.type === 'feDropShadow').length, 1);
+  const gloss = findAll(svg, (node) => node.props?.['data-sample-radar'] === 'gloss')[0];
+  assert.equal(gloss.props['aria-hidden'], 'true');
+  const clip = ids.get(/^url\(#(.+)\)$/.exec(gloss.props.clipPath)?.[1]);
+  assert.equal(clip?.type, 'clipPath');
+  assert.equal(findAll(clip, (node) => node.type === 'polygon')[0].props.points, data.props.points);
+  const highlight = findAll(gloss, (node) => node.type === 'rect')[0];
+  assert.equal(ids.get(/^url\(#(.+)\)$/.exec(highlight.props.fill)?.[1])?.type, 'radialGradient');
 });
 
 test('service journey renders the approved four factual steps and detailed guide link', () => {

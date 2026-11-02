@@ -2,8 +2,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {
   ArrowRight,
+  Coffee,
+  Compass,
   Flag,
+  Heart,
   HeartHandshake,
+  House,
   LockKeyhole,
   MessagesSquare,
   Search,
@@ -11,6 +15,7 @@ import {
   SlidersHorizontal,
   UserCog,
   UserRound,
+  Users,
 } from 'lucide-react';
 
 const coreSteps = [
@@ -53,13 +58,24 @@ export function CoreApproach() {
 }
 
 const sampleDomainScores = [
-  { label: '감정 공유 개방성', score: 75 },
-  { label: '갈등 대화와 공동 해결', score: 58 },
-  { label: '공동생활 조율 선호', score: 67 },
-  { label: '가족 교류 선호', score: 42 },
-  { label: '개인 시간과 자율성', score: 83 },
-  { label: '미래 계획의 구체성', score: 58 },
+  { label: '감정 표현과 소통', score: 75, color: '#175B35', icon: Heart },
+  { label: '갈등과 화해', score: 58, color: '#B45309', icon: MessagesSquare },
+  { label: '결혼생활 조율', score: 67, color: '#2563EB', icon: House },
+  { label: '가족 교류', score: 42, color: '#7C3AED', icon: Users },
+  { label: '개인 시간과 자율성', score: 83, color: '#0F766E', icon: Coffee },
+  { label: '미래 계획', score: 58, color: '#A94146', icon: Compass },
 ] as const;
+
+function getSampleRadarPoint(index: number, score: number, radius = 120) {
+  const angle = (-90 + index * 60) * Math.PI / 180;
+  const distance = radius * score / 100;
+  return { x: 200 + distance * Math.cos(angle), y: 200 + distance * Math.sin(angle) };
+}
+
+const sampleRadarPoints = (level?: number) => sampleDomainScores.map(({ score }, index) => {
+  const point = getSampleRadarPoint(index, level ?? score);
+  return `${point.x},${point.y}`;
+}).join(' ');
 
 const previewOptions = ['전혀 아니다', '아니다', '보통', '그렇다', '매우 그렇다'] as const;
 
@@ -106,29 +122,91 @@ export function MatchTestPromo() {
             </div>
           </div>
 
-          <figure className="rounded-[1.5rem] bg-[#F0F6ED] p-4 sm:p-5">
+          <figure className="min-w-0 rounded-[1.5rem] bg-[#F0F6ED] p-4 sm:p-5">
             <figcaption>
               <span className="text-lg font-black text-[#175B35]">가상 응답 결과 예시</span>
               <span className="mt-1 block text-xs font-bold text-[#718177]">6개 영역 · 0–100점</span>
             </figcaption>
-            <div className="mt-4 space-y-2.5">
-              {sampleDomainScores.map(({ label, score }) => (
-                <div key={label}>
-                  <div className="flex items-end justify-between gap-3">
-                    <span className="min-w-0 text-sm font-bold leading-5 text-[#405949]">{label}</span>
-                    <span className="shrink-0 text-sm font-black text-[#E05D61]">{score}점</span>
-                  </div>
-                  <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-white">
-                    <div
-                      className="h-full rounded-full bg-[#E77678]"
-                      style={{ width: `${score}%` }}
-                      role="img"
-                      aria-label={`${label} 가상 예시 점수 ${score}점`}
-                    />
-                  </div>
+            <div className="mt-3 min-w-0 rounded-2xl border border-white bg-[radial-gradient(ellipse_at_top_left,#E8F5EF_0%,#F1F4FF_45%,#FFF1F3_100%)]">
+              <svg
+                role="img"
+                aria-labelledby="landing-sample-radar-title landing-sample-radar-desc"
+                viewBox="0 0 400 400"
+                className="mx-auto block h-auto w-full max-w-[280px]"
+              >
+                <title id="landing-sample-radar-title">6가지 관계 성향 가상 응답 결과 예시</title>
+                <desc id="landing-sample-radar-desc">
+                  {`화면 이해를 위한 가상 예시입니다. 위에서 시작하여 시계 방향으로 ${sampleDomainScores.map(({ label, score }) => `${label} ${score}점`).join(', ')}. 고정 0–100 눈금이며 실제 회원 통계·궁합 확률·추천 점수가 아닙니다.`}
+                </desc>
+                <defs>
+                  <linearGradient id="landing-sample-radar-fill" gradientUnits="userSpaceOnUse" x1="95" y1="85" x2="310" y2="315">
+                    <stop offset="0%" stopColor="#86EFAC" stopOpacity=".66" />
+                    <stop offset="20%" stopColor="#FDE68A" stopOpacity=".56" />
+                    <stop offset="40%" stopColor="#93C5FD" stopOpacity=".6" />
+                    <stop offset="60%" stopColor="#C4B5FD" stopOpacity=".62" />
+                    <stop offset="80%" stopColor="#99F6E4" stopOpacity=".56" />
+                    <stop offset="100%" stopColor="#FDA4AF" stopOpacity=".64" />
+                  </linearGradient>
+                  <radialGradient id="landing-sample-radar-gloss" gradientUnits="userSpaceOnUse" cx="178" cy="155" r="145">
+                    <stop offset="0%" stopColor="white" stopOpacity=".55" />
+                    <stop offset="55%" stopColor="white" stopOpacity=".12" />
+                    <stop offset="100%" stopColor="white" stopOpacity="0" />
+                  </radialGradient>
+                  <clipPath id="landing-sample-radar-data-clip"><polygon points={sampleRadarPoints()} /></clipPath>
+                  <filter id="landing-sample-radar-shadow" filterUnits="userSpaceOnUse" x="60" y="60" width="280" height="280">
+                    <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#65768C" floodOpacity=".18" />
+                  </filter>
+                  <filter id="landing-sample-radar-badge-shadow" x="-25%" y="-20%" width="150%" height="150%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#64748B" floodOpacity=".12" />
+                  </filter>
+                  {sampleDomainScores.map(({ label, color }, index) => (
+                    <radialGradient key={label} id={`landing-sample-radar-badge-${index}`} cx="25%" cy="15%" r="90%">
+                      <stop offset="0%" stopColor="white" />
+                      <stop offset="55%" stopColor={color} stopOpacity=".08" />
+                      <stop offset="100%" stopColor={color} stopOpacity=".24" />
+                    </radialGradient>
+                  ))}
+                </defs>
+                <polygon points={sampleRadarPoints(100)} fill="white" fillOpacity=".45" />
+                {sampleDomainScores.map(({ label, color }, index) => {
+                  const end = getSampleRadarPoint(index, 100);
+                  return <line key={label} x1="200" y1="200" x2={end.x} y2={end.y} stroke={color} strokeOpacity=".22" />;
+                })}
+                {[25, 50, 75, 100].map((level) => (
+                  <polygon key={level} data-grid={level} points={sampleRadarPoints(level)} fill="none" stroke="#8798AB" strokeOpacity={level === 100 ? '.48' : '.3'} strokeWidth="1" />
+                ))}
+                <polygon data-sample-radar="data" points={sampleRadarPoints()} fill="url(#landing-sample-radar-fill)" stroke="#527A7D" strokeOpacity=".9" strokeWidth="2" strokeLinejoin="round" filter="url(#landing-sample-radar-shadow)" />
+                <g data-sample-radar="gloss" aria-hidden="true" clipPath="url(#landing-sample-radar-data-clip)">
+                  <rect x="80" y="80" width="240" height="240" fill="url(#landing-sample-radar-gloss)" />
+                </g>
+                {[25, 50, 75, 100].map((level) => (
+                  <text key={level} x="205" y={200 - 120 * level / 100 + 12} fill="#475569" fontSize="12" paintOrder="stroke" stroke="white" strokeOpacity=".85" strokeWidth="3" strokeLinejoin="round">{level}</text>
+                ))}
+                {sampleDomainScores.map(({ label, score, color, icon: Icon }, index) => {
+                  const point = getSampleRadarPoint(index, score);
+                  const badge = getSampleRadarPoint(index, 100, 161);
+                  return (
+                    <g key={label}>
+                      <circle data-sample-radar="vertex" cx={point.x} cy={point.y} r="3.5" fill={color} stroke="white" strokeWidth="1.5" />
+                      <g data-sample-axis={index} aria-hidden="true" transform={`translate(${badge.x} ${badge.y})`}>
+                        <rect x="-22" y="-25" width="44" height="50" rx="22" fill="white" fillOpacity=".9" stroke={color} strokeOpacity=".18" filter="url(#landing-sample-radar-badge-shadow)" />
+                        <circle cx="0" cy="-8" r="12" fill={`url(#landing-sample-radar-badge-${index})`} />
+                        <Icon aria-hidden="true" x={-8} y={-16} width={16} height={16} color={color} strokeWidth={1.7} />
+                        <text x="0" y="18" textAnchor="middle" fill={color} fontSize="16" fontWeight="600">{score}</text>
+                      </g>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+            <dl className="mt-3 grid min-w-0 grid-cols-2 gap-x-3 gap-y-2">
+              {sampleDomainScores.map(({ label, score, color }) => (
+                <div key={label} className="min-w-0 rounded-xl bg-white/70 px-2.5 py-2">
+                  <dt className="text-xs font-bold leading-5 text-[#405949] [overflow-wrap:anywhere]">{label}</dt>
+                  <dd className="text-sm font-black tabular-nums" style={{ color }}>{score}점</dd>
                 </div>
               ))}
-            </div>
+            </dl>
             <p className="mt-4 border-t border-[#175B35]/12 pt-3 text-xs leading-5 text-[#68786E]">
               화면 이해를 위한 가상 예시이며 실제 회원 통계·궁합 확률·추천 점수가 아닙니다.
             </p>
